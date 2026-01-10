@@ -196,6 +196,122 @@ colorScheme:
 }
 ```
 
+## Proxmox VE Integration
+
+LCDPossible can display real-time metrics from your Proxmox VE cluster, including node status, VM/container information, and cluster alerts.
+
+### Creating a Proxmox API Token
+
+1. Log into the Proxmox web interface
+2. Navigate to **Datacenter** > **Permissions** > **API Tokens**
+3. Click **Add** to create a new token:
+   - **User**: Select or create a user (e.g., `monitor@pve`)
+   - **Token ID**: Enter a name (e.g., `lcdpossible`)
+   - **Privilege Separation**: Uncheck for full user permissions, or leave checked for token-specific permissions
+4. Click **Add** and **copy the token secret** (it won't be shown again)
+
+The resulting Token ID format will be: `user@realm!tokenid` (e.g., `monitor@pve!lcdpossible`)
+
+### Required Permissions
+
+For the API token to access cluster metrics, grant these permissions:
+
+```bash
+# Minimal permissions for monitoring
+pveum aclmod / -user monitor@pve -role PVEAuditor
+```
+
+Or create a custom role with specific permissions:
+- `Sys.Audit` - View system information
+- `VM.Audit` - View VM configuration and status
+- `Datastore.Audit` - View storage information
+
+### Proxmox Configuration
+
+Add the Proxmox settings to your `appsettings.json`:
+
+```json
+{
+  "LCDPossible": {
+    "Proxmox": {
+      "Enabled": true,
+      "ApiUrl": "https://proxmox.local:8006",
+      "TokenId": "monitor@pve!lcdpossible",
+      "TokenSecret": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+      "IgnoreSslErrors": true,
+      "PollingIntervalSeconds": 5,
+      "ShowVms": true,
+      "ShowContainers": true,
+      "ShowAlerts": true,
+      "MaxDisplayItems": 10
+    },
+    "Devices": {
+      "default": {
+        "Mode": "slideshow",
+        "Slideshow": "proxmox-summary|15,proxmox-vms|15,cpu-usage-graphic|10"
+      }
+    }
+  }
+}
+```
+
+### Configuration Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `Enabled` | `false` | Enable/disable Proxmox integration |
+| `ApiUrl` | - | Proxmox API URL (e.g., `https://192.168.1.100:8006`) |
+| `TokenId` | - | API token ID in format `user@realm!tokenid` |
+| `TokenSecret` | - | API token secret (UUID format) |
+| `IgnoreSslErrors` | `false` | Skip SSL certificate verification (for self-signed certs) |
+| `PollingIntervalSeconds` | `5` | How often to fetch metrics from Proxmox |
+| `ShowVms` | `true` | Display individual VM status |
+| `ShowContainers` | `true` | Display individual LXC container status |
+| `ShowAlerts` | `true` | Display cluster alerts and warnings |
+| `MaxDisplayItems` | `10` | Maximum VMs/containers to display |
+
+### Proxmox Display Panels
+
+Use these panel types in your slideshow or single-panel configuration:
+
+| Panel | Description |
+|-------|-------------|
+| `proxmox-summary` | Cluster overview with node status, total resources, and alerts |
+| `proxmox-vms` | List of VMs and containers with status indicators |
+
+**Example slideshow configuration:**
+
+```json
+{
+  "Devices": {
+    "default": {
+      "Mode": "slideshow",
+      "Slideshow": "proxmox-summary|20,proxmox-vms|15,cpu-usage-graphic|10,ram-usage-graphic|10"
+    }
+  }
+}
+```
+
+### Troubleshooting Proxmox Connection
+
+**Connection refused or timeout:**
+- Verify the Proxmox host is reachable: `curl -k https://proxmox.local:8006/api2/json/version`
+- Check firewall rules allow port 8006
+
+**401 Unauthorized:**
+- Verify TokenId format is correct (`user@realm!tokenid`)
+- Ensure the token secret is correct and not expired
+- Check the user/token has the required permissions
+
+**SSL certificate errors:**
+- Set `"IgnoreSslErrors": true` for self-signed certificates
+- Or install a valid SSL certificate on Proxmox
+
+**No VMs/containers shown:**
+- Verify `ShowVms` and `ShowContainers` are set to `true`
+- Check the token has `VM.Audit` permission
+- Ensure VMs/containers exist and are visible to the user
+
 ## Linux USB Permissions
 
 If you get "access denied" errors, install the udev rules:
