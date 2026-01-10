@@ -4,6 +4,8 @@ using LCDPossible.Core.Rendering;
 using LCDPossible.Core.Usb;
 using LCDPossible;
 using LCDPossible.Cli;
+using LCDPossible.Monitoring;
+using LCDPossible.Panels;
 using Microsoft.Extensions.Hosting.WindowsServices;
 using Serilog;
 using SixLabors.ImageSharp;
@@ -128,8 +130,9 @@ static async Task<int> RunCliAsync(string[] args)
         "status" => ShowStatus(),
         "test" => await TestPattern(GetDeviceIndex(args)),
         "set-image" => await SetImage(args),
+        "show" => await ShowPanels(args),
         "debug" => await DebugTest.RunAsync(),
-        "profile" => ShowProfileInfo(),
+        "show-profile" => ShowProfileInfo(args),
         "generate-profile" => GenerateSampleProfile(args),
         "help" or "h" or "?" => ShowHelp(),
         "version" or "v" => ShowVersion(),
@@ -158,7 +161,8 @@ CLI COMMANDS:
     status                  Show status of connected devices and configuration
     test                    Display a test pattern on the LCD
     set-image               Send an image file to the LCD display
-    profile                 Show current display profile information
+    show                    Quick display panels (inline profile format)
+    show-profile            Show current or specified profile information
     generate-profile        Generate a sample profile YAML file
 
 GENERAL OPTIONS:
@@ -174,13 +178,26 @@ IMAGE OPTIONS:
 PROFILE OPTIONS:
     --output, -o <file>     Output path for generate-profile command
 
+SHOW COMMAND:
+    Quick display of panels using inline profile format:
+    Format: {{panel}}|@{{param}}={{value}}@{{param}}={{value}},{{panel}},...
+
+    Parameters:
+      @duration=N           How long to show this panel (seconds, default: 15)
+      @interval=N           How often to refresh data (seconds, default: 5)
+      @background=path      Background image for the panel
+
 EXAMPLES:
     lcdpossible serve                         Start service in foreground
     lcdpossible list                          List all connected LCD devices
     lcdpossible test                          Send test pattern to first device
     lcdpossible test -d 1                     Send test pattern to second device
     lcdpossible set-image -p wallpaper.jpg    Display an image
-    lcdpossible profile                       Show loaded profile info
+    lcdpossible show basic-info               Show basic info panel
+    lcdpossible show basic-info|@duration=10  Show with 10s duration
+    lcdpossible show basic-info,cpu-usage-graphic   Show multiple panels
+    lcdpossible show-profile                  Show loaded profile info
+    lcdpossible show-profile c:\my-profile.yaml    Show specific profile
     lcdpossible generate-profile              Generate sample YAML to console
     lcdpossible generate-profile -o profile.yaml   Save sample to file
 
@@ -281,6 +298,182 @@ static string? GetOutputPath(string[] args)
         }
     }
     return null;
+}
+
+static string? GetShowProfile(string[] args)
+{
+    // For "show" command, the profile can be passed as:
+    // 1. lcdpossible show basic-info (second arg is the profile)
+    // 2. lcdpossible -show basic-info (first arg is -show, second is profile)
+    // 3. lcdpossible show -p basic-info (using -p flag)
+
+    // Check for explicit -p or --profile flag first
+    for (var i = 0; i < args.Length - 1; i++)
+    {
+        if (args[i] is "--profile" or "-p")
+        {
+            return args[i + 1];
+        }
+    }
+
+    // Otherwise, take the argument after "show"
+    for (var i = 0; i < args.Length - 1; i++)
+    {
+        var arg = args[i].ToLowerInvariant().TrimStart('-', '/');
+        if (arg == "show")
+        {
+            var nextArg = args[i + 1];
+            // Make sure it's not another flag
+            if (!nextArg.StartsWith("-") && !nextArg.StartsWith("/"))
+            {
+                return nextArg;
+            }
+        }
+    }
+
+    return null;
+}
+
+static async Task<int> ShowPanels(string[] args)
+{
+    var profile = GetShowProfile(args);
+    var deviceIndex = GetDeviceIndex(args);
+
+    if (string.IsNullOrEmpty(profile))
+    {
+        Console.Error.WriteLine("Error: No panels specified.");
+        Console.Error.WriteLine();
+        Console.Error.WriteLine("Usage: lcdpossible show <panels>");
+        Console.Error.WriteLine();
+        Console.Error.WriteLine("Format: {panel}|@{param}={value}@{param}={value},{panel},...");
+        Console.Error.WriteLine();
+        Console.Error.WriteLine("Examples:");
+        Console.Error.WriteLine("  lcdpossible show basic-info");
+        Console.Error.WriteLine("  lcdpossible show basic-info|@duration=10");
+        Console.Error.WriteLine("  lcdpossible show basic-info|@duration=10@interval=5");
+        Console.Error.WriteLine("  lcdpossible show basic-info,cpu-usage-graphic,gpu-usage-graphic");
+        Console.Error.WriteLine("  lcdpossible show cpu-usage-graphic|@duration=15,ram-usage-graphic|@duration=10");
+        Console.Error.WriteLine();
+        Console.Error.WriteLine("Parameters:");
+        Console.Error.WriteLine("  @duration=N   How long to show this panel (seconds, default: 15)");
+        Console.Error.WriteLine("  @interval=N   How often to refresh data (seconds, default: 5)");
+        Console.Error.WriteLine("  @background=path  Background image for the panel");
+        Console.Error.WriteLine();
+        Console.Error.WriteLine("Available panels:");
+        foreach (var p in PanelFactory.AvailablePanels)
+        {
+            Console.Error.WriteLine($"  {p}");
+        }
+        return 1;
+    }
+
+    // Validate the profile
+    var (isValid, error) = InlineProfileParser.Validate(profile);
+    if (!isValid)
+    {
+        Console.Error.WriteLine($"Error: {error}");
+        return 1;
+    }
+
+    // Parse the profile
+    var items = InlineProfileParser.Parse(profile);
+    Console.WriteLine($"Parsed {items.Count} panel(s) from inline profile");
+
+    // Find device
+    using var enumerator = new HidSharpEnumerator();
+    using var deviceManager = new DeviceManager(enumerator);
+    DriverRegistry.RegisterAllDrivers(deviceManager, enumerator);
+
+    var devices = deviceManager.DiscoverDevices().ToList();
+
+    if (devices.Count == 0)
+    {
+        Console.Error.WriteLine("Error: No LCD devices found.");
+        return 1;
+    }
+
+    if (deviceIndex < 0 || deviceIndex >= devices.Count)
+    {
+        Console.Error.WriteLine($"Error: Invalid device index {deviceIndex}. Available: 0-{devices.Count - 1}");
+        return 1;
+    }
+
+    var device = devices[deviceIndex];
+    Console.WriteLine($"Connecting to: {device.Info.Name}");
+
+    try
+    {
+        await device.ConnectAsync();
+        Console.WriteLine("Connected!");
+
+        // Create system info provider
+        using var systemProvider = new LocalHardwareProvider();
+        await systemProvider.InitializeAsync();
+
+        // Create panel factory and slideshow manager
+        var panelFactory = new PanelFactory(systemProvider);
+        using var slideshow = new SlideshowManager(panelFactory, items);
+        await slideshow.InitializeAsync();
+
+        Console.WriteLine($"Running slideshow with {items.Count} panel(s)...");
+        Console.WriteLine("Press any key to stop.\n");
+
+        var encoder = new JpegImageEncoder { Quality = 95 };
+        var cts = new CancellationTokenSource();
+
+        // Run slideshow until key is pressed
+        var keyTask = Task.Run(() =>
+        {
+            Console.ReadKey(intercept: true);
+            cts.Cancel();
+        });
+
+        var frameInterval = TimeSpan.FromMilliseconds(1000.0 / 30); // 30 FPS
+        var lastFrameTime = DateTime.UtcNow;
+
+        while (!cts.Token.IsCancellationRequested)
+        {
+            try
+            {
+                var frame = await slideshow.RenderCurrentFrameAsync(
+                    device.Capabilities.Width,
+                    device.Capabilities.Height,
+                    cts.Token);
+
+                if (frame != null)
+                {
+                    var encoded = encoder.Encode(frame, device.Capabilities);
+                    await device.SendFrameAsync(encoded, ColorFormat.Jpeg, cts.Token);
+                    frame.Dispose();
+                }
+
+                // Maintain frame rate
+                var elapsed = DateTime.UtcNow - lastFrameTime;
+                var delay = frameInterval - elapsed;
+                if (delay > TimeSpan.Zero)
+                {
+                    await Task.Delay(delay, cts.Token);
+                }
+                lastFrameTime = DateTime.UtcNow;
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+        }
+
+        Console.WriteLine("\nStopped.");
+        return 0;
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"Error: {ex.Message}");
+        return 1;
+    }
+    finally
+    {
+        await device.DisconnectAsync();
+    }
 }
 
 static int ListDevices()
@@ -469,23 +662,43 @@ static Image<Rgba32> GenerateTestPattern(int width, int height)
     return image;
 }
 
-static int ShowProfileInfo()
+static int ShowProfileInfo(string[] args)
 {
     Console.WriteLine("Display Profile Information\n");
 
-    // Show search paths
-    Console.WriteLine("Profile search paths (in order):");
-    foreach (var path in ProfileLoader.GetProfileSearchPaths())
-    {
-        var exists = File.Exists(path);
-        var marker = exists ? "[FOUND]" : "[not found]";
-        Console.WriteLine($"  {marker} {path}");
-    }
-    Console.WriteLine();
+    // Check if a specific profile path was provided
+    string? profilePath = GetProfileFilePath(args);
+    DisplayProfile profile;
 
-    // Load and display profile
-    var loader = new ProfileLoader();
-    var profile = loader.LoadProfile();
+    if (!string.IsNullOrEmpty(profilePath))
+    {
+        // Load from specified file
+        if (!File.Exists(profilePath))
+        {
+            Console.Error.WriteLine($"Error: Profile file not found: {profilePath}");
+            return 1;
+        }
+
+        Console.WriteLine($"Loading profile from: {profilePath}\n");
+        var loader = new ProfileLoader();
+        profile = loader.LoadProfileFromFile(profilePath);
+    }
+    else
+    {
+        // Show search paths and load default
+        Console.WriteLine("Profile search paths (in order):");
+        foreach (var path in ProfileLoader.GetProfileSearchPaths())
+        {
+            var exists = File.Exists(path);
+            var marker = exists ? "[FOUND]" : "[not found]";
+            Console.WriteLine($"  {marker} {path}");
+        }
+        Console.WriteLine();
+
+        // Load and display profile
+        var loader = new ProfileLoader();
+        profile = loader.LoadProfile();
+    }
 
     Console.WriteLine($"Active Profile: {profile.Name}");
     if (!string.IsNullOrEmpty(profile.Description))
@@ -514,6 +727,26 @@ static int ShowProfileInfo()
     }
 
     return 0;
+}
+
+static string? GetProfileFilePath(string[] args)
+{
+    // For "show-profile" command, check for path after the command
+    // lcdpossible show-profile c:\temp\profile.yaml
+    for (var i = 0; i < args.Length - 1; i++)
+    {
+        var arg = args[i].ToLowerInvariant().TrimStart('-', '/');
+        if (arg == "show-profile")
+        {
+            var nextArg = args[i + 1];
+            // Make sure it's not another flag
+            if (!nextArg.StartsWith("-") && !nextArg.StartsWith("/"))
+            {
+                return nextArg;
+            }
+        }
+    }
+    return null;
 }
 
 static int GenerateSampleProfile(string[] args)
