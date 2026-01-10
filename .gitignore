@@ -1,0 +1,136 @@
+# =============================================================================
+# Build Outputs
+# =============================================================================
+/.build/
+/.dist/
+/.tools/
+**/bin/
+**/obj/
+*.exe
+*.dll
+*.pdb
+*.cache
+
+# =============================================================================
+# IDE and Editors
+# =============================================================================
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# =============================================================================
+# .NET / NuGet
+# =============================================================================
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# NuGet v3 cache
+~/.nuget/packages
+
+# =============================================================================
+# Testing
+# =============================================================================
+**/TestResults/
+**/coverage/
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+lcov.info
+
+# =============================================================================
+# Logs and Diagnostics
+# =============================================================================
+*.log
+*.logs
+logs/
+*.diagsession
+*.dmp
+
+# =============================================================================
+# OS Generated
+# =============================================================================
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*~
+
+# =============================================================================
+# Secrets and Environment
+# =============================================================================
+*.env
+*.env.local
+*.env.*.local
+appsettings.Local.json
+appsettings.*.Local.json
+secrets.json
+.secrets/
+
+# User secrets (keep in global store, not repo)
+secrets/
+
+# =============================================================================
+# Publish / Deploy
+# =============================================================================
+publish/
+*.zip
+*.tar.gz
+
+# =============================================================================
+# Miscellaneous
+# =============================================================================
+# Backup files
+*.bak
+*.backup
+*.orig
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+.temp/
+
+# Node (if using npm tools)
+node_modules/
+npm-debug.log*
+
+# Docker
+.docker/
+
+# =============================================================================
+# Project-specific
+# =============================================================================
+# Claude Code local config
+.claude/
+!CLAUDE.md
+
+# MCP debug tools
+.mcp-debug-tools/

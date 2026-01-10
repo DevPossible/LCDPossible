@@ -1,0 +1,14 @@
+<Project>
+  <PropertyGroup>
+    <!-- Redirect bin/obj to /.build/{ProjectName}/ folder -->
+    <BaseOutputPath>$(MSBuildThisFileDirectory).build\$(MSBuildProjectName)\bin\</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory).build\$(MSBuildProjectName)\obj\</BaseIntermediateOutputPath>
+
+    <!-- Package output -->
+    <PackageOutputPath>$(MSBuildThisFileDirectory).build\packages\</PackageOutputPath>
+
+    <!-- Ensure paths end with slash -->
+    <OutputPath>$(BaseOutputPath)$(Configuration)\</OutputPath>
+    <IntermediateOutputPath>$(BaseIntermediateOutputPath)$(Configuration)\</IntermediateOutputPath>
+  </PropertyGroup>
+</Project>
