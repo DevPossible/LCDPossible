@@ -4,6 +4,11 @@ on:
   push:
     branches: [main, master]
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build artifacts for (e.g., 0.1.1). Leave empty for normal release-please flow.'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -35,8 +40,11 @@ jobs:
   build-artifacts:
     name: Build (${{ matrix.runtime }})
     needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
+    if: needs.release-please.outputs.release_created == 'true' || inputs.version != ''
     runs-on: ${{ matrix.os }}
+    env:
+      VERSION: ${{ inputs.version || needs.release-please.outputs.version }}
+      TAG_NAME: ${{ inputs.version && format('v{0}', inputs.version) || needs.release-please.outputs.tag_name }}
     strategy:
       fail-fast: false
       matrix:
@@ -65,6 +73,7 @@ jobs:
           dotnet-quality: 'preview'
 
       - name: Publish
+        shell: bash
         run: |
           dotnet publish src/LCDPossible/LCDPossible.csproj \
             --configuration Release \
@@ -72,31 +81,34 @@ jobs:
             --self-contained true \
             -p:PublishSingleFile=true \
             -p:IncludeNativeLibrariesForSelfExtract=true \
-            -p:Version=${{ needs.release-please.outputs.version }} \
+            -p:Version=${{ env.VERSION }} \
             --output ./publish
 
       - name: Create archive (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          Compress-Archive -Path ./publish/* -DestinationPath ./lcdpossible-${{ needs.release-please.outputs.version }}-${{ matrix.runtime }}.zip
+          Compress-Archive -Path ./publish/* -DestinationPath ./lcdpossible-${{ env.VERSION }}-${{ matrix.runtime }}.zip
 
       - name: Create archive (Linux/macOS)
         if: matrix.os != 'windows-latest'
         run: |
-          tar -czvf ./lcdpossible-${{ needs.release-please.outputs.version }}-${{ matrix.runtime }}.tar.gz -C ./publish .
+          tar -czvf ./lcdpossible-${{ env.VERSION }}-${{ matrix.runtime }}.tar.gz -C ./publish .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: lcdpossible-${{ matrix.runtime }}
-          path: ./lcdpossible-${{ needs.release-please.outputs.version }}-${{ matrix.runtime }}${{ matrix.artifact_ext }}
+          path: ./lcdpossible-${{ env.VERSION }}-${{ matrix.runtime }}${{ matrix.artifact_ext }}
 
   build-installers:
     name: Build Installers
     needs: [release-please, build-artifacts]
-    if: needs.release-please.outputs.release_created == 'true'
+    if: needs.release-please.outputs.release_created == 'true' || inputs.version != ''
     runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ inputs.version || needs.release-please.outputs.version }}
+      TAG_NAME: ${{ inputs.version && format('v{0}', inputs.version) || needs.release-please.outputs.tag_name }}
 
     steps:
       - name: Checkout
@@ -116,12 +128,12 @@ jobs:
       - name: Build DEB package
         run: |
           chmod +x ./installer/linux/debian/build-deb.sh
-          ./installer/linux/debian/build-deb.sh ${{ needs.release-please.outputs.version }}
+          ./installer/linux/debian/build-deb.sh ${{ env.VERSION }}
 
       - name: Build RPM package
         run: |
           chmod +x ./installer/linux/rpm/build-rpm.sh
-          ./installer/linux/rpm/build-rpm.sh ${{ needs.release-please.outputs.version }}
+          ./installer/linux/rpm/build-rpm.sh ${{ env.VERSION }}
 
       - name: Upload DEB package
         uses: actions/upload-artifact@v4
@@ -138,8 +150,10 @@ jobs:
   upload-to-release:
     name: Upload to Release
     needs: [release-please, build-artifacts, build-installers]
-    if: needs.release-please.outputs.release_created == 'true'
+    if: needs.release-please.outputs.release_created == 'true' || inputs.version != ''
     runs-on: ubuntu-latest
+    env:
+      TAG_NAME: ${{ inputs.version && format('v{0}', inputs.version) || needs.release-please.outputs.tag_name }}
 
     steps:
       - name: Download all artifacts
@@ -153,7 +167,7 @@ jobs:
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          tag_name: ${{ env.TAG_NAME }}
           files: |
             ./artifacts/lcdpossible-win-x64/*
             ./artifacts/lcdpossible-linux-x64/*
