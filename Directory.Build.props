@@ -1,5 +1,16 @@
 <Project>
   <PropertyGroup>
+    <!-- Version (managed by Release Please) -->
+    <Version>0.1.0</Version>
+
+    <!-- Package metadata -->
+    <Authors>LCDPossible Contributors</Authors>
+    <Description>Cross-platform LCD controller service for HID-based displays</Description>
+    <RepositoryUrl>https://github.com/DevPossible/LCDPossible</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+
     <!-- Redirect bin/obj to /.build/{ProjectName}/ folder -->
     <BaseOutputPath>$(MSBuildThisFileDirectory).build\$(MSBuildProjectName)\bin\</BaseOutputPath>
     <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory).build\$(MSBuildProjectName)\obj\</BaseIntermediateOutputPath>

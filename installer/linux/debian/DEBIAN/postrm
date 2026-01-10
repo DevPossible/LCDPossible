@@ -1,0 +1,12 @@
+#!/bin/bash
+set -e
+
+# Remove symlink
+rm -f /usr/local/bin/lcdpossible
+
+# Remove udev rules
+rm -f /etc/udev/rules.d/99-lcdpossible.rules
+udevadm control --reload-rules || true
+
+# Reload systemd
+systemctl daemon-reload || true

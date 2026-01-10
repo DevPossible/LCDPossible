@@ -1,0 +1,163 @@
+name: Release
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+
+    steps:
+      - name: Release Please
+        id: release
+        uses: google-github-actions/release-please-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: .github/release-please-config.json
+          manifest-file: .github/release-please-manifest.json
+
+  build-artifacts:
+    name: Build (${{ matrix.runtime }})
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runtime: win-x64
+            os: windows-latest
+            artifact_ext: .zip
+          - runtime: linux-x64
+            os: ubuntu-latest
+            artifact_ext: .tar.gz
+          - runtime: linux-arm64
+            os: ubuntu-latest
+            artifact_ext: .tar.gz
+          - runtime: osx-x64
+            os: macos-latest
+            artifact_ext: .tar.gz
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: 'preview'
+
+      - name: Publish
+        run: |
+          dotnet publish src/LCDPossible/LCDPossible.csproj \
+            --configuration Release \
+            --runtime ${{ matrix.runtime }} \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:Version=${{ needs.release-please.outputs.version }} \
+            --output ./publish
+
+      - name: Create archive (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path ./publish/* -DestinationPath ./lcdpossible-${{ needs.release-please.outputs.version }}-${{ matrix.runtime }}.zip
+
+      - name: Create archive (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        run: |
+          tar -czvf ./lcdpossible-${{ needs.release-please.outputs.version }}-${{ matrix.runtime }}.tar.gz -C ./publish .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lcdpossible-${{ matrix.runtime }}
+          path: ./lcdpossible-${{ needs.release-please.outputs.version }}-${{ matrix.runtime }}${{ matrix.artifact_ext }}
+
+  build-installers:
+    name: Build Installers
+    needs: [release-please, build-artifacts]
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: 'preview'
+
+      - name: Build DEB package
+        run: |
+          chmod +x ./installer/linux/debian/build-deb.sh
+          ./installer/linux/debian/build-deb.sh ${{ needs.release-please.outputs.version }}
+
+      - name: Build RPM package
+        run: |
+          chmod +x ./installer/linux/rpm/build-rpm.sh
+          ./installer/linux/rpm/build-rpm.sh ${{ needs.release-please.outputs.version }}
+
+      - name: Upload DEB package
+        uses: actions/upload-artifact@v4
+        with:
+          name: lcdpossible-deb
+          path: ./installer/linux/debian/*.deb
+
+      - name: Upload RPM package
+        uses: actions/upload-artifact@v4
+        with:
+          name: lcdpossible-rpm
+          path: ./installer/linux/rpm/*.rpm
+
+  upload-to-release:
+    name: Upload to Release
+    needs: [release-please, build-artifacts, build-installers]
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Display structure of downloaded files
+        run: ls -R ./artifacts
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          files: |
+            ./artifacts/lcdpossible-win-x64/*
+            ./artifacts/lcdpossible-linux-x64/*
+            ./artifacts/lcdpossible-linux-arm64/*
+            ./artifacts/lcdpossible-osx-x64/*
+            ./artifacts/lcdpossible-deb/*
+            ./artifacts/lcdpossible-rpm/*

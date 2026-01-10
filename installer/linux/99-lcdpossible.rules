@@ -1,0 +1,25 @@
+# LCDPossible - USB HID LCD device rules
+# Install to: /etc/udev/rules.d/99-lcdpossible.rules
+# Then run: sudo udevadm control --reload-rules && sudo udevadm trigger
+
+# Thermalright Trofeo Vision 360 ARGB (1280x480 LCD)
+SUBSYSTEM=="usb", ATTR{idVendor}=="0416", ATTR{idProduct}=="5302", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0416", ATTRS{idProduct}=="5302", MODE="0666", TAG+="uaccess"
+
+# Thermalright PA120 Digital (segment display)
+SUBSYSTEM=="usb", ATTR{idVendor}=="0416", ATTR{idProduct}=="8001", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0416", ATTRS{idProduct}=="8001", MODE="0666", TAG+="uaccess"
+
+# Thermalright Secondary devices
+SUBSYSTEM=="usb", ATTR{idVendor}=="0418", ATTR{idProduct}=="5303", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0418", ATTRS{idProduct}=="5303", MODE="0666", TAG+="uaccess"
+
+# Thermalright Extended LCD
+SUBSYSTEM=="usb", ATTR{idVendor}=="0418", ATTR{idProduct}=="5304", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0418", ATTRS{idProduct}=="5304", MODE="0666", TAG+="uaccess"
+
+# Generic Thermalright vendor rules (fallback)
+SUBSYSTEM=="usb", ATTR{idVendor}=="0416", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="0418", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0416", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0418", MODE="0666", TAG+="uaccess"

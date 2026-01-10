@@ -1,0 +1,24 @@
+#!/bin/bash
+set -e
+
+# Create symlink in PATH
+ln -sf /opt/lcdpossible/LCDPossible /usr/local/bin/lcdpossible
+
+# Install udev rules
+cp /opt/lcdpossible/99-lcdpossible.rules /etc/udev/rules.d/
+udevadm control --reload-rules || true
+udevadm trigger || true
+
+# Reload systemd
+systemctl daemon-reload || true
+
+echo ""
+echo "LCDPossible installed successfully!"
+echo ""
+echo "Usage:"
+echo "  lcdpossible list    - List connected devices"
+echo "  lcdpossible serve   - Start the service"
+echo ""
+echo "To enable as a service:"
+echo "  sudo systemctl enable lcdpossible"
+echo "  sudo systemctl start lcdpossible"

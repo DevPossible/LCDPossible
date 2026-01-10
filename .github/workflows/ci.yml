@@ -6,15 +6,62 @@ on:
   pull_request:
     branches: [main, master]
 
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
 jobs:
-  build:
+  build-and-test:
+    name: Build & Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: 'preview'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Build.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore src/LCDPossible.sln
+
+      - name: Build
+        run: dotnet build src/LCDPossible.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test src/LCDPossible.sln --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage" --results-directory ./coverage
+
+      - name: Upload coverage
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: ./coverage/**/coverage.cobertura.xml
+          retention-days: 7
+
+  lint:
+    name: Code Format Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -25,52 +72,5 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore src/LCDPossible.sln
 
-      - name: Build
-        run: dotnet build src/LCDPossible.sln --configuration Release --no-restore
-
-      - name: Test
-        run: dotnet test src/LCDPossible.sln --configuration Release --no-build --verbosity normal
-
-  publish:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-          dotnet-quality: 'preview'
-
-      - name: Publish Linux x64
-        run: |
-          dotnet publish src/LCDPossible.Service/LCDPossible.Service.csproj \
-            --configuration Release \
-            --runtime linux-x64 \
-            --self-contained true \
-            -p:PublishSingleFile=true \
-            --output .build/publish/linux-x64
-
-      - name: Publish Windows x64
-        run: |
-          dotnet publish src/LCDPossible.Service/LCDPossible.Service.csproj \
-            --configuration Release \
-            --runtime win-x64 \
-            --self-contained true \
-            -p:PublishSingleFile=true \
-            --output .build/publish/win-x64
-
-      - name: Upload Linux artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: lcdpossible-linux-x64
-          path: .build/publish/linux-x64/
-
-      - name: Upload Windows artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: lcdpossible-win-x64
-          path: .build/publish/win-x64/
+      - name: Check formatting
+        run: dotnet format src/LCDPossible.sln --verify-no-changes --verbosity diagnostic

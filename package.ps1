@@ -2,7 +2,9 @@
 param(
     [string]$Version = $null,
     [switch]$SkipTests,
-    [switch]$SkipChangelog
+    [switch]$SkipChangelog,
+    [switch]$NonInteractive,
+    [string[]]$Runtimes = @('win-x64', 'linux-x64', 'linux-arm64', 'osx-x64')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -22,19 +24,29 @@ function Ensure-DotnetTool {
 
 #region Version Management
 function Get-NextVersion {
-    # Try to get version from git tags, Directory.Build.props, or prompt
+    # Try to get version from git tags
     $lastTag = git describe --tags --abbrev=0 2>$null
     if ($lastTag) {
         $current = [Version]($lastTag -replace '^v', '')
         return "$($current.Major).$($current.Minor).$($current.Build + 1)"
     }
-    return "1.0.0"
+
+    # Try to get from Directory.Build.props
+    $propsFile = Join-Path $PSScriptRoot 'Directory.Build.props'
+    if (Test-Path $propsFile) {
+        $content = Get-Content $propsFile -Raw
+        if ($content -match '<Version>([^<]+)</Version>') {
+            return $Matches[1]
+        }
+    }
+
+    return "0.1.0"
 }
 
 function Update-VersionInFiles {
     param([string]$NewVersion)
 
-    # Update Directory.Build.props if it has version
+    # Update Directory.Build.props
     $propsFile = Join-Path $PSScriptRoot 'Directory.Build.props'
     if (Test-Path $propsFile) {
         $content = Get-Content $propsFile -Raw
@@ -43,6 +55,15 @@ function Update-VersionInFiles {
             Set-Content $propsFile $content -NoNewline
             Write-Host "Updated version in Directory.Build.props" -ForegroundColor Green
         }
+    }
+
+    # Update release-please manifest
+    $manifestFile = Join-Path $PSScriptRoot '.github' 'release-please-manifest.json'
+    if (Test-Path $manifestFile) {
+        $manifest = Get-Content $manifestFile -Raw | ConvertFrom-Json
+        $manifest.'.' = $NewVersion
+        $manifest | ConvertTo-Json | Set-Content $manifestFile
+        Write-Host "Updated version in release-please-manifest.json" -ForegroundColor Green
     }
 }
 #endregion
@@ -56,7 +77,7 @@ function Update-Changelog {
 
     if (Test-Path $changelogPath) {
         $content = Get-Content $changelogPath -Raw
-        # Replace [Unreleased] with new version
+        # Replace [Unreleased] section
         $content = $content -replace '\[Unreleased\]', "[$NewVersion] - $today`n`n## [Unreleased]"
         Set-Content $changelogPath $content -NoNewline
         Write-Host "Updated CHANGELOG.md with version $NewVersion" -ForegroundColor Green
@@ -66,15 +87,18 @@ function Update-Changelog {
 
 Push-Location $PSScriptRoot
 try {
-    Write-Host "=== Packaging ===" -ForegroundColor Cyan
+    Write-Host "=== LCDPossible Packaging ===" -ForegroundColor Cyan
 
     # Determine version
     if (-not $Version) {
         $Version = Get-NextVersion
         Write-Host "Auto-detected version: $Version" -ForegroundColor Yellow
-        $confirm = Read-Host "Use this version? (y/n or enter custom version)"
-        if ($confirm -ne 'y' -and $confirm -ne 'Y' -and $confirm -ne '') {
-            $Version = $confirm
+
+        if (-not $NonInteractive) {
+            $confirm = Read-Host "Use this version? (y/n or enter custom version)"
+            if ($confirm -ne 'y' -and $confirm -ne 'Y' -and $confirm -ne '') {
+                $Version = $confirm
+            }
         }
     }
     Write-Host "Packaging version: $Version" -ForegroundColor Green
@@ -85,11 +109,13 @@ try {
     }
     New-Item -ItemType Directory -Path $DistDir -Force | Out-Null
 
-    # Update version in files
-    Update-VersionInFiles -NewVersion $Version
+    # Update version in files (skip in CI - Release Please handles this)
+    if (-not $NonInteractive) {
+        Update-VersionInFiles -NewVersion $Version
+    }
 
-    # Update changelog
-    if (-not $SkipChangelog) {
+    # Update changelog (skip in CI - Release Please handles this)
+    if (-not $SkipChangelog -and -not $NonInteractive) {
         Update-Changelog -NewVersion $Version
     }
 
@@ -107,35 +133,41 @@ try {
 
     # Publish for each target runtime
     Write-Host "`n=== Publishing ===" -ForegroundColor Cyan
-    $runtimes = @('win-x64', 'linux-x64')
-    $publishProjects = Get-ChildItem -Path 'src' -Recurse -Filter '*.csproj' |
-        Where-Object {
-            $content = Get-Content $_.FullName -Raw
-            $content -match '<OutputType>Exe</OutputType>' -or
-            $content -match 'Microsoft\.NET\.Sdk\.Web'
-        }
 
-    foreach ($project in $publishProjects) {
-        $projectName = $project.BaseName
-        Write-Host "Publishing $projectName..." -ForegroundColor Yellow
+    foreach ($runtime in $Runtimes) {
+        Write-Host "Publishing for $runtime..." -ForegroundColor Yellow
+        $outputDir = Join-Path $DistDir 'LCDPossible' $runtime
 
-        foreach ($runtime in $runtimes) {
-            $outputDir = Join-Path $DistDir $projectName $runtime
+        dotnet publish src/LCDPossible/LCDPossible.csproj `
+            --configuration Release `
+            --runtime $runtime `
+            --self-contained true `
+            --output $outputDir `
+            -p:Version=$Version `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true
 
-            dotnet publish $project.FullName `
-                --configuration Release `
-                --runtime $runtime `
-                --self-contained true `
-                --output $outputDir `
-                -p:Version=$Version `
-                -p:PublishSingleFile=true `
-                -p:IncludeNativeLibrariesForSelfExtract=true
+        if ($LASTEXITCODE -ne 0) { throw "Publish failed for $runtime" }
 
-            if ($LASTEXITCODE -ne 0) { throw "Publish failed for $projectName ($runtime)" }
+        # Create archive
+        $archiveName = "lcdpossible-$Version-$runtime"
+        if ($runtime -like 'win-*') {
+            $archivePath = Join-Path $DistDir "$archiveName.zip"
+            Compress-Archive -Path "$outputDir\*" -DestinationPath $archivePath -Force
+            Write-Host "  Created: $archivePath" -ForegroundColor Gray
+        } else {
+            # For Linux/macOS, we'd need tar (available in Git Bash or WSL)
+            $tarPath = Join-Path $DistDir "$archiveName.tar.gz"
+            if (Get-Command tar -ErrorAction SilentlyContinue) {
+                Push-Location $outputDir
+                tar -czvf $tarPath *
+                Pop-Location
+                Write-Host "  Created: $tarPath" -ForegroundColor Gray
+            }
         }
     }
 
-    # Package NuGet packages
+    # Package NuGet packages (if any library projects)
     Write-Host "`n=== NuGet Packages ===" -ForegroundColor Cyan
     $nugetDir = Join-Path $DistDir 'nuget'
     New-Item -ItemType Directory -Path $nugetDir -Force | Out-Null
@@ -145,10 +177,12 @@ try {
             $content = Get-Content $_.FullName -Raw
             $content -match '<IsPackable>true</IsPackable>' -or
             (-not ($content -match '<OutputType>Exe</OutputType>') -and
-             -not ($content -match 'Microsoft\.NET\.Sdk\.Web'))
+             -not ($content -match 'Microsoft\.NET\.Sdk\.Web') -and
+             -not ($content -match 'Microsoft\.NET\.Sdk\.Worker'))
         }
 
     foreach ($project in $libraryProjects) {
+        Write-Host "Packing $($project.BaseName)..." -ForegroundColor Yellow
         dotnet pack $project.FullName `
             --configuration Release `
             --output $nugetDir `
@@ -166,6 +200,13 @@ try {
     Copy-Item -Path 'LICENSE' -Destination $DistDir -ErrorAction SilentlyContinue
     Copy-Item -Path 'CHANGELOG.md' -Destination $DistDir -ErrorAction SilentlyContinue
 
+    # Copy installer scripts
+    Write-Host "`n=== Installer Scripts ===" -ForegroundColor Cyan
+    $installerDistDir = Join-Path $DistDir 'installer'
+    if (Test-Path 'installer') {
+        Copy-Item -Path 'installer' -Destination $installerDistDir -Recurse
+    }
+
     # Create version file
     @{
         Version = $Version
@@ -179,8 +220,11 @@ try {
     Write-Host "Version: $Version" -ForegroundColor Green
 
     # List contents
-    Get-ChildItem $DistDir -Recurse -Directory | ForEach-Object {
-        Write-Host "  $($_.FullName.Replace($DistDir, '.dist'))" -ForegroundColor Gray
+    Write-Host "`nContents:" -ForegroundColor Cyan
+    Get-ChildItem $DistDir -Recurse -File | ForEach-Object {
+        $relativePath = $_.FullName.Replace($DistDir, '.dist')
+        $sizeKB = [math]::Round($_.Length / 1KB, 1)
+        Write-Host "  $relativePath ($sizeKB KB)" -ForegroundColor Gray
     }
 }
 finally {

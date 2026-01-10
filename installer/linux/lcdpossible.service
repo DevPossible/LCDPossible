@@ -1,0 +1,38 @@
+[Unit]
+Description=LCDPossible LCD Controller Service
+Documentation=https://github.com/DevPossible/LCDPossible
+After=network.target graphical.target
+
+[Service]
+Type=simple
+ExecStart=/opt/lcdpossible/LCDPossible serve
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=30
+TimeoutStopSec=10
+
+# Run as root for USB HID access (or configure udev rules for non-root)
+User=root
+Group=root
+
+# Working directory
+WorkingDirectory=/opt/lcdpossible
+
+# Environment
+Environment=DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/lcdpossible
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=lcdpossible
+
+[Install]
+WantedBy=multi-user.target
