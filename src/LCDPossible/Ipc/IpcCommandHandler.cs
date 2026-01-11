@@ -23,6 +23,7 @@ public sealed class IpcCommandHandler
     private readonly Func<Dictionary<string, ILcdDevice>> _getConnectedDevices;
     private readonly Func<Dictionary<string, SlideshowManager>> _getSlideshows;
     private readonly Func<DisplayProfile?> _getDisplayProfile;
+    private readonly Func<string?> _getProfilePath;
     private readonly Func<string, SlideshowManager, CancellationToken, Task> _setSlideshowAsync;
     private readonly Func<string, Image<Rgba32>?, Task> _setStaticImageAsync;
     private readonly Func<string, int, Task> _setBrightnessAsync;
@@ -36,6 +37,7 @@ public sealed class IpcCommandHandler
         Func<Dictionary<string, ILcdDevice>> getConnectedDevices,
         Func<Dictionary<string, SlideshowManager>> getSlideshows,
         Func<DisplayProfile?> getDisplayProfile,
+        Func<string?> getProfilePath,
         Func<string, SlideshowManager, CancellationToken, Task> setSlideshowAsync,
         Func<string, Image<Rgba32>?, Task> setStaticImageAsync,
         Func<string, int, Task> setBrightnessAsync,
@@ -48,6 +50,7 @@ public sealed class IpcCommandHandler
         _getConnectedDevices = getConnectedDevices;
         _getSlideshows = getSlideshows;
         _getDisplayProfile = getDisplayProfile;
+        _getProfilePath = getProfilePath;
         _setSlideshowAsync = setSlideshowAsync;
         _setStaticImageAsync = setStaticImageAsync;
         _setBrightnessAsync = setBrightnessAsync;
@@ -72,6 +75,7 @@ public sealed class IpcCommandHandler
                 "test-pattern" => await HandleTestPatternAsync(request, cancellationToken),
                 "set-brightness" => await HandleSetBrightnessAsync(request, cancellationToken),
                 "profile" => await HandleProfileAsync(request, cancellationToken),
+                "profile-info" => HandleProfileInfo(request),
                 "reload" or "reload-profile" => await HandleReloadAsync(request, cancellationToken),
                 "next" => HandleNext(request),
                 "previous" => HandlePrevious(request),
@@ -284,6 +288,44 @@ public sealed class IpcCommandHandler
             return IpcResponse.Fail(request.Id, IpcErrorCodes.InternalError,
                 $"Failed to reload profile: {ex.Message}");
         }
+    }
+
+    private IpcResponse HandleProfileInfo(IpcRequest request)
+    {
+        var profile = _getDisplayProfile();
+        var profilePath = _getProfilePath();
+
+        if (profile == null)
+        {
+            return IpcResponse.Fail(request.Id, IpcErrorCodes.InternalError, "No profile loaded");
+        }
+
+        // Return detailed profile info including path and all slides
+        var slides = profile.Slides.Select((slide, index) => new
+        {
+            index,
+            panel = slide.Panel,
+            type = slide.Type,
+            source = slide.Source,
+            duration = slide.Duration,
+            updateInterval = slide.UpdateInterval,
+            background = slide.Background,
+            transition = slide.Transition,
+            transitionDurationMs = slide.TransitionDurationMs
+        }).ToList();
+
+        return IpcResponse.Ok(request.Id, new
+        {
+            name = profile.Name,
+            description = profile.Description,
+            path = profilePath,
+            defaultDurationSeconds = profile.DefaultDurationSeconds,
+            defaultUpdateIntervalSeconds = profile.DefaultUpdateIntervalSeconds,
+            defaultTransition = profile.DefaultTransition,
+            defaultTransitionDurationMs = profile.DefaultTransitionDurationMs,
+            slideCount = profile.Slides.Count,
+            slides
+        });
     }
 
     private IpcResponse HandleNext(IpcRequest request)

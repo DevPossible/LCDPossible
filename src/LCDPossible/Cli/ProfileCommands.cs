@@ -256,12 +256,23 @@ public static class ProfileCommands
     {
         var profileName = GetProfileName(args) ?? GetPositionalArg(args, 0);
         var outputFormat = GetArgValue(args, "--format", "-f")?.ToLowerInvariant();
+
+        // If service is running and no specific profile requested, get info from server
+        // This ensures we show what the server is actually using
+        if (profileName == null && IpcPaths.IsServiceRunning())
+        {
+            return ListPanelsFromServer(outputFormat);
+        }
+
+        // Otherwise, load from disk
         var manager = new ProfileManager();
 
         DisplayProfile profile;
+        string profilePath;
         try
         {
             profile = manager.LoadProfile(profileName);
+            profilePath = ProfileManager.GetProfilePath(profileName);
         }
         catch (FileNotFoundException)
         {
@@ -269,6 +280,139 @@ public static class ProfileCommands
             return 1;
         }
 
+        return DisplayProfileInfo(profile, profilePath, outputFormat, manager);
+    }
+
+    private static int ListPanelsFromServer(string? outputFormat)
+    {
+        try
+        {
+            var response = IpcClientHelper.SendCommandAsync("profile-info").GetAwaiter().GetResult();
+
+            if (!response.Success)
+            {
+                Console.Error.WriteLine($"Error from server: {response.Error}");
+                return 1;
+            }
+
+            if (response.Data == null)
+            {
+                Console.Error.WriteLine("Error: No profile data returned from server");
+                return 1;
+            }
+
+            // Parse the response data
+            var json = System.Text.Json.JsonSerializer.Serialize(response.Data);
+
+            if (outputFormat == "json")
+            {
+                // Pretty print the JSON
+                var options = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
+                var doc = System.Text.Json.JsonDocument.Parse(json);
+                Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(doc, options));
+                return 0;
+            }
+
+            // Parse JSON into a document for reading
+            using var doc2 = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc2.RootElement;
+
+            var name = root.GetProperty("name").GetString() ?? "Unknown";
+            var description = root.TryGetProperty("description", out var descProp) ? descProp.GetString() : null;
+            var path = root.TryGetProperty("path", out var pathProp) ? pathProp.GetString() : null;
+            var defaultDuration = root.GetProperty("defaultDurationSeconds").GetInt32();
+            var defaultInterval = root.GetProperty("defaultUpdateIntervalSeconds").GetInt32();
+            var defaultTransition = root.TryGetProperty("defaultTransition", out var transProp) ? transProp.GetString() : null;
+            var defaultTransitionDuration = root.TryGetProperty("defaultTransitionDurationMs", out var transDurProp) ? transDurProp.GetInt32() : 0;
+
+            // Human-readable format
+            Console.WriteLine($"Profile: {name}");
+            Console.WriteLine($"Path: {path ?? "(default/built-in)"}");
+            Console.WriteLine($"Source: running service");
+            if (!string.IsNullOrEmpty(description))
+            {
+                Console.WriteLine($"Description: {description}");
+            }
+            Console.WriteLine($"Default Duration: {defaultDuration}s");
+            Console.WriteLine($"Default Update Interval: {defaultInterval}s");
+            Console.WriteLine($"Default Transition: {defaultTransition ?? "random"}");
+            Console.WriteLine($"Default Transition Duration: {defaultTransitionDuration}ms");
+            Console.WriteLine();
+
+            var slides = root.GetProperty("slides");
+            if (slides.GetArrayLength() == 0)
+            {
+                Console.WriteLine("No panels configured.");
+                return 0;
+            }
+
+            Console.WriteLine($"Panels ({slides.GetArrayLength()}):");
+            foreach (var slide in slides.EnumerateArray())
+            {
+                var index = slide.GetProperty("index").GetInt32();
+                var panel = slide.TryGetProperty("panel", out var panelProp) && panelProp.ValueKind != System.Text.Json.JsonValueKind.Null
+                    ? panelProp.GetString() : null;
+                var source = slide.TryGetProperty("source", out var sourceProp) && sourceProp.ValueKind != System.Text.Json.JsonValueKind.Null
+                    ? sourceProp.GetString() : null;
+                var panelType = panel ?? source ?? "(unknown)";
+
+                Console.WriteLine($"  [{index}] {panelType}");
+
+                if (slide.TryGetProperty("type", out var typeProp) && typeProp.ValueKind != System.Text.Json.JsonValueKind.Null)
+                {
+                    Console.WriteLine($"       type: {typeProp.GetString()}");
+                }
+                if (slide.TryGetProperty("duration", out var durProp) && durProp.ValueKind != System.Text.Json.JsonValueKind.Null)
+                {
+                    Console.WriteLine($"       duration: {durProp.GetInt32()}s");
+                }
+                if (slide.TryGetProperty("updateInterval", out var intProp) && intProp.ValueKind != System.Text.Json.JsonValueKind.Null)
+                {
+                    Console.WriteLine($"       update_interval: {intProp.GetInt32()}s");
+                }
+                if (slide.TryGetProperty("background", out var bgProp) && bgProp.ValueKind != System.Text.Json.JsonValueKind.Null)
+                {
+                    Console.WriteLine($"       background: {bgProp.GetString()}");
+                }
+                if (slide.TryGetProperty("transition", out var slideTransProp) && slideTransProp.ValueKind != System.Text.Json.JsonValueKind.Null)
+                {
+                    Console.WriteLine($"       transition: {slideTransProp.GetString()}");
+                }
+                if (slide.TryGetProperty("transitionDurationMs", out var slideTransDurProp) && slideTransDurProp.ValueKind != System.Text.Json.JsonValueKind.Null)
+                {
+                    Console.WriteLine($"       transition_duration: {slideTransDurProp.GetInt32()}ms");
+                }
+                if (!string.IsNullOrEmpty(source) && source != panel)
+                {
+                    Console.WriteLine($"       source: {source}");
+                }
+            }
+
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error communicating with service: {ex.Message}");
+            Console.Error.WriteLine("Falling back to disk...");
+
+            // Fall back to disk
+            var manager = new ProfileManager();
+            try
+            {
+                var profile = manager.LoadProfile(null);
+                var profilePath = ProfileManager.GetProfilePath(null);
+                return DisplayProfileInfo(profile, profilePath, null, manager);
+            }
+            catch (FileNotFoundException)
+            {
+                Console.Error.WriteLine($"Error: Default profile not found");
+                return 1;
+            }
+        }
+    }
+
+    private static int DisplayProfileInfo(DisplayProfile profile, string profilePath, string? outputFormat, ProfileManager manager)
+    {
         if (outputFormat == "json")
         {
             Console.WriteLine(manager.ToJson(profile));
@@ -283,6 +427,8 @@ public static class ProfileCommands
 
         // Human-readable format
         Console.WriteLine($"Profile: {profile.Name}");
+        Console.WriteLine($"Path: {profilePath}");
+        Console.WriteLine($"Source: disk");
         if (!string.IsNullOrEmpty(profile.Description))
         {
             Console.WriteLine($"Description: {profile.Description}");

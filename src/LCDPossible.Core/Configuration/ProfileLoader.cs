@@ -72,7 +72,13 @@ public sealed class ProfileLoader
     /// Loads the display profile from the first available location.
     /// Returns the default profile if no file is found.
     /// </summary>
-    public DisplayProfile LoadProfile()
+    public DisplayProfile LoadProfile() => LoadProfileWithPath().Profile;
+
+    /// <summary>
+    /// Loads the display profile and returns both the profile and the path it was loaded from.
+    /// Returns the default profile with null path if no file is found.
+    /// </summary>
+    public (DisplayProfile Profile, string? Path) LoadProfileWithPath()
     {
         foreach (var path in GetProfileSearchPaths())
         {
@@ -88,7 +94,7 @@ public sealed class ProfileLoader
                     {
                         _logger?.LogInformation("Loaded profile '{Name}' with {Count} slides",
                             profile.Name, profile.Slides.Count);
-                        return profile;
+                        return (profile, path);
                     }
                 }
                 catch (Exception ex)
@@ -99,7 +105,7 @@ public sealed class ProfileLoader
         }
 
         _logger?.LogInformation("No profile file found, using default profile");
-        return DisplayProfile.CreateDefault();
+        return (DisplayProfile.CreateDefault(), null);
     }
 
     /// <summary>

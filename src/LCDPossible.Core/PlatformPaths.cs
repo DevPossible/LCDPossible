@@ -16,10 +16,16 @@ public static class PlatformPaths
     public const string DataDirectoryEnvVar = "LCDPOSSIBLE_DATA_DIR";
 
     /// <summary>
+    /// System-wide configuration directory for root/service installations on Linux.
+    /// </summary>
+    private const string SystemConfigDir = "/etc/lcdpossible";
+
+    /// <summary>
     /// Gets the user-specific application data directory.
     /// Checks LCDPOSSIBLE_DATA_DIR environment variable first for override.
     /// Windows: %APPDATA%\LCDPossible (C:\Users\{user}\AppData\Roaming\LCDPossible)
-    /// Linux:   ~/.config/LCDPossible (respects XDG_CONFIG_HOME)
+    /// Linux (root): /etc/lcdpossible (system service location)
+    /// Linux (user): ~/.config/LCDPossible (respects XDG_CONFIG_HOME)
     /// macOS:   ~/Library/Application Support/LCDPossible
     /// </summary>
     public static string GetUserDataDirectory()
@@ -39,7 +45,14 @@ public static class PlatformPaths
         }
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
-            // Respect XDG Base Directory Specification
+            // When running as root, use system config directory
+            // This ensures CLI and systemd service use the same location
+            if (IsRunningAsRoot())
+            {
+                return SystemConfigDir;
+            }
+
+            // Non-root: Respect XDG Base Directory Specification
             var xdgConfig = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
             basePath = !string.IsNullOrEmpty(xdgConfig)
                 ? xdgConfig
@@ -58,6 +71,44 @@ public static class PlatformPaths
         }
 
         return Path.Combine(basePath, AppName);
+    }
+
+    /// <summary>
+    /// Checks if the current process is running as root (Unix) or elevated (Windows).
+    /// </summary>
+    public static bool IsRunningAsRoot()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            return false; // Windows uses different paths regardless of elevation
+        }
+
+        // On Unix, check if effective user ID is 0 (root)
+        try
+        {
+            // Use /proc filesystem to check effective UID
+            if (File.Exists("/proc/self/status"))
+            {
+                var status = File.ReadAllText("/proc/self/status");
+                var uidLine = status.Split('\n').FirstOrDefault(l => l.StartsWith("Uid:"));
+                if (uidLine != null)
+                {
+                    var parts = uidLine.Split('\t', StringSplitOptions.RemoveEmptyEntries);
+                    // Format: Uid: real effective saved filesystem
+                    if (parts.Length >= 2 && int.TryParse(parts[1], out var effectiveUid))
+                    {
+                        return effectiveUid == 0;
+                    }
+                }
+            }
+
+            // Fallback: check username
+            return Environment.UserName == "root";
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     /// <summary>

@@ -37,7 +37,7 @@ public static class IpcPaths
         // Unix: Use /run for system-wide socket (works for both systemd service and CLI)
         // This ensures CLI can find the service regardless of XDG_RUNTIME_DIR differences
         // between systemd service context and interactive shell
-        if (IsRunningAsRoot())
+        if (PlatformPaths.IsRunningAsRoot())
         {
             return "/run/lcdpossible.sock";
         }
@@ -46,45 +46,6 @@ public static class IpcPaths
         var runtimeDir = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR");
         var baseDir = !string.IsNullOrEmpty(runtimeDir) ? runtimeDir : "/tmp";
         return Path.Combine(baseDir, "lcdpossible.sock");
-    }
-
-    /// <summary>
-    /// Checks if the current process is running as root (Unix) or elevated (Windows).
-    /// </summary>
-    private static bool IsRunningAsRoot()
-    {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            return false; // Windows uses named pipes, not affected
-        }
-
-        // On Unix, check if effective user ID is 0 (root)
-        try
-        {
-            // Environment.UserName doesn't reliably detect root
-            // Use the /proc filesystem to check effective UID
-            if (File.Exists("/proc/self/status"))
-            {
-                var status = File.ReadAllText("/proc/self/status");
-                var uidLine = status.Split('\n').FirstOrDefault(l => l.StartsWith("Uid:"));
-                if (uidLine != null)
-                {
-                    var parts = uidLine.Split('\t', StringSplitOptions.RemoveEmptyEntries);
-                    // Format: Uid: real effective saved filesystem
-                    if (parts.Length >= 2 && int.TryParse(parts[1], out var effectiveUid))
-                    {
-                        return effectiveUid == 0;
-                    }
-                }
-            }
-
-            // Fallback: check username
-            return Environment.UserName == "root";
-        }
-        catch
-        {
-            return false;
-        }
     }
 
     /// <summary>

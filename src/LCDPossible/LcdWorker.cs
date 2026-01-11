@@ -42,6 +42,7 @@ public sealed class LcdWorker : BackgroundService
     private IProxmoxProvider? _proxmoxProvider;
     private PanelFactory? _panelFactory;
     private DisplayProfile? _displayProfile;
+    private string? _profilePath;
     private IpcServer? _ipcServer;
     private IpcCommandHandler? _ipcCommandHandler;
 
@@ -69,8 +70,9 @@ public sealed class LcdWorker : BackgroundService
         _logger.LogInformation("LcdWorker starting...");
 
         // Load display profile from system location
-        _displayProfile = _profileLoader.LoadProfile();
-        _logger.LogInformation("Using display profile: {ProfileName}", _displayProfile.Name);
+        (_displayProfile, _profilePath) = _profileLoader.LoadProfileWithPath();
+        _logger.LogInformation("Using display profile: {ProfileName} from {Path}",
+            _displayProfile.Name, _profilePath ?? "(default)");
 
         // Subscribe to device events
         _deviceManager.DeviceDiscovered += OnDeviceDiscovered;
@@ -779,6 +781,7 @@ public sealed class LcdWorker : BackgroundService
                 () => _connectedDevices,
                 () => _slideshows,
                 () => _displayProfile,
+                () => _profilePath,
                 SetSlideshowAsync,
                 SetStaticImageAsync,
                 SetBrightnessAsync,
@@ -853,10 +856,11 @@ public sealed class LcdWorker : BackgroundService
         _logger.LogDebug("Cleared asset cache");
 
         // Reload profile from disk
-        var newProfile = _profileLoader.LoadProfile();
+        var (newProfile, newPath) = _profileLoader.LoadProfileWithPath();
         _displayProfile = newProfile;
-        _logger.LogInformation("Loaded profile '{ProfileName}' with {Count} slides",
-            newProfile.Name, newProfile.Slides.Count);
+        _profilePath = newPath;
+        _logger.LogInformation("Loaded profile '{ProfileName}' with {Count} slides from {Path}",
+            newProfile.Name, newProfile.Slides.Count, newPath ?? "(default)");
 
         // Update panel factory color scheme
         if (_panelFactory != null)
