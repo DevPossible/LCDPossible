@@ -116,9 +116,11 @@ public sealed class SlideshowManager : IDisposable
                     // Create an error panel for unknown/failed panel types
                     // This keeps _panels in sync with _items and shows a helpful error message
                     _logger?.LogWarning("Unknown panel type '{Source}' - displaying error panel", item.Source);
+                    var availablePanels = _panelFactory.AvailablePanels;
                     var errorPanel = new ErrorPanel(
                         item.Source,
-                        $"Panel type '{item.Source}' was not found. Check spelling or run 'lcdpossible panels' to see available types.");
+                        $"Panel type '{item.Source}' was not found.",
+                        availablePanels);
                     await errorPanel.InitializeAsync(cancellationToken);
                     _panels.Add(errorPanel);
                 }

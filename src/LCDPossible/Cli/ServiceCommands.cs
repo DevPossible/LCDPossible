@@ -513,8 +513,11 @@ WantedBy=multi-user.target
 
         if (OperatingSystem.IsWindows())
         {
+            Console.WriteLine("  Stopping service...");
             RunCommand("sc.exe", $"stop {WindowsServiceName}");
-            Thread.Sleep(1000); // Wait for stop
+            Console.WriteLine("  Waiting for service to stop...");
+            Thread.Sleep(3000); // Wait for service to fully stop
+            Console.WriteLine("  Starting service...");
             var (exitCode, _, error) = RunCommand("sc.exe", $"start {WindowsServiceName}");
             if (exitCode != 0)
             {
@@ -524,7 +527,13 @@ WantedBy=multi-user.target
         }
         else if (OperatingSystem.IsLinux())
         {
-            var (exitCode, _, error) = RunCommand("systemctl", $"restart {ServiceName}");
+            // Use stop + sleep + start for more reliable restart
+            Console.WriteLine("  Stopping service...");
+            RunCommand("systemctl", $"stop {ServiceName}");
+            Console.WriteLine("  Waiting for service to stop...");
+            Thread.Sleep(2000); // Wait for service to fully stop
+            Console.WriteLine("  Starting service...");
+            var (exitCode, _, error) = RunCommand("systemctl", $"start {ServiceName}");
             if (exitCode != 0)
             {
                 Console.Error.WriteLine($"Error: {error}");
@@ -534,8 +543,11 @@ WantedBy=multi-user.target
         else if (OperatingSystem.IsMacOS())
         {
             var plistPath = Path.Combine(MacOsLaunchAgentDir, MacOsLaunchAgent);
+            Console.WriteLine("  Stopping service...");
             RunCommand("launchctl", $"unload \"{plistPath}\"");
-            Thread.Sleep(500);
+            Console.WriteLine("  Waiting for service to stop...");
+            Thread.Sleep(2000); // Wait for service to fully stop
+            Console.WriteLine("  Starting service...");
             var (exitCode, _, error) = RunCommand("launchctl", $"load \"{plistPath}\"");
             if (exitCode != 0)
             {
