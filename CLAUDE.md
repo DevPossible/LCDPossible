@@ -12,6 +12,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - `docs/LCD-Technical-Reference.md` - USB HID protocol details, packet structures, reverse-engineered from TRCC.exe
 - `docs/Implementation-Plan.md` - Complete architecture and phase-by-phase implementation plan
+- `docs/devices/{VID-PID}/{DeviceName}.md` - Per-device technical specifications and protocol details
+
+### Device-Specific Documentation
+
+When implementing code for a specific device, check the corresponding device documentation:
+
+| Device | Documentation |
+|--------|---------------|
+| Trofeo Vision LCD | `docs/devices/0416-5302/Thermalright-Trofeo-Vision.md` |
+
+Device docs contain: verified commands, packet formats, known limitations, and protocol research sources.
 
 ## Project Structure
 
@@ -217,5 +228,7 @@ SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0416", MODE="0666"
 
 ## Reference Projects
 
+- [thermalright-lcd-control](https://github.com/rejeb/thermalright-lcd-control) - Python, GUI for multiple Thermalright LCD devices
+- [trlcd_libusb](https://github.com/NoNameOnFile/trlcd_libusb) - C, libusb-based with APNG animation support
 - [digital_thermal_right_lcd](https://github.com/MathieuxHugo/digital_thermal_right_lcd) - Python, PA120 Digital
 - [Peerless_assassin_and_CLI_UI](https://github.com/raffa0001/Peerless_assassin_and_CLI_UI) - Python
