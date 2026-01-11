@@ -77,7 +77,11 @@ DA DB DC DD 02 00 00 00 [width LE 2B] [height LE 2B] 02 00 00 00 [length LE 4B] 
 | Package | Purpose |
 |---------|---------|
 | HidSharp | USB HID communication |
-| SixLabors.ImageSharp | Image processing |
+| SixLabors.ImageSharp | Image processing & GIF frame extraction |
+| LibVLCSharp | Video playback (local, URL, YouTube) |
+| VideoLAN.LibVLC.Windows | LibVLC native binaries |
+| YoutubeExplode | YouTube stream URL extraction |
+| PuppeteerSharp | Headless browser for HTML/Web panels |
 | Microsoft.Extensions.Hosting | Service hosting |
 | LibreHardwareMonitorLib | Windows hardware monitoring |
 
@@ -129,16 +133,55 @@ The `LCDPossible` executable handles both service and CLI modes:
 | `generate-profile` | Generate sample YAML profile |
 | `--help` | Show all available commands |
 
+## Available Panel Types
+
+| Panel Type | Description |
+|------------|-------------|
+| `cpu-info` | CPU model and specifications |
+| `cpu-usage-text` | CPU usage as text |
+| `cpu-usage-graphic` | CPU usage with visual bars |
+| `ram-info` | RAM specifications |
+| `ram-usage-text` | RAM usage as text |
+| `ram-usage-graphic` | RAM usage with visual bars |
+| `gpu-info` | GPU model and specifications |
+| `gpu-usage-text` | GPU usage as text |
+| `gpu-usage-graphic` | GPU usage with visual bars |
+| `basic-info` | Hostname, OS, uptime summary |
+| `basic-usage-text` | Basic system usage as text |
+| `proxmox-summary` | Proxmox cluster overview |
+| `proxmox-vms` | Proxmox VM/Container list |
+| `animated-gif:<path\|url>` | Animated GIF from file or URL |
+| `image-sequence:<folder>` | Folder of numbered images as animation |
+| `video:<path\|url>` | Video file, URL, or YouTube link |
+| `html:<path>` | Local HTML file rendered as web page |
+| `web:<url>` | Live website rendered from URL |
+
+### Media Panel Examples
+
+```bash
+# Animated GIF (CC-BY-SA)
+dotnet run -- show animated-gif:https://upload.wikimedia.org/wikipedia/commons/2/2c/Rotating_earth_%28large%29.gif
+
+# Video from Archive.org (CC-BY)
+dotnet run -- show video:https://archive.org/download/BigBuckBunny_124/Content/big_buck_bunny_720p_surround.mp4
+
+# YouTube video (CC-BY)
+dotnet run -- show video:https://www.youtube.com/watch?v=aqz-KE-bpKQ
+
+# Live website
+dotnet run -- show web:https://wttr.in/London
+```
+
 ## Implementation Phases
 
 1. ✅ **Core Infrastructure** - USB HID layer with HidSharp, device abstraction interfaces
 2. ✅ **Device Support** - TrofeoVisionDriver (0x0416:0x5302) working, PA120DigitalDriver stub
-3. ⏳ **Display Engine** - Basic JPEG encoding done, frame sources pending
-4. ⏳ **System Monitoring** - Platform-specific metrics (CPU/GPU temp, usage)
-5. ⏳ **Configuration & UI** - CLI tool working, JSON config pending
-6. ⏳ **Platform Integration** - systemd (Linux), Windows Service, launchd (macOS)
+3. ✅ **Display Engine** - JPEG encoding, animated GIF, video, web panels complete
+4. ✅ **System Monitoring** - CPU/GPU/RAM panels with LibreHardwareMonitor, Proxmox integration
+5. ✅ **Configuration & UI** - CLI tool complete, YAML profile support
+6. ⏳ **Platform Integration** - Windows Service done, systemd (Linux), launchd (macOS) pending
 
-## Key Interfaces to Implement
+## Key Interfaces
 
 ```csharp
 // Core device abstraction
@@ -149,12 +192,15 @@ public interface ILcdDevice : IDisposable
     Task SendFrameAsync(ReadOnlyMemory<byte> frameData, CancellationToken ct);
 }
 
-// Render source abstraction
-public interface IRenderSource
+// Display panel abstraction
+public interface IDisplayPanel : IDisposable
 {
-    bool IsAnimated { get; }
-    TimeSpan FrameDuration { get; }
-    Task<Image<Rgba32>> GetFrameAsync(CancellationToken ct);
+    string PanelId { get; }
+    string DisplayName { get; }
+    bool IsLive { get; }      // True if panel shows real-time data
+    bool IsAnimated { get; }  // True if panel has its own frame timing
+    Task InitializeAsync(CancellationToken ct);
+    Task<Image<Rgba32>> RenderFrameAsync(int width, int height, CancellationToken ct);
 }
 ```
 

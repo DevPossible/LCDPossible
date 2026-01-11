@@ -153,8 +153,7 @@ public static class InlineProfileParser
                     return (false, "Panel type specified but no panel name provided");
                 }
 
-                if (!Panels.PanelFactory.AvailablePanels.Contains(item.Source, StringComparer.OrdinalIgnoreCase) &&
-                    !item.Source.StartsWith("proxmox", StringComparison.OrdinalIgnoreCase))
+                if (!IsValidPanelType(item.Source))
                 {
                     return (false, $"Unknown panel type: {item.Source}");
                 }
@@ -169,5 +168,47 @@ public static class InlineProfileParser
         }
 
         return (true, null);
+    }
+
+    /// <summary>
+    /// Checks if a panel type string is valid.
+    /// Handles both exact matches (cpu-info) and prefix-based panels (animated-gif:path, video:url).
+    /// </summary>
+    private static bool IsValidPanelType(string panelType)
+    {
+        var lowerType = panelType.ToLowerInvariant();
+
+        // Check for prefix-based media panels
+        string[] mediaPrefixes = ["animated-gif:", "image-sequence:", "video:", "html:", "web:"];
+        foreach (var prefix in mediaPrefixes)
+        {
+            if (lowerType.StartsWith(prefix))
+            {
+                return true;
+            }
+        }
+
+        // Check for proxmox panels
+        if (lowerType.StartsWith("proxmox"))
+        {
+            return true;
+        }
+
+        // Check for exact matches in available panels (excluding template entries)
+        foreach (var available in Panels.PanelFactory.AvailablePanels)
+        {
+            // Skip template entries like "animated-gif:<path>"
+            if (available.Contains('<'))
+            {
+                continue;
+            }
+
+            if (available.Equals(panelType, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

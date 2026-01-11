@@ -129,7 +129,13 @@ lcdpossible test
 lcdpossible set-image -p wallpaper.jpg
 
 # Quick inline panel display (system info)
-lcdpossible show --layout "CPU:{cpu.temp}|GPU:{gpu.temp}"
+lcdpossible show basic-info
+lcdpossible show cpu-usage-graphic,ram-usage-graphic
+
+# Display animated content
+lcdpossible show animated-gif:animation.gif
+lcdpossible show video:https://www.youtube.com/watch?v=aqz-KE-bpKQ
+lcdpossible show web:https://wttr.in/London
 
 # Start service (foreground)
 lcdpossible serve
@@ -354,10 +360,92 @@ LCDPossible/
 └── start-app.ps1                  # Run service
 ```
 
+## Media Panels
+
+LCDPossible supports various media panels for displaying dynamic content beyond system monitoring.
+
+### Animated GIF Panel
+
+Display animated GIF files from local paths or URLs.
+
+```bash
+# Local file
+lcdpossible show animated-gif:C:\gifs\animation.gif
+
+# Remote URL (CC-BY-SA licensed example)
+lcdpossible show animated-gif:https://upload.wikimedia.org/wikipedia/commons/2/2c/Rotating_earth_%28large%29.gif
+```
+
+### Image Sequence Panel
+
+Display a folder of numbered images as an animation (e.g., frame001.png, frame002.png).
+
+```bash
+lcdpossible show image-sequence:C:\frames\
+```
+
+Settings:
+- `fps` - Frame rate (1-120, default: 30)
+- `loop` - Loop playback (true/false, default: true)
+
+### Video Panel
+
+Play video files, direct URLs, or YouTube videos using LibVLC.
+
+```bash
+# Local video file
+lcdpossible show video:C:\videos\demo.mp4
+
+# Direct video URL (CC-BY licensed Big Buck Bunny)
+lcdpossible show video:https://archive.org/download/BigBuckBunny_124/Content/big_buck_bunny_720p_surround.mp4
+
+# YouTube URL (CC-BY licensed)
+lcdpossible show video:https://www.youtube.com/watch?v=aqz-KE-bpKQ
+```
+
+Settings:
+- `loop` - Loop playback (true/false, default: true)
+- `volume` - Audio volume 0-100 (default: 0, muted)
+
+### HTML Panel
+
+Render a local HTML file as a web page using a headless browser.
+
+```bash
+lcdpossible show html:C:\dashboard\status.html
+```
+
+Settings:
+- `refresh` - Refresh interval in seconds (default: 5)
+
+### Web Panel
+
+Display a live website from a URL using a headless browser.
+
+```bash
+# Weather display (wttr.in is designed for programmatic access)
+lcdpossible show web:https://wttr.in/London
+```
+
+Settings:
+- `refresh` - Refresh interval in seconds (default: 30)
+- `autorefresh` - Auto-refresh the page (true/false, default: true)
+
+### Sample Media URLs (CC-Licensed)
+
+| Type | URL | License |
+|------|-----|---------|
+| Animated GIF | `https://upload.wikimedia.org/wikipedia/commons/2/2c/Rotating_earth_%28large%29.gif` | CC-BY-SA |
+| Video | `https://archive.org/download/BigBuckBunny_124/Content/big_buck_bunny_720p_surround.mp4` | CC-BY |
+| YouTube | `https://www.youtube.com/watch?v=aqz-KE-bpKQ` | CC-BY |
+
 ## Technology Stack
 
 - **HidSharp** - Cross-platform USB HID communication
 - **SixLabors.ImageSharp** - Image processing
+- **LibVLCSharp** - Video playback (with VideoLAN.LibVLC natives)
+- **PuppeteerSharp** - Headless browser for HTML/Web panels
+- **YoutubeExplode** - YouTube stream URL extraction
 - **Microsoft.Extensions.Hosting** - Service hosting
 - **Serilog** - Structured logging
 - **LibreHardwareMonitorLib** - Hardware monitoring (Windows)

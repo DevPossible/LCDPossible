@@ -148,10 +148,28 @@ public sealed class SlideshowManager : IDisposable
     private async Task<Image<Rgba32>?> RenderPanelAsync(SlideshowItem item, int width, int height, CancellationToken cancellationToken)
     {
         // Find the panel for this item
-        var panel = _panels.FirstOrDefault(p => p.PanelId.Equals(item.Source, StringComparison.OrdinalIgnoreCase));
+        // For standard panels (cpu-info, etc.), PanelId matches Source directly
+        // For media panels (animated-gif:path, video:url, etc.), we need to match by index since
+        // the PanelId is simplified but the Source contains the full path/URL
+        var itemIndex = _items.Where(i => i.Type == "panel").ToList().IndexOf(item);
+        var panel = itemIndex >= 0 && itemIndex < _panels.Count ? _panels[itemIndex] : null;
+
+        // Fallback: try exact match for standard panels
+        if (panel == null)
+        {
+            panel = _panels.FirstOrDefault(p =>
+                p.PanelId.Equals(item.Source, StringComparison.OrdinalIgnoreCase));
+        }
+
         if (panel == null)
         {
             return null;
+        }
+
+        // For animated panels (GIF, video, image sequence), don't cache - they manage their own timing
+        if (panel.IsAnimated)
+        {
+            return await panel.RenderFrameAsync(width, height, cancellationToken);
         }
 
         var cacheKey = $"{item.Source}_{width}x{height}";

@@ -237,6 +237,32 @@ AVAILABLE PANELS:
         proxmox-summary     Cluster overview
         proxmox-vms         VM/Container status list
 
+    Media Panels:
+        animated-gif:<path|url>     Animated GIF file or URL
+        image-sequence:<folder>     Folder of numbered images (e.g., frame001.png)
+        video:<path|url>            Video file, URL, or YouTube link
+        html:<path>                 Local HTML file rendered as web page
+        web:<url>                   Live website rendered from URL
+
+MEDIA PANEL EXAMPLES:
+    # Animated GIF (local file or URL)
+    lcdpossible show animated-gif:C:\gifs\animation.gif
+    lcdpossible show animated-gif:https://upload.wikimedia.org/wikipedia/commons/2/2c/Rotating_earth_%28large%29.gif
+
+    # Image sequence (folder of numbered images at 30fps)
+    lcdpossible show image-sequence:C:\frames\
+
+    # Video (local file, direct URL, or YouTube)
+    lcdpossible show video:C:\videos\demo.mp4
+    lcdpossible show video:https://archive.org/download/BigBuckBunny_124/Content/big_buck_bunny_720p_surround.mp4
+    lcdpossible show video:https://www.youtube.com/watch?v=aqz-KE-bpKQ
+
+    # HTML panel (local HTML file)
+    lcdpossible show html:C:\dashboard\status.html
+
+    # Web panel (live website)
+    lcdpossible show web:https://wttr.in/London
+
 SUPPORTED DEVICES:
 ");
     foreach (var supported in DriverRegistry.SupportedDevices)

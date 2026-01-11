@@ -53,6 +53,11 @@ public sealed class PA120DigitalDriver : ILcdDevice
 
     public event EventHandler? Disconnected;
 
+    private void OnDisconnected()
+    {
+        Disconnected?.Invoke(this, EventArgs.Empty);
+    }
+
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -83,6 +88,7 @@ public sealed class PA120DigitalDriver : ILcdDevice
             _hidDevice.Dispose();
             _hidDevice = null;
             _logger?.LogInformation("Disconnected from PA120 Digital: {DevicePath}", Info.DevicePath);
+            OnDisconnected();
         }
 
         return Task.CompletedTask;
