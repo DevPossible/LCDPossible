@@ -197,6 +197,18 @@ echo "  [OK] udev rules updated and reloaded."
 echo ""
 echo "[6/7] Updating systemd service..."
 SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME.service"
+
+# Stop service if running (to apply new service definition)
+if $SUDO systemctl is-active --quiet $SERVICE_NAME 2>/dev/null; then
+    echo "  Stopping existing service..."
+    $SUDO systemctl stop $SERVICE_NAME
+fi
+
+# Remove old service file to ensure clean update
+if [ -f "$SERVICE_FILE" ]; then
+    $SUDO rm -f "$SERVICE_FILE"
+fi
+
 SERVICE_CONTENT="[Unit]
 Description=LCDPossible LCD Controller Service
 After=network.target
@@ -206,6 +218,7 @@ Type=simple
 ExecStart=$INSTALL_DIR/LCDPossible serve
 WorkingDirectory=$INSTALL_DIR
 Environment=DOTNET_ENVIRONMENT=Production
+Environment=LCDPOSSIBLE_DATA_DIR=$CONFIG_DIR
 Environment=LCDPOSSIBLE_CONFIG=$CONFIG_DIR/appsettings.json
 Restart=on-failure
 RestartSec=5
