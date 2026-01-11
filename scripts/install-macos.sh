@@ -149,7 +149,51 @@ else
 fi
 
 echo ""
-echo "[5/6] Updating launch agent..."
+echo "[5/7] Creating command symlink..."
+# Try /usr/local/bin first (common, usually in PATH), fall back to ~/.local/bin
+SYMLINK_PATH=""
+if [ -d "/usr/local/bin" ] && [ -w "/usr/local/bin" ]; then
+    SYMLINK_PATH="/usr/local/bin/lcdpossible"
+elif sudo -n true 2>/dev/null; then
+    # Has passwordless sudo
+    SYMLINK_PATH="/usr/local/bin/lcdpossible"
+    USE_SUDO=true
+else
+    # Fall back to user bin directory
+    SYMLINK_PATH="$HOME/.local/bin/lcdpossible"
+    mkdir -p "$HOME/.local/bin"
+fi
+
+# Check if symlink already points to correct target
+if [ -L "$SYMLINK_PATH" ] && [ "$(readlink "$SYMLINK_PATH")" = "$INSTALL_DIR/LCDPossible" ]; then
+    echo "  [OK] Symlink already exists and is correct."
+else
+    # Remove any existing file/symlink and create fresh
+    if [ -L "$SYMLINK_PATH" ] || [ -e "$SYMLINK_PATH" ]; then
+        if [ "$USE_SUDO" = "true" ]; then
+            sudo rm -f "$SYMLINK_PATH"
+        else
+            rm -f "$SYMLINK_PATH"
+        fi
+    fi
+    if [ "$USE_SUDO" = "true" ]; then
+        sudo ln -s "$INSTALL_DIR/LCDPossible" "$SYMLINK_PATH"
+    else
+        ln -s "$INSTALL_DIR/LCDPossible" "$SYMLINK_PATH"
+    fi
+    echo "  [OK] Created symlink: $SYMLINK_PATH -> $INSTALL_DIR/LCDPossible"
+fi
+
+# Check if ~/.local/bin is in PATH
+if [[ "$SYMLINK_PATH" == "$HOME/.local/bin/lcdpossible" ]]; then
+    if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+        echo "  [NOTE] Add ~/.local/bin to your PATH by adding this to ~/.zshrc:"
+        echo "         export PATH=\"\$HOME/.local/bin:\$PATH\""
+    fi
+fi
+
+echo ""
+echo "[6/7] Updating launch agent..."
 mkdir -p "$LAUNCH_AGENT_DIR"
 PLIST_CONTENT="<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">
@@ -187,7 +231,7 @@ echo "$PLIST_CONTENT" > "$LAUNCH_AGENT_DIR/$LAUNCH_AGENT"
 echo "  [OK] Launch agent updated."
 
 echo ""
-echo "[6/6] Loading launch agent..."
+echo "[7/7] Loading launch agent..."
 launchctl load "$LAUNCH_AGENT_DIR/$LAUNCH_AGENT" 2>/dev/null || true
 echo "  [OK] Launch agent loaded."
 
@@ -206,9 +250,11 @@ echo "Verified:"
 echo "  [+] LCDPossible $VERSION"
 echo "  [+] LibVLC (video playback)"
 echo "  [+] Launch agent (auto-start)"
+echo "  [+] CLI command (lcdpossible)"
 echo ""
 echo "Locations:"
 echo "  Binary:  $INSTALL_DIR/LCDPossible"
+echo "  Command: $SYMLINK_PATH"
 echo "  Config:  $CONFIG_DIR/appsettings.json"
 echo "  Logs:    ~/Library/Logs/lcdpossible.log"
 echo "  Service: $LAUNCH_AGENT_DIR/$LAUNCH_AGENT"
@@ -217,8 +263,9 @@ echo "Commands:"
 echo "  Start service:   launchctl load $LAUNCH_AGENT_DIR/$LAUNCH_AGENT"
 echo "  Stop service:    launchctl unload $LAUNCH_AGENT_DIR/$LAUNCH_AGENT"
 echo "  View logs:       tail -f ~/Library/Logs/lcdpossible.log"
-echo "  List devices:    $INSTALL_DIR/LCDPossible list"
-echo "  Run manually:    $INSTALL_DIR/LCDPossible serve"
+echo "  List devices:    lcdpossible list"
+echo "  Show status:     lcdpossible status"
+echo "  Run manually:    lcdpossible serve"
 echo ""
 echo "Edit $CONFIG_DIR/appsettings.json to configure your display."
 echo ""

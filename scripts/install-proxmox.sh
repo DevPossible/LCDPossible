@@ -311,7 +311,22 @@ if [ "$CREATE_NEW_TOKEN" = "true" ]; then
 fi
 
 echo ""
-echo "[7/8] Updating systemd service..."
+echo "[7/9] Creating command symlink..."
+SYMLINK_PATH="/usr/local/bin/lcdpossible"
+# Check if symlink already points to correct target
+if [ -L "$SYMLINK_PATH" ] && [ "$(readlink "$SYMLINK_PATH")" = "$INSTALL_DIR/LCDPossible" ]; then
+    echo "  [OK] Symlink already exists and is correct."
+else
+    # Remove any existing file/symlink and create fresh
+    if [ -L "$SYMLINK_PATH" ] || [ -e "$SYMLINK_PATH" ]; then
+        rm -f "$SYMLINK_PATH"
+    fi
+    ln -s "$INSTALL_DIR/LCDPossible" "$SYMLINK_PATH"
+    echo "  [OK] Created symlink: $SYMLINK_PATH -> $INSTALL_DIR/LCDPossible"
+fi
+
+echo ""
+echo "[8/9] Updating systemd service..."
 SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME.service"
 
 # Stop service if running (to apply new service definition)
@@ -348,7 +363,7 @@ systemctl enable $SERVICE_NAME
 echo "  [OK] Service configured and enabled."
 
 echo ""
-echo "[8/8] Starting service..."
+echo "[9/9] Starting service..."
 systemctl start $SERVICE_NAME
 if systemctl is-active --quiet $SERVICE_NAME; then
     echo "  [OK] Service is running."
@@ -373,12 +388,14 @@ echo "  [+] LibVLC (video playback)"
 echo "  [+] DejaVu fonts (text rendering)"
 echo "  [+] udev rules (USB device access)"
 echo "  [+] systemd service"
+echo "  [+] CLI command (lcdpossible)"
 if [ "$PROXMOX_API_CONFIGURED" = "true" ]; then
     echo "  [+] Proxmox API integration"
 fi
 echo ""
 echo "Locations:"
 echo "  Binary:  $INSTALL_DIR/LCDPossible"
+echo "  Command: $SYMLINK_PATH"
 echo "  Config:  $CONFIG_DIR/appsettings.json"
 echo "  Service: $SERVICE_FILE"
 echo ""
@@ -386,8 +403,9 @@ echo "Commands:"
 echo "  Start service:   systemctl start $SERVICE_NAME"
 echo "  Stop service:    systemctl stop $SERVICE_NAME"
 echo "  View logs:       journalctl -u $SERVICE_NAME -f"
-echo "  List devices:    $INSTALL_DIR/LCDPossible list"
-echo "  Run manually:    $INSTALL_DIR/LCDPossible serve"
+echo "  List devices:    lcdpossible list"
+echo "  Show status:     lcdpossible status"
+echo "  Run manually:    lcdpossible serve"
 echo ""
 echo "Proxmox-specific panels:"
 echo "  proxmox-summary  - Show cluster/node overview"

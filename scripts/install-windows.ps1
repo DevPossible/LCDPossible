@@ -254,16 +254,18 @@ Write-Host ""
 Write-Host "Verified:" -ForegroundColor White
 Write-Host "  [+] LCDPossible $Version" -ForegroundColor Green
 Write-Host "  [+] Windows Service (auto-start)" -ForegroundColor Green
+Write-Host "  [+] CLI command in PATH" -ForegroundColor Green
 Write-Host ""
 Write-Host "Locations:" -ForegroundColor White
 Write-Host "  Binary:  $InstallDir\LCDPossible.exe" -ForegroundColor Gray
 Write-Host "  Config:  $ConfigDir\appsettings.json" -ForegroundColor Gray
 Write-Host ""
-Write-Host "Commands:" -ForegroundColor White
+Write-Host "Commands (open new terminal to use):" -ForegroundColor White
 Write-Host "  Start service:   Start-Service $ServiceName" -ForegroundColor Gray
 Write-Host "  Stop service:    Stop-Service $ServiceName" -ForegroundColor Gray
-Write-Host "  View status:     Get-Service $ServiceName" -ForegroundColor Gray
+Write-Host "  Service status:  Get-Service $ServiceName" -ForegroundColor Gray
 Write-Host "  List devices:    LCDPossible list" -ForegroundColor Gray
+Write-Host "  Show status:     LCDPossible status" -ForegroundColor Gray
 Write-Host "  Run manually:    LCDPossible serve" -ForegroundColor Gray
 Write-Host ""
 Write-Host "Edit $ConfigDir\appsettings.json to configure your display." -ForegroundColor Yellow
