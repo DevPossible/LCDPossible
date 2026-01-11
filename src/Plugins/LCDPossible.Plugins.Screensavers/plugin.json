@@ -69,15 +69,107 @@
     {
       "typeId": "bouncing-logo",
       "displayName": "Bouncing Logo",
-      "description": "Logo bouncing off screen edges (DVD screensaver style)",
+      "description": "Customizable text bouncing off screen edges (DVD screensaver style) with color, size, 3D, and rotation options",
       "category": "Screensaver",
       "isLive": true,
       "isAnimated": true,
-      "helpText": "The classic DVD logo bouncing around the screen.\n\nFeatures:\n- Logo bounces off all edges\n- Color changes on each bounce\n- Smooth diagonal movement\n- Occasional corner hits!\n\nRelive the eternal wait for the logo to hit the corner perfectly.",
+      "prefixPattern": "bouncing-logo:",
+      "helpText": "The classic DVD logo bouncing around the screen, now fully customizable!\n\nFeatures:\n- Custom text to bounce\n- Multiple color modes: fixed, random, cycling, or rainbow\n- Three size presets: small, medium, large\n- 3D depth effect with shadows and perspective\n- Rotation with random tumbling in 3D mode\n- Color changes on each bounce (cycle/random modes)\n- Occasional corner hits!\n\nColor Options:\n- cycle: Cycles through predefined colors on bounce (default)\n- random: Random bright color on each bounce\n- rainbow: Smooth continuous rainbow transition\n- Named colors: red, green, blue, yellow, cyan, magenta, orange, pink, purple, gold, etc.\n- HTML codes: #FF0000, #00FF00, #0088FF, etc.\n\nRelive the eternal wait for the logo to hit the corner perfectly!",
+      "parameters": [
+        {
+          "name": "text",
+          "description": "Custom text to bounce around the screen. Can be set via colon syntax (bouncing-logo:MyText) or settings.",
+          "required": false,
+          "defaultValue": "LCD",
+          "exampleValues": ["LCD", "DVD", "Hello", "GAMING"]
+        },
+        {
+          "name": "color",
+          "description": "Text color mode or specific color. Supports 'cycle' (changes on bounce), 'random' (random on bounce), 'rainbow' (smooth transition), HTML hex codes (#FF0000), or named colors (red, blue, green, etc.).",
+          "required": false,
+          "defaultValue": "cycle",
+          "exampleValues": ["cycle", "random", "rainbow", "#FF0000", "#00FF88", "red", "cyan", "gold", "hotpink"]
+        },
+        {
+          "name": "size",
+          "description": "Text size preset: 'small' (32pt), 'medium' (64pt), or 'large' (96pt). Aliases: s, m, l, big.",
+          "required": false,
+          "defaultValue": "medium",
+          "exampleValues": ["small", "medium", "large", "s", "m", "l"]
+        },
+        {
+          "name": "3d",
+          "description": "Enable 3D depth effect with shadows and perspective transformation. When combined with rotate, creates a tumbling 3D effect.",
+          "required": false,
+          "defaultValue": "false",
+          "exampleValues": ["true", "false", "yes", "no", "1", "0"]
+        },
+        {
+          "name": "rotate",
+          "description": "Enable rotation animation. In 2D mode, rotates around the center. In 3D mode, tumbles in all directions with random speed changes every 2-6 seconds.",
+          "required": false,
+          "defaultValue": "false",
+          "exampleValues": ["true", "false", "yes", "no", "1", "0"]
+        },
+        {
+          "name": "thickness",
+          "description": "Text thickness/boldness (1-10). Affects stroke outline width and 3D depth shadow layers. If not specified, a random value (1-7) is chosen. Use 'random' to explicitly request random thickness.",
+          "required": false,
+          "defaultValue": "random",
+          "exampleValues": ["1", "3", "5", "7", "10", "random"]
+        },
+        {
+          "name": "speed",
+          "description": "Movement speed (1-10). 1 = crawling (0.05x), 5 = normal speed (1.0x), 10 = very fast (2.0x). Controls how quickly the logo bounces around the screen.",
+          "required": false,
+          "defaultValue": "5",
+          "exampleValues": ["1", "3", "5", "7", "10"]
+        }
+      ],
       "examples": [
         {
           "command": "lcdpossible show bouncing-logo",
-          "description": "Display bouncing logo"
+          "description": "Classic bouncing 'LCD' with cycling colors"
+        },
+        {
+          "command": "lcdpossible show bouncing-logo:DVD",
+          "description": "Bouncing 'DVD' text (nostalgia mode)"
+        },
+        {
+          "command": "lcdpossible show bouncing-logo|text=GAMING|color=rainbow|size=large",
+          "description": "Large 'GAMING' text with smooth rainbow colors"
+        },
+        {
+          "command": "lcdpossible show bouncing-logo|color=#FF0000|size=small",
+          "description": "Small red bouncing logo"
+        },
+        {
+          "command": "lcdpossible show bouncing-logo|text=3D|3d=true|rotate=true",
+          "description": "3D tumbling text effect"
+        },
+        {
+          "command": "lcdpossible show bouncing-logo|color=cyan|rotate=true",
+          "description": "Cyan rotating logo"
+        },
+        {
+          "command": "lcdpossible show bouncing-logo|text=HELLO|color=random|size=large|3d=true|rotate=true",
+          "description": "Full featured: large 3D rotating 'HELLO' with random colors"
+        },
+        {
+          "command": "lcdpossible show bouncing-logo|text=BOLD|thickness=8|color=gold|size=large",
+          "description": "Thick bold text with gold color"
+        },
+        {
+          "command": "lcdpossible show bouncing-logo|text=THIN|thickness=1|color=cyan",
+          "description": "Thin text with minimal stroke"
+        },
+        {
+          "command": "lcdpossible show bouncing-logo|text=SLOW|speed=1|color=blue",
+          "description": "Slow-moving blue text"
+        },
+        {
+          "command": "lcdpossible show bouncing-logo|text=FAST|speed=10|color=red|size=small",
+          "description": "Fast-moving small red text"
         }
       ]
     },

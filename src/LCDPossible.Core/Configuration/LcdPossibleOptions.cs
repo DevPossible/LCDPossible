@@ -199,6 +199,11 @@ public sealed class SlideshowItem
     /// Transition duration in milliseconds.
     /// </summary>
     public int TransitionDurationMs { get; set; } = TransitionEngine.DefaultDurationMs;
+
+    /// <summary>
+    /// Custom panel-specific settings (e.g., text=HELLO, color=red, size=large).
+    /// </summary>
+    public Dictionary<string, string>? Settings { get; set; }
 }
 
 /// <summary>

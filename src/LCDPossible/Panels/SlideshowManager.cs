@@ -104,7 +104,7 @@ public sealed class SlideshowManager : IDisposable
         {
             if (item.Type == "panel")
             {
-                var panel = _panelFactory.CreatePanel(item.Source);
+                var panel = _panelFactory.CreatePanel(item.Source, item.Settings);
                 if (panel != null)
                 {
                     await panel.InitializeAsync(cancellationToken);
