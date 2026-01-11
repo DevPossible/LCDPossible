@@ -202,7 +202,24 @@ DrawTimestamp(ctx, width, height);
 
 ## Registration Checklist
 
-### 1. Add PanelTypeInfo to Plugin
+> **CRITICAL**: All 4 registration steps must be completed. Missing any step will cause the panel to fail silently!
+
+### 1. Add to plugin.json Manifest (REQUIRED)
+In `{PluginName}/plugin.json`, add to the `panelTypes` array:
+
+```json
+{
+  "typeId": "{panel-id}",
+  "displayName": "{Panel Name}",
+  "description": "{Brief description}",
+  "category": "System",
+  "isLive": true
+}
+```
+
+> **Why this is critical**: The plugin manager reads panel types from `plugin.json` to discover available panels. If the panel is not listed here, it will NOT be found at runtime even if the code is correct.
+
+### 2. Add PanelTypeInfo to Plugin Class
 In `{PluginName}Plugin.cs`, add to `PanelTypes` dictionary:
 
 ```csharp
@@ -216,21 +233,21 @@ In `{PluginName}Plugin.cs`, add to `PanelTypes` dictionary:
 }
 ```
 
-### 2. Add Case to CreatePanel
+### 3. Add Case to CreatePanel
 In `{PluginName}Plugin.cs`, add to `CreatePanel` switch:
 
 ```csharp
 "{panel-id}" => new {PanelName}Panel(/* dependencies */),
 ```
 
-### 3. Update Default Profile (if appropriate)
+### 4. Update Default Profile (if appropriate)
 In `DisplayProfile.CreateDefault()`, add new slide:
 
 ```csharp
 new SlideDefinition { Panel = "{panel-id}" }
 ```
 
-### 4. Update Documentation
+### 5. Update Documentation
 
 Update `CLAUDE.md` Available Panel Types table:
 ```markdown
@@ -323,7 +340,10 @@ Add to `src/LCDPossible/LCDPossible.csproj`:
 1. **Ask**: Plugin or Core? (based on dependencies)
 2. **Create**: Panel class extending `BaseLivePanel`
 3. **Implement**: `RenderFrameAsync` with consistent styling
-4. **Register**: Add to plugin's `PanelTypes` and `CreatePanel`
+4. **Register** (ALL REQUIRED):
+   - Add to `plugin.json` manifest (**CRITICAL** - panel discovery depends on this!)
+   - Add to plugin's `PanelTypes` dictionary in code
+   - Add case to `CreatePanel` switch statement
 5. **Document**: Update CLAUDE.md panel table
 6. **Test**: Build and verify with `./start-app.ps1 show {panel-id}`
 7. **Profile**: Optionally add to default profile

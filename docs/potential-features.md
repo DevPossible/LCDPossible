@@ -52,3 +52,6 @@ Display simple 3D animations using a web page panel with JavaScript 3D libraries
 ## functional tests
 
 write a robust set of functional tests that starts by deleting the default profile yaml file, then uses the cli commands to create and modify the file - test each command under profile verb by actually calling the exe and then verify the actual file changes
+
+
+## expand the youtube video panel to support playlist - when the URL is a playlist, then it should pick a random video to play

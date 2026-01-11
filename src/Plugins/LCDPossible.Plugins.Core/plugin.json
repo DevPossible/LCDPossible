@@ -117,6 +117,13 @@
       "category": "Thermal",
       "isLive": true,
       "dependencies": ["LibreHardwareMonitorLib"]
+    },
+    {
+      "typeId": "network-info",
+      "displayName": "Network Info",
+      "description": "Network configuration including hostname, IP addresses, gateway, and DNS",
+      "category": "System",
+      "isLive": true
     }
   ]
 }
