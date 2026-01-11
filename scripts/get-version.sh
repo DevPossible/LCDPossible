@@ -95,21 +95,21 @@ while IFS= read -r commit; do
     # Check for breaking changes (type!: or BREAKING CHANGE:)
     if [[ "$commit" =~ $BREAKING_PATTERN ]] || [[ "$commit" =~ $BREAKING_CHANGE_PATTERN ]]; then
         HAS_BREAKING=true
-        ((BREAKING_COUNT++))
+        BREAKING_COUNT=$((BREAKING_COUNT + 1))
         log "BREAKING: $commit"
     # Check for features
     elif [[ "$commit" =~ $FEAT_PATTERN ]]; then
         HAS_FEAT=true
-        ((FEAT_COUNT++))
+        FEAT_COUNT=$((FEAT_COUNT + 1))
         log "FEAT: $commit"
     # Check for fixes
     elif [[ "$commit" =~ $FIX_PATTERN ]]; then
         HAS_FIX=true
-        ((FIX_COUNT++))
+        FIX_COUNT=$((FIX_COUNT + 1))
         log "FIX: $commit"
     # Other conventional commits
     elif [[ "$commit" =~ $OTHER_PATTERN ]]; then
-        ((OTHER_COUNT++))
+        OTHER_COUNT=$((OTHER_COUNT + 1))
         log "OTHER: $commit"
     else
         log "SKIP: $commit"
@@ -118,19 +118,19 @@ done <<< "$COMMITS"
 
 # Calculate next version
 if $HAS_BREAKING; then
-    ((MAJOR++))
+    MAJOR=$((MAJOR + 1))
     MINOR=0
     PATCH=0
     log "Bump: MAJOR (breaking change)"
 elif $HAS_FEAT; then
-    ((MINOR++))
+    MINOR=$((MINOR + 1))
     PATCH=0
     log "Bump: MINOR (new feature)"
 elif $HAS_FIX || [[ $OTHER_COUNT -gt 0 ]]; then
-    ((PATCH++))
+    PATCH=$((PATCH + 1))
     log "Bump: PATCH (fix or maintenance)"
 else
-    ((PATCH++))
+    PATCH=$((PATCH + 1))
     log "Bump: PATCH (default)"
 fi
 
