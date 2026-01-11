@@ -1,5 +1,7 @@
+using LCDPossible.Core.Monitoring;
 using LCDPossible.Core.Plugins;
 using LCDPossible.Core.Rendering;
+using LCDPossible.Plugins.Core.Monitoring;
 using LCDPossible.Plugins.Core.Panels;
 using Microsoft.Extensions.Logging;
 
@@ -7,10 +9,13 @@ namespace LCDPossible.Plugins.Core;
 
 /// <summary>
 /// Core plugin providing system information panels.
+/// Uses cross-platform hardware monitoring (LibreHardwareMonitor on Windows,
+/// /sys+/proc on Linux, sysctl on macOS).
 /// </summary>
 public sealed class CorePlugin : IPanelPlugin
 {
     private ILogger? _logger;
+    private HardwareMonitorProvider? _hardwareProvider;
 
     public string PluginId => "lcdpossible.core";
     public string DisplayName => "LCDPossible Core Panels";
@@ -110,16 +115,24 @@ public sealed class CorePlugin : IPanelPlugin
         }
     };
 
-    public Task InitializeAsync(IPluginContext context, CancellationToken cancellationToken = default)
+    public async Task InitializeAsync(IPluginContext context, CancellationToken cancellationToken = default)
     {
         _logger = context.CreateLogger("CorePlugin");
-        _logger.LogInformation("Core plugin initialized");
-        return Task.CompletedTask;
+
+        // Initialize our own hardware monitoring provider
+        _hardwareProvider = new HardwareMonitorProvider();
+        await _hardwareProvider.InitializeAsync(cancellationToken);
+
+        _logger.LogInformation("Core plugin initialized with hardware provider: {Provider} (Available: {Available})",
+            _hardwareProvider.Name, _hardwareProvider.IsAvailable);
     }
 
     public IDisplayPanel? CreatePanel(string panelTypeId, PanelCreationContext context)
     {
-        if (context.SystemProvider == null)
+        // Use our own hardware provider instead of the one from context
+        var provider = _hardwareProvider ?? context.SystemProvider;
+
+        if (provider == null)
         {
             _logger?.LogWarning("Cannot create {PanelType}: no system provider available", panelTypeId);
             return null;
@@ -127,17 +140,17 @@ public sealed class CorePlugin : IPanelPlugin
 
         IDisplayPanel? panel = panelTypeId.ToLowerInvariant() switch
         {
-            "cpu-info" => new CpuInfoPanel(context.SystemProvider),
-            "cpu-usage-text" => new CpuUsageTextPanel(context.SystemProvider),
-            "cpu-usage-graphic" => new CpuUsageGraphicPanel(context.SystemProvider),
-            "ram-info" => new RamInfoPanel(context.SystemProvider),
-            "ram-usage-text" => new RamUsageTextPanel(context.SystemProvider),
-            "ram-usage-graphic" => new RamUsageGraphicPanel(context.SystemProvider),
-            "gpu-info" => new GpuInfoPanel(context.SystemProvider),
-            "gpu-usage-text" => new GpuUsageTextPanel(context.SystemProvider),
-            "gpu-usage-graphic" => new GpuUsageGraphicPanel(context.SystemProvider),
-            "basic-info" => new BasicInfoPanel(context.SystemProvider),
-            "basic-usage-text" => new BasicUsageTextPanel(context.SystemProvider),
+            "cpu-info" => new CpuInfoPanel(provider),
+            "cpu-usage-text" => new CpuUsageTextPanel(provider),
+            "cpu-usage-graphic" => new CpuUsageGraphicPanel(provider),
+            "ram-info" => new RamInfoPanel(provider),
+            "ram-usage-text" => new RamUsageTextPanel(provider),
+            "ram-usage-graphic" => new RamUsageGraphicPanel(provider),
+            "gpu-info" => new GpuInfoPanel(provider),
+            "gpu-usage-text" => new GpuUsageTextPanel(provider),
+            "gpu-usage-graphic" => new GpuUsageGraphicPanel(provider),
+            "basic-info" => new BasicInfoPanel(provider),
+            "basic-usage-text" => new BasicUsageTextPanel(provider),
             _ => null
         };
 
@@ -151,6 +164,8 @@ public sealed class CorePlugin : IPanelPlugin
 
     public void Dispose()
     {
+        _hardwareProvider?.Dispose();
+        _hardwareProvider = null;
         _logger?.LogInformation("Core plugin disposed");
     }
 }
