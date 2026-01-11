@@ -18,6 +18,8 @@
   <ItemGroup>
     <!-- Hardware monitoring - Windows only -->
     <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.5" />
+    <!-- WMI for fallback temperature reading -->
+    <PackageReference Include="System.Management" Version="10.0.1" />
   </ItemGroup>
 
   <!-- Copy plugin.json to output -->

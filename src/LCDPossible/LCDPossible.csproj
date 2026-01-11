@@ -15,6 +15,9 @@
     <PackageReference Include="Serilog.Settings.Configuration" Version="10.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
     <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.5" />
+    <!-- For sensor diagnostics CLI command -->
+    <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.4" />
+    <PackageReference Include="System.Management" Version="10.0.1" />
   </ItemGroup>
 
   <ItemGroup>

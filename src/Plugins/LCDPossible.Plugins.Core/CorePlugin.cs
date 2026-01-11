@@ -112,6 +112,30 @@ public sealed class CorePlugin : IPanelPlugin
             Description = "Simple usage summary",
             Category = "System",
             IsLive = true
+        },
+        ["cpu-thermal-graphic"] = new PanelTypeInfo
+        {
+            TypeId = "cpu-thermal-graphic",
+            DisplayName = "CPU Thermal",
+            Description = "CPU temperature with graphical gauge",
+            Category = "Thermal",
+            IsLive = true
+        },
+        ["gpu-thermal-graphic"] = new PanelTypeInfo
+        {
+            TypeId = "gpu-thermal-graphic",
+            DisplayName = "GPU Thermal",
+            Description = "GPU temperature with graphical gauge",
+            Category = "Thermal",
+            IsLive = true
+        },
+        ["system-thermal-graphic"] = new PanelTypeInfo
+        {
+            TypeId = "system-thermal-graphic",
+            DisplayName = "System Thermal",
+            Description = "Combined CPU and GPU temperature display",
+            Category = "Thermal",
+            IsLive = true
         }
     };
 
@@ -151,6 +175,9 @@ public sealed class CorePlugin : IPanelPlugin
             "gpu-usage-graphic" => new GpuUsageGraphicPanel(provider),
             "basic-info" => new BasicInfoPanel(provider),
             "basic-usage-text" => new BasicUsageTextPanel(provider),
+            "cpu-thermal-graphic" => new CpuThermalGraphicPanel(provider),
+            "gpu-thermal-graphic" => new GpuThermalGraphicPanel(provider),
+            "system-thermal-graphic" => new SystemThermalGraphicPanel(provider),
             _ => null
         };
 

@@ -93,6 +93,30 @@
       "category": "System",
       "isLive": true,
       "dependencies": ["LibreHardwareMonitorLib"]
+    },
+    {
+      "typeId": "cpu-thermal-graphic",
+      "displayName": "CPU Thermal",
+      "description": "CPU temperature with graphical gauge display",
+      "category": "Thermal",
+      "isLive": true,
+      "dependencies": ["LibreHardwareMonitorLib"]
+    },
+    {
+      "typeId": "gpu-thermal-graphic",
+      "displayName": "GPU Thermal",
+      "description": "GPU temperature with graphical gauge display",
+      "category": "Thermal",
+      "isLive": true,
+      "dependencies": ["LibreHardwareMonitorLib"]
+    },
+    {
+      "typeId": "system-thermal-graphic",
+      "displayName": "System Thermal",
+      "description": "Combined CPU and GPU temperature display with vertical thermometers",
+      "category": "Thermal",
+      "isLive": true,
+      "dependencies": ["LibreHardwareMonitorLib"]
     }
   ]
 }

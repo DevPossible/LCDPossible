@@ -41,7 +41,7 @@ public sealed class BasicInfoPanel : BaseLivePanel
 
             if (metrics.Cpu != null)
             {
-                var cpuNameTrunc = metrics.Cpu.Name.Length > 20 ? metrics.Cpu.Name[..20] + "..." : metrics.Cpu.Name;
+                var cpuNameTrunc = TruncateText(metrics.Cpu.Name, 40);
                 DrawText(ctx, cpuNameTrunc, cpuX, 70, SmallFont!, SecondaryTextColor, colWidth - 10);
                 DrawText(ctx, $"{metrics.Cpu.UsagePercent:F0}%", cpuX, 110, ValueFont!, GetUsageColor(metrics.Cpu.UsagePercent), colWidth);
 
@@ -70,7 +70,7 @@ public sealed class BasicInfoPanel : BaseLivePanel
 
             if (metrics.Gpu != null)
             {
-                var gpuNameTrunc = metrics.Gpu.Name.Length > 20 ? metrics.Gpu.Name[..20] + "..." : metrics.Gpu.Name;
+                var gpuNameTrunc = TruncateText(metrics.Gpu.Name, 40);
                 DrawText(ctx, gpuNameTrunc, gpuX, 70, SmallFont!, SecondaryTextColor, colWidth - 10);
                 DrawText(ctx, $"{metrics.Gpu.UsagePercent:F0}%", gpuX, 110, ValueFont!, GetUsageColor(metrics.Gpu.UsagePercent), colWidth);
 

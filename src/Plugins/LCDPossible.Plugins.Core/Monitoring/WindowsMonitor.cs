@@ -1,3 +1,4 @@
+using System.Management;
 using LCDPossible.Core.Monitoring;
 using LibreHardwareMonitor.Hardware;
 
@@ -56,6 +57,12 @@ internal sealed class WindowsMonitor : IPlatformMonitor
         {
             hardware.Update();
 
+            // Also update subhardware (e.g., CPU cores for temperature sensors)
+            foreach (var subHardware in hardware.SubHardware)
+            {
+                subHardware.Update();
+            }
+
             switch (hardware.HardwareType)
             {
                 case HardwareType.Cpu:
@@ -89,33 +96,144 @@ internal sealed class WindowsMonitor : IPlatformMonitor
     {
         metrics.Cpu!.Name = hardware.Name;
         var coreUsages = new List<float>();
+        var coreTemps = new List<float>();
 
-        foreach (var sensor in hardware.Sensors)
+        // Process sensors from main hardware
+        ProcessCpuSensors(hardware.Sensors, metrics, coreUsages, coreTemps);
+
+        // Also check subhardware (some CPUs report temperatures there)
+        foreach (var subHardware in hardware.SubHardware)
         {
-            switch (sensor.SensorType)
-            {
-                case SensorType.Load when sensor.Name.Contains("Total"):
-                    metrics.Cpu.UsagePercent = sensor.Value ?? 0;
-                    break;
-                case SensorType.Load when sensor.Name.StartsWith("CPU Core"):
-                    coreUsages.Add(sensor.Value ?? 0);
-                    break;
-                case SensorType.Temperature when sensor.Name.Contains("Package") || sensor.Name.Contains("Average"):
-                    metrics.Cpu.TemperatureCelsius = sensor.Value;
-                    break;
-                case SensorType.Clock when sensor.Name.Contains("Core"):
-                    // Take the first core clock as representative
-                    metrics.Cpu.FrequencyMhz ??= sensor.Value;
-                    break;
-                case SensorType.Power when sensor.Name.Contains("Package"):
-                    metrics.Cpu.PowerWatts = sensor.Value;
-                    break;
-            }
+            ProcessCpuSensors(subHardware.Sensors, metrics, coreUsages, coreTemps);
         }
 
         if (coreUsages.Count > 0)
         {
             metrics.Cpu.CoreUsages = coreUsages.OrderBy(x => x).ToList();
+        }
+
+        // If no package temperature found, use average of core temperatures
+        if (!metrics.Cpu.TemperatureCelsius.HasValue && coreTemps.Count > 0)
+        {
+            metrics.Cpu.TemperatureCelsius = coreTemps.Average();
+        }
+
+        // Fallback: Try WMI if still no temperature
+        if (!metrics.Cpu.TemperatureCelsius.HasValue || metrics.Cpu.TemperatureCelsius <= 0)
+        {
+            metrics.Cpu.TemperatureCelsius = GetCpuTemperatureFromWmi();
+        }
+    }
+
+    /// <summary>
+    /// Fallback method to get CPU temperature via WMI.
+    /// </summary>
+    private static float? GetCpuTemperatureFromWmi()
+    {
+        try
+        {
+            // Try MSAcpi_ThermalZoneTemperature (requires admin)
+            using var searcher = new ManagementObjectSearcher(
+                @"root\WMI",
+                "SELECT * FROM MSAcpi_ThermalZoneTemperature");
+
+            foreach (var obj in searcher.Get())
+            {
+                var tempKelvin = Convert.ToDouble(obj["CurrentTemperature"]);
+                // WMI returns temperature in tenths of Kelvin
+                var tempCelsius = (tempKelvin / 10.0) - 273.15;
+                if (tempCelsius > 0 && tempCelsius < 150)
+                {
+                    return (float)tempCelsius;
+                }
+            }
+        }
+        catch
+        {
+            // WMI query failed, try alternative
+        }
+
+        try
+        {
+            // Try Win32_TemperatureProbe (less common)
+            using var searcher = new ManagementObjectSearcher(
+                @"root\CIMV2",
+                "SELECT * FROM Win32_TemperatureProbe");
+
+            foreach (var obj in searcher.Get())
+            {
+                var temp = obj["CurrentReading"];
+                if (temp != null)
+                {
+                    var tempCelsius = Convert.ToDouble(temp);
+                    if (tempCelsius > 0 && tempCelsius < 150)
+                    {
+                        return (float)tempCelsius;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // WMI query failed
+        }
+
+        return null;
+    }
+
+    private static void ProcessCpuSensors(ISensor[] sensors, SystemMetrics metrics, List<float> coreUsages, List<float> coreTemps)
+    {
+        foreach (var sensor in sensors)
+        {
+            switch (sensor.SensorType)
+            {
+                case SensorType.Load when sensor.Name.Contains("Total"):
+                    metrics.Cpu!.UsagePercent = sensor.Value ?? 0;
+                    break;
+                case SensorType.Load when sensor.Name.StartsWith("CPU Core"):
+                    coreUsages.Add(sensor.Value ?? 0);
+                    break;
+                case SensorType.Temperature:
+                    // Try various known names for package/overall CPU temperature
+                    var name = sensor.Name;
+                    var value = sensor.Value;
+
+                    if (!value.HasValue || value.Value <= 0)
+                        break;
+
+                    // Prioritized sensor names (Package is highest priority)
+                    if (name.Contains("Package"))
+                    {
+                        metrics.Cpu!.TemperatureCelsius = value;
+                    }
+                    else if (name.Contains("Tctl") || name.Contains("Tdie"))
+                    {
+                        // AMD specific - use if no Package temp
+                        metrics.Cpu!.TemperatureCelsius ??= value;
+                    }
+                    else if (name.Contains("Average") || name.Contains("CCD"))
+                    {
+                        metrics.Cpu!.TemperatureCelsius ??= value;
+                    }
+                    else if (name.Contains("Core") || name.Contains("CPU"))
+                    {
+                        // Collect core temperatures as fallback
+                        coreTemps.Add(value.Value);
+                    }
+                    else
+                    {
+                        // Any other temperature sensor - still collect it
+                        coreTemps.Add(value.Value);
+                    }
+                    break;
+                case SensorType.Clock when sensor.Name.Contains("Core"):
+                    // Take the first core clock as representative
+                    metrics.Cpu!.FrequencyMhz ??= sensor.Value;
+                    break;
+                case SensorType.Power when sensor.Name.Contains("Package"):
+                    metrics.Cpu!.PowerWatts = sensor.Value;
+                    break;
+            }
         }
     }
 

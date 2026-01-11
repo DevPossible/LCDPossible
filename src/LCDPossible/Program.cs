@@ -141,6 +141,7 @@ static async Task<int> RunCliAsync(string[] args)
         "set-image" => await SetImage(args),
         "show" => await ShowPanels(args),
         "debug" => await DebugTest.RunAsync(),
+        "sensors" or "list-sensors" => await ListSensors.RunAsync(),
         "show-profile" => ShowProfileInfo(args),
         "generate-profile" => GenerateSampleProfile(args),
         "help" or "h" or "?" => ShowHelp(),
