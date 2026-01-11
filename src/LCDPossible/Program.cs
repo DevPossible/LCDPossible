@@ -122,12 +122,16 @@ static async Task<int> RunServiceAsync(string[] args)
 
 static async Task<int> RunCliAsync(string[] args)
 {
-    if (args.Length == 0)
+    // Find the first non-flag argument as the command
+    var command = args.FirstOrDefault(a => !a.StartsWith("-") && !a.StartsWith("/"));
+
+    if (string.IsNullOrEmpty(command))
     {
-        return ShowHelp();
+        // No command specified - default to "show" with default profile
+        command = "show";
     }
 
-    var command = args[0].ToLowerInvariant().TrimStart('-', '/');
+    command = command.ToLowerInvariant();
 
     return command switch
     {
@@ -166,7 +170,7 @@ CLI COMMANDS:
     status                  Show status of connected devices and configuration
     test                    Display a test pattern on the LCD
     set-image               Send an image file to the LCD display
-    show                    Quick display panels (inline profile format)
+    show                    Quick display panels (uses default profile if no panels specified)
     show-profile            Show current or specified profile information
     generate-profile        Generate a sample profile YAML file
 
@@ -198,6 +202,7 @@ EXAMPLES:
     lcdpossible test                          Send test pattern to first device
     lcdpossible test -d 1                     Send test pattern to second device
     lcdpossible set-image -p wallpaper.jpg    Display an image
+    lcdpossible show                          Show default panels (basic, CPU, GPU, RAM)
     lcdpossible show basic-info               Show basic info panel
     lcdpossible show basic-info|@duration=10  Show with 10s duration
     lcdpossible show basic-info,cpu-usage-graphic   Show multiple panels
@@ -365,37 +370,34 @@ static string? GetShowProfile(string[] args)
     return null;
 }
 
+static bool IsDebugMode(string[] args)
+{
+    return args.Any(a => a.Equals("--debug", StringComparison.OrdinalIgnoreCase) ||
+                         a.Equals("-D", StringComparison.OrdinalIgnoreCase));
+}
+
 static async Task<int> ShowPanels(string[] args)
 {
     var profile = GetShowProfile(args);
     var deviceIndex = GetDeviceIndex(args);
+    var debug = IsDebugMode(args);
 
+    if (debug)
+    {
+        Console.WriteLine("[DEBUG] Debug mode enabled");
+        Console.WriteLine($"[DEBUG] Arguments: {string.Join(" ", args)}");
+    }
+
+    // If no profile specified, use the default profile panels
     if (string.IsNullOrEmpty(profile))
     {
-        Console.Error.WriteLine("Error: No panels specified.");
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("Usage: lcdpossible show <panels>");
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("Format: {panel}|@{param}={value}@{param}={value},{panel},...");
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("Examples:");
-        Console.Error.WriteLine("  lcdpossible show basic-info");
-        Console.Error.WriteLine("  lcdpossible show basic-info|@duration=10");
-        Console.Error.WriteLine("  lcdpossible show basic-info|@duration=10@interval=5");
-        Console.Error.WriteLine("  lcdpossible show basic-info,cpu-usage-graphic,gpu-usage-graphic");
-        Console.Error.WriteLine("  lcdpossible show cpu-usage-graphic|@duration=15,ram-usage-graphic|@duration=10");
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("Parameters:");
-        Console.Error.WriteLine("  @duration=N   How long to show this panel (seconds, default: 15)");
-        Console.Error.WriteLine("  @interval=N   How often to refresh data (seconds, default: 5)");
-        Console.Error.WriteLine("  @background=path  Background image for the panel");
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("Available panels:");
-        Console.Error.WriteLine("  System: basic-info, cpu-info, cpu-usage-graphic, gpu-info, gpu-usage-graphic, ram-info, ram-usage-graphic");
-        Console.Error.WriteLine("  Media:  animated-gif:<path>, image-sequence:<folder>, video:<path|url>");
-        Console.Error.WriteLine("  Web:    html:<path>, web:<url>");
-        Console.Error.WriteLine("  Proxmox: proxmox-summary, proxmox-vms");
-        return 1;
+        // Default profile: basic-info, cpu-usage-graphic, gpu-usage-graphic, ram-usage-graphic
+        profile = "basic-info,cpu-usage-graphic,gpu-usage-graphic,ram-usage-graphic";
+        Console.WriteLine("No panels specified, using default profile");
+        if (debug)
+        {
+            Console.WriteLine($"[DEBUG] Default profile: {profile}");
+        }
     }
 
     // Validate the profile
@@ -409,6 +411,13 @@ static async Task<int> ShowPanels(string[] args)
     // Parse the profile
     var items = InlineProfileParser.Parse(profile);
     Console.WriteLine($"Parsed {items.Count} panel(s) from inline profile");
+    if (debug)
+    {
+        foreach (var item in items)
+        {
+            Console.WriteLine($"[DEBUG] Panel: Type={item.Type}, Source={item.Source}, Duration={item.DurationSeconds}s");
+        }
+    }
 
     // Find device
     using var enumerator = new HidSharpEnumerator();
@@ -416,6 +425,14 @@ static async Task<int> ShowPanels(string[] args)
     DriverRegistry.RegisterAllDrivers(deviceManager, enumerator);
 
     var devices = deviceManager.DiscoverDevices().ToList();
+    if (debug)
+    {
+        Console.WriteLine($"[DEBUG] Found {devices.Count} device(s)");
+        foreach (var dev in devices)
+        {
+            Console.WriteLine($"[DEBUG]   Device: {dev.Info.Name} ({dev.Info.VendorId:X4}:{dev.Info.ProductId:X4})");
+        }
+    }
 
     if (devices.Count == 0)
     {
@@ -440,15 +457,50 @@ static async Task<int> ShowPanels(string[] args)
         // Create stub system info provider - plugins provide actual hardware data
         using var systemProvider = new StubSystemInfoProvider();
         await systemProvider.InitializeAsync();
+        if (debug)
+        {
+            Console.WriteLine($"[DEBUG] SystemProvider: {systemProvider.Name}, IsAvailable={systemProvider.IsAvailable}");
+        }
 
         // Create plugin manager and discover plugins
-        using var pluginManager = new PluginManager();
+        using var pluginManager = new PluginManager(debug: debug);
         pluginManager.DiscoverPlugins();
+        if (debug)
+        {
+            var pluginInfos = pluginManager.GetDiscoveredPlugins();
+            Console.WriteLine($"[DEBUG] Discovered {pluginInfos.Count} plugin(s):");
+            foreach (var p in pluginInfos)
+            {
+                Console.WriteLine($"[DEBUG]   Plugin: {p.Id} ({p.Name}) - {p.PanelTypes.Count} panel types");
+                foreach (var pt in p.PanelTypes)
+                {
+                    Console.WriteLine($"[DEBUG]     Panel Type: {pt}");
+                }
+            }
+            var available = pluginManager.GetAvailablePanelTypeIds();
+            Console.WriteLine($"[DEBUG] Available panel types: [{string.Join(", ", available)}]");
+        }
 
         // Create panel factory and slideshow manager
-        var panelFactory = new PanelFactory(pluginManager, systemProvider);
+        if (debug)
+        {
+            Console.WriteLine("[DEBUG] Creating PanelFactory...");
+        }
+        var panelFactory = new PanelFactory(pluginManager, systemProvider, debug: debug);
+        if (debug)
+        {
+            Console.WriteLine("[DEBUG] Creating SlideshowManager...");
+        }
         using var slideshow = new SlideshowManager(panelFactory, items);
+        if (debug)
+        {
+            Console.WriteLine("[DEBUG] Initializing slideshow...");
+        }
         await slideshow.InitializeAsync();
+        if (debug)
+        {
+            Console.WriteLine("[DEBUG] Slideshow initialized");
+        }
 
         Console.WriteLine($"Running slideshow with {items.Count} panel(s)...");
         Console.WriteLine("Press any key to stop.\n");
@@ -465,6 +517,8 @@ static async Task<int> ShowPanels(string[] args)
 
         var frameInterval = TimeSpan.FromMilliseconds(1000.0 / 30); // 30 FPS
         var lastFrameTime = DateTime.UtcNow;
+        var frameCount = 0;
+        var lastDebugFrame = DateTime.UtcNow;
 
         while (!cts.Token.IsCancellationRequested)
         {
@@ -475,11 +529,26 @@ static async Task<int> ShowPanels(string[] args)
                     device.Capabilities.Height,
                     cts.Token);
 
+                frameCount++;
+                if (debug && (DateTime.UtcNow - lastDebugFrame).TotalSeconds >= 2)
+                {
+                    Console.WriteLine($"[DEBUG] Frame #{frameCount}: {(frame != null ? $"{frame.Width}x{frame.Height}" : "null")}");
+                    lastDebugFrame = DateTime.UtcNow;
+                }
+
                 if (frame != null)
                 {
                     var encoded = encoder.Encode(frame, device.Capabilities);
+                    if (debug && frameCount == 1)
+                    {
+                        Console.WriteLine($"[DEBUG] First frame encoded: {encoded.Length} bytes");
+                    }
                     await device.SendFrameAsync(encoded, ColorFormat.Jpeg, cts.Token);
                     frame.Dispose();
+                }
+                else if (debug && frameCount <= 3)
+                {
+                    Console.WriteLine($"[DEBUG] Frame #{frameCount}: null (no frame rendered)");
                 }
 
                 // Maintain frame rate

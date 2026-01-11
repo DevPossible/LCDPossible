@@ -32,8 +32,8 @@ try {
         throw "Executable not found at: $exePath`nRun build.ps1 first or check project configuration."
     }
 
-    # Run the compiled app with all arguments forwarded
-    & $exePath @args
+    # Run the compiled app with all arguments forwarded + debug flag at the end
+    & $exePath @args --debug
 }
 finally {
     Pop-Location

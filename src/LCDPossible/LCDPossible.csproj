@@ -19,6 +19,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\LCDPossible.Core\LCDPossible.Core.csproj" />
+    <!-- SDK must be copied to output so plugins can load it from the host context -->
+    <ProjectReference Include="..\LCDPossible.Sdk\LCDPossible.Sdk.csproj" />
 
     <!-- Plugin projects - built but not referenced at runtime (loaded dynamically) -->
     <ProjectReference Include="..\Plugins\LCDPossible.Plugins.Core\LCDPossible.Plugins.Core.csproj">

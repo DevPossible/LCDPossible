@@ -14,6 +14,7 @@ public sealed class PluginManager : IDisposable
     private readonly ILogger<PluginManager> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly IServiceProvider? _services;
+    private readonly bool _debug;
 
     private readonly Dictionary<string, PluginEntry> _availablePlugins = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, PluginEntry> _loadedPlugins = new(StringComparer.OrdinalIgnoreCase);
@@ -24,11 +25,12 @@ public sealed class PluginManager : IDisposable
     /// <summary>
     /// Creates a new plugin manager.
     /// </summary>
-    public PluginManager(ILoggerFactory? loggerFactory = null, IServiceProvider? services = null)
+    public PluginManager(ILoggerFactory? loggerFactory = null, IServiceProvider? services = null, bool debug = false)
     {
         _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
         _logger = _loggerFactory.CreateLogger<PluginManager>();
         _services = services;
+        _debug = debug;
     }
 
     /// <summary>
@@ -49,32 +51,50 @@ public sealed class PluginManager : IDisposable
     public void DiscoverPlugins()
     {
         _logger.LogInformation("Discovering plugins...");
+        if (_debug) Console.WriteLine("[DEBUG] PluginManager: Discovering plugins...");
 
         // Built-in plugins (lower priority)
         var builtInDir = PlatformPaths.GetBuiltInPluginsDirectory();
+        if (_debug) Console.WriteLine($"[DEBUG] PluginManager: Built-in plugins directory: {builtInDir}");
         if (Directory.Exists(builtInDir))
         {
             ScanPluginDirectory(builtInDir, isBuiltIn: true);
         }
+        else if (_debug)
+        {
+            Console.WriteLine($"[DEBUG] PluginManager: Built-in directory does not exist!");
+        }
 
         // User plugins (higher priority - can override built-in)
         var userDir = PlatformPaths.GetUserPluginsDirectory();
+        if (_debug) Console.WriteLine($"[DEBUG] PluginManager: User plugins directory: {userDir}");
         if (Directory.Exists(userDir))
         {
             ScanPluginDirectory(userDir, isBuiltIn: false);
         }
+        else if (_debug)
+        {
+            Console.WriteLine($"[DEBUG] PluginManager: User directory does not exist (OK - optional)");
+        }
 
         _logger.LogInformation("Discovered {Count} plugins with {PanelCount} panel types",
             _availablePlugins.Count, _panelTypeToPlugin.Count);
+        if (_debug) Console.WriteLine($"[DEBUG] PluginManager: Discovered {_availablePlugins.Count} plugins with {_panelTypeToPlugin.Count} panel types");
     }
 
     private void ScanPluginDirectory(string directory, bool isBuiltIn)
     {
-        foreach (var pluginDir in Directory.GetDirectories(directory))
+        var dirs = Directory.GetDirectories(directory);
+        if (_debug) Console.WriteLine($"[DEBUG] PluginManager: Scanning {directory}, found {dirs.Length} subdirectories");
+
+        foreach (var pluginDir in dirs)
         {
+            if (_debug) Console.WriteLine($"[DEBUG] PluginManager:   Checking: {Path.GetFileName(pluginDir)}");
+
             var manifestPath = Path.Combine(pluginDir, "plugin.json");
             if (!File.Exists(manifestPath))
             {
+                if (_debug) Console.WriteLine($"[DEBUG] PluginManager:     No plugin.json found");
                 continue;
             }
 
@@ -262,6 +282,22 @@ public sealed class PluginManager : IDisposable
     }
 
     /// <summary>
+    /// Gets detailed info about discovered plugins for debugging.
+    /// </summary>
+    public IReadOnlyList<PluginDebugInfo> GetDiscoveredPlugins()
+    {
+        return _availablePlugins.Values.Select(e => new PluginDebugInfo
+        {
+            Id = e.PluginId,
+            Name = e.Metadata.Name,
+            Directory = e.PluginDirectory,
+            AssemblyPath = e.AssemblyPath,
+            IsBuiltIn = e.IsBuiltIn,
+            PanelTypes = e.Metadata.PanelTypes.Select(p => p.TypeId).ToList()
+        }).ToList();
+    }
+
+    /// <summary>
     /// Gets all available panel types across all discovered plugins.
     /// </summary>
     public IEnumerable<(string PluginId, PluginPanelTypeMetadata PanelType)> GetAvailablePanelTypes()
@@ -346,4 +382,17 @@ public enum PluginLoadFailureReason
     InitializationFailed,
     SdkVersionMismatch,
     DependencyMissing
+}
+
+/// <summary>
+/// Debug information about a discovered plugin.
+/// </summary>
+public sealed class PluginDebugInfo
+{
+    public required string Id { get; init; }
+    public required string Name { get; init; }
+    public required string Directory { get; init; }
+    public required string AssemblyPath { get; init; }
+    public required bool IsBuiltIn { get; init; }
+    public required IReadOnlyList<string> PanelTypes { get; init; }
 }

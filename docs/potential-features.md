@@ -2,6 +2,10 @@
 
 Ideas and enhancements for future development.
 
+## thermal temp detection for various hardware
+
+detect the thermals for various hardware
+
 ## Transition Effects for Panel Transitions
 
 Add visual transition effects when switching between display panels.
