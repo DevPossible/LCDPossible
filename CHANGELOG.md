@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3](https://github.com/DevPossible/LCDPossible/compare/v0.1.2...v0.1.3) (2026-01-11)
+
+
+### Bug Fixes
+
+* **plugins:** correct package reference for Linux platform ([0e0cb79](https://github.com/DevPossible/LCDPossible/commit/0e0cb799b71c5130218c445779b94ceb400b057d))
+* **tests:** exclude slow functional tests from smoke tests ([325fdd3](https://github.com/DevPossible/LCDPossible/commit/325fdd3c42b4c24b8d43c0318d3463d1e609fa0c))
+* **video:** improve LibVLC initialization error handling and add install instructions ([8fdd14f](https://github.com/DevPossible/LCDPossible/commit/8fdd14f40bd602dd98c019a9ae6d77f02e98c67d))
+* **web:** fix async void Dispose causing test hangs ([3b0a602](https://github.com/DevPossible/LCDPossible/commit/3b0a602e95902752c038e5dcb680b73bee0c3884))
+
 ## [Unreleased]
 
 ## [0.2.4] - 2026-01-11
