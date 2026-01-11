@@ -59,6 +59,11 @@ public sealed class SlideshowManager : IDisposable
     public int TotalSlides => _items.Count;
 
     /// <summary>
+    /// Returns true when there's only one slide - no cycling or transitions needed.
+    /// </summary>
+    public bool IsSinglePanelMode => _items.Count <= 1;
+
+    /// <summary>
     /// Gets the current panel ID (or source for images).
     /// </summary>
     public string? CurrentPanelId => CurrentItem?.Source;
@@ -126,6 +131,11 @@ public sealed class SlideshowManager : IDisposable
 
         _slideStartTime = DateTime.UtcNow;
         _initialized = true;
+
+        if (IsSinglePanelMode)
+        {
+            _logger?.LogDebug("Single-panel mode: transitions disabled, no cycling");
+        }
     }
 
     /// <summary>
@@ -139,10 +149,23 @@ public sealed class SlideshowManager : IDisposable
             return null;
         }
 
-        // Check if we need to advance to the next slide
+        var currentItem = _items[_currentIndex];
+
+        // Single-panel optimization: skip all transition logic
+        if (IsSinglePanelMode)
+        {
+            if (currentItem.Type == "image")
+            {
+                return RenderImage(currentItem.Source, width, height);
+            }
+            return await RenderPanelAsync(currentItem, width, height, cancellationToken);
+        }
+
+        // Multi-panel mode: check if we need to advance to the next slide
         var (transitioned, previousIndex) = CheckSlideTransition();
 
-        var currentItem = _items[_currentIndex];
+        // Re-fetch current item in case index changed
+        currentItem = _items[_currentIndex];
 
         // Render the current (next) frame
         Image<Rgba32>? nextFrame;
