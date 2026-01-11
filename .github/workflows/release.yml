@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       force_release:
-        description: 'Force a release even without new conventional commits'
+        description: 'Force a release even if no version change detected'
         required: false
         type: boolean
         default: false
@@ -26,7 +26,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       should_release: ${{ steps.version.outputs.should_release }}
-      changelog: ${{ steps.changelog.outputs.changelog }}
+      tag_exists: ${{ steps.version.outputs.tag_exists }}
 
     steps:
       - name: Checkout
@@ -34,16 +34,34 @@ jobs:
         with:
           fetch-depth: 0  # Full history for version calculation
 
-      - name: Calculate version from conventional commits
+      - name: Determine version
         id: version
         run: |
+          # First, check if HEAD already has a tag
+          EXISTING_TAG=$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+
+          if [ -n "$EXISTING_TAG" ]; then
+            # Use existing tag version
+            VERSION="${EXISTING_TAG#v}"
+            echo "Found existing tag: $EXISTING_TAG"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "tag_exists=true" >> $GITHUB_OUTPUT
+            echo "should_release=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "No existing tag on HEAD, calculating version from commits..."
+          echo "tag_exists=false" >> $GITHUB_OUTPUT
+
+          # Calculate version using conventional commits
           chmod +x ./scripts/get-version.sh
           VERSION=$(./scripts/get-version.sh)
+          echo "Calculated version: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-          # Check if this version already exists as a tag
+          # Check if this calculated version already exists as a tag (on a different commit)
           if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-            echo "Tag v$VERSION already exists"
+            echo "Tag v$VERSION already exists on a different commit"
             echo "should_release=false" >> $GITHUB_OUTPUT
           else
             echo "New version: $VERSION"
@@ -54,26 +72,33 @@ jobs:
         id: changelog
         if: steps.version.outputs.should_release == 'true' || inputs.force_release
         run: |
-          # Get last tag
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Get last tag (excluding current if it exists)
+          LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          echo "Last tag: ${LAST_TAG:-(none)}"
 
           # Generate changelog from commits
           if [ -n "$LAST_TAG" ]; then
             COMMITS=$(git log "$LAST_TAG..HEAD" --pretty=format:"- %s" --reverse)
+            COMPARE_URL="https://github.com/${{ github.repository }}/compare/${LAST_TAG}...v${VERSION}"
           else
             COMMITS=$(git log --pretty=format:"- %s" --reverse | head -50)
+            COMPARE_URL="https://github.com/${{ github.repository }}/commits/v${VERSION}"
           fi
 
           # Create changelog content
-          CHANGELOG="## What's Changed
+          cat > changelog.md << EOF
+          ## What's Changed
 
           $COMMITS
 
-          **Full Changelog**: https://github.com/${{ github.repository }}/compare/${LAST_TAG:-initial}...v${{ steps.version.outputs.version }}"
+          **Full Changelog**: $COMPARE_URL
+          EOF
 
-          # Save to file (multi-line output)
-          echo "$CHANGELOG" > changelog.md
-          echo "changelog_file=changelog.md" >> $GITHUB_OUTPUT
+          echo "Generated changelog:"
+          cat changelog.md
 
       - name: Upload changelog
         if: steps.version.outputs.should_release == 'true' || inputs.force_release
@@ -170,8 +195,12 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VERSION: ${{ needs.calculate-version.outputs.version }}
+      TAG_EXISTS: ${{ needs.calculate-version.outputs.tag_exists }}
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download changelog
         uses: actions/download-artifact@v4
         with:
@@ -185,6 +214,14 @@ jobs:
 
       - name: Display artifacts
         run: ls -R ./artifacts
+
+      - name: Create tag (if not exists)
+        if: env.TAG_EXISTS == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${{ env.VERSION }}" -m "Release v${{ env.VERSION }}"
+          git push origin "v${{ env.VERSION }}"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
