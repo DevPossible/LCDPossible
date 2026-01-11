@@ -1,3 +1,4 @@
+using LCDPossible.Core.Transitions;
 using YamlDotNet.Serialization;
 
 namespace LCDPossible.Core.Configuration;
@@ -33,6 +34,22 @@ public sealed class DisplayProfile
     public int DefaultDurationSeconds { get; set; } = 15;
 
     /// <summary>
+    /// Default transition effect when switching panels.
+    /// Options: none, fade, crossfade, slide-left, slide-right, slide-up, slide-down,
+    /// wipe-left, wipe-right, wipe-up, wipe-down, zoom-in, zoom-out, push-left, push-right, random.
+    /// Default is "random".
+    /// </summary>
+    [YamlMember(Alias = "default_transition")]
+    public string DefaultTransition { get; set; } = "random";
+
+    /// <summary>
+    /// Default transition duration in milliseconds.
+    /// Range: 50-2000ms. Default is 1500ms.
+    /// </summary>
+    [YamlMember(Alias = "default_transition_duration")]
+    public int DefaultTransitionDurationMs { get; set; } = 1500;
+
+    /// <summary>
     /// Color scheme for panel rendering.
     /// </summary>
     [YamlMember(Alias = "colors")]
@@ -53,13 +70,24 @@ public sealed class DisplayProfile
 
         foreach (var slide in Slides)
         {
+            // Parse transition type (use slide-specific or fall back to profile default)
+            var transitionString = slide.Transition ?? DefaultTransition;
+            var transitionType = TransitionTypeExtensions.Parse(transitionString);
+
+            // Use slide-specific duration or fall back to profile default
+            var transitionDuration = slide.TransitionDurationMs ?? DefaultTransitionDurationMs;
+            transitionDuration = Math.Clamp(transitionDuration,
+                TransitionEngine.MinDurationMs, TransitionEngine.MaxDurationMs);
+
             items.Add(new SlideshowItem
             {
                 Type = slide.Type ?? "panel",
                 Source = slide.Source ?? slide.Panel ?? string.Empty,
                 DurationSeconds = slide.Duration ?? DefaultDurationSeconds,
                 UpdateIntervalSeconds = slide.UpdateInterval ?? DefaultUpdateIntervalSeconds,
-                BackgroundImage = slide.Background
+                BackgroundImage = slide.Background,
+                Transition = transitionType,
+                TransitionDurationMs = transitionDuration
             });
         }
 
@@ -164,4 +192,19 @@ public sealed class SlideDefinition
     /// </summary>
     [YamlMember(Alias = "background")]
     public string? Background { get; set; }
+
+    /// <summary>
+    /// Transition effect when entering this slide (overrides profile default).
+    /// Options: none, fade, crossfade, slide-left, slide-right, slide-up, slide-down,
+    /// wipe-left, wipe-right, wipe-up, wipe-down, zoom-in, zoom-out, push-left, push-right, random.
+    /// </summary>
+    [YamlMember(Alias = "transition")]
+    public string? Transition { get; set; }
+
+    /// <summary>
+    /// Transition duration in milliseconds (overrides profile default).
+    /// Range: 50-2000ms.
+    /// </summary>
+    [YamlMember(Alias = "transition_duration")]
+    public int? TransitionDurationMs { get; set; }
 }

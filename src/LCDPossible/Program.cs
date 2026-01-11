@@ -153,7 +153,7 @@ static async Task<int> RunCliAsync(string[] args)
         "set-image" => await SetImage(args),
         "show" => await ShowPanels(args),
         "debug" => await DebugTest.RunAsync(),
-        "sensors" or "list-sensors" => await ListSensors.RunAsync(),
+        "sensors" or "list-sensors" => await RunSensorsCommand(),
         "profile" => ProfileCommands.Run(args),
         "help" or "h" or "?" => ShowHelp(),
         "version" or "v" => ShowVersion(),
@@ -330,6 +330,18 @@ static int UnknownCommand(string command)
     Console.Error.WriteLine($"Unknown command: {command}");
     Console.Error.WriteLine("Use 'lcdpossible --help' for usage information.");
     return 1;
+}
+
+static Task<int> RunSensorsCommand()
+{
+    if (!OperatingSystem.IsWindows())
+    {
+        Console.Error.WriteLine("The 'sensors' command is only available on Windows.");
+        Console.Error.WriteLine("It uses LibreHardwareMonitor and WMI which are Windows-specific.");
+        return Task.FromResult(1);
+    }
+
+    return ListSensors.RunAsync();
 }
 
 static int GetDeviceIndex(string[] args)

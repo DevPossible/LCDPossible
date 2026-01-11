@@ -258,6 +258,8 @@ public sealed class ProfileManager
             "duration" => slide.Duration?.ToString(),
             "update_interval" or "updateinterval" or "interval" => slide.UpdateInterval?.ToString(),
             "background" => slide.Background,
+            "transition" => slide.Transition,
+            "transition_duration" or "transitionduration" => slide.TransitionDurationMs?.ToString(),
             _ => throw new ArgumentException($"Unknown parameter: {paramName}")
         };
     }
@@ -301,6 +303,12 @@ public sealed class ProfileManager
             case "background":
                 slide.Background = isDelete ? null : value;
                 break;
+            case "transition":
+                slide.Transition = isDelete ? null : value;
+                break;
+            case "transition_duration" or "transitionduration":
+                slide.TransitionDurationMs = isDelete ? null : int.TryParse(value, out var t) ? t : null;
+                break;
             default:
                 throw new ArgumentException($"Unknown parameter: {paramName}");
         }
@@ -330,6 +338,8 @@ public sealed class ProfileManager
         slide.Duration = null;
         slide.UpdateInterval = null;
         slide.Background = null;
+        slide.Transition = null;
+        slide.TransitionDurationMs = null;
         slide.Panel = panelType; // Keep the panel type
 
         SaveProfile(profile, profileName);
@@ -343,7 +353,9 @@ public sealed class ProfileManager
         string? name = null,
         string? description = null,
         int? defaultDuration = null,
-        int? defaultUpdateInterval = null)
+        int? defaultUpdateInterval = null,
+        string? defaultTransition = null,
+        int? defaultTransitionDuration = null)
     {
         var profile = LoadProfile(profileName);
 
@@ -365,6 +377,16 @@ public sealed class ProfileManager
         if (defaultUpdateInterval.HasValue)
         {
             profile.DefaultUpdateIntervalSeconds = defaultUpdateInterval.Value;
+        }
+
+        if (!string.IsNullOrEmpty(defaultTransition))
+        {
+            profile.DefaultTransition = defaultTransition;
+        }
+
+        if (defaultTransitionDuration.HasValue)
+        {
+            profile.DefaultTransitionDurationMs = defaultTransitionDuration.Value;
         }
 
         SaveProfile(profile, profileName);

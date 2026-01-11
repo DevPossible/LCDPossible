@@ -105,7 +105,8 @@ public static class ProfileCommands
         // Known flags that take a value (must skip the following arg)
         var flagsWithValue = new[] { "-p", "--profile", "-f", "--format", "-d", "--duration",
             "-i", "--interval", "--index", "-n", "--name", "-v", "--value",
-            "-b", "--background", "--description", "--from", "--to", "-t" };
+            "-b", "--background", "--description", "--from", "--to", "-t",
+            "--transition", "--transition-duration" };
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -285,6 +286,8 @@ public static class ProfileCommands
         }
         Console.WriteLine($"Default Duration: {profile.DefaultDurationSeconds}s");
         Console.WriteLine($"Default Update Interval: {profile.DefaultUpdateIntervalSeconds}s");
+        Console.WriteLine($"Default Transition: {profile.DefaultTransition}");
+        Console.WriteLine($"Default Transition Duration: {profile.DefaultTransitionDurationMs}ms");
         Console.WriteLine();
 
         if (profile.Slides.Count == 0)
@@ -317,6 +320,14 @@ public static class ProfileCommands
             if (!string.IsNullOrEmpty(slide.Background))
             {
                 Console.WriteLine($"       background: {slide.Background}");
+            }
+            if (!string.IsNullOrEmpty(slide.Transition))
+            {
+                Console.WriteLine($"       transition: {slide.Transition}");
+            }
+            if (slide.TransitionDurationMs.HasValue)
+            {
+                Console.WriteLine($"       transition_duration: {slide.TransitionDurationMs}ms");
             }
             if (!string.IsNullOrEmpty(slide.Source) && slide.Source != slide.Panel)
             {
@@ -441,16 +452,25 @@ public static class ProfileCommands
         var description = GetArgValue(args, "--description", "-d");
         var duration = GetIntArg(args, "--duration");
         var interval = GetIntArg(args, "--interval", "--update-interval");
+        var transition = GetArgValue(args, "--transition");
+        var transitionDuration = GetIntArg(args, "--transition-duration");
 
-        if (name == null && description == null && !duration.HasValue && !interval.HasValue)
+        if (name == null && description == null && !duration.HasValue && !interval.HasValue &&
+            transition == null && !transitionDuration.HasValue)
         {
             Console.Error.WriteLine("Error: At least one setting is required.");
             Console.Error.WriteLine("Usage: lcdpossible profile set-defaults [-p <profile>] [options]");
             Console.Error.WriteLine("Options:");
-            Console.Error.WriteLine("  --name <name>              Set profile name");
-            Console.Error.WriteLine("  --description <text>       Set profile description");
-            Console.Error.WriteLine("  --duration <seconds>       Set default panel duration");
-            Console.Error.WriteLine("  --interval <seconds>       Set default update interval");
+            Console.Error.WriteLine("  --name <name>                   Set profile name");
+            Console.Error.WriteLine("  --description <text>            Set profile description");
+            Console.Error.WriteLine("  --duration <seconds>            Set default panel duration");
+            Console.Error.WriteLine("  --interval <seconds>            Set default update interval");
+            Console.Error.WriteLine("  --transition <type>             Set default transition effect");
+            Console.Error.WriteLine("  --transition-duration <ms>      Set default transition duration");
+            Console.Error.WriteLine();
+            Console.Error.WriteLine("Transition types: none, fade, crossfade, slide-left, slide-right,");
+            Console.Error.WriteLine("  slide-up, slide-down, wipe-left, wipe-right, wipe-up, wipe-down,");
+            Console.Error.WriteLine("  zoom-in, zoom-out, push-left, push-right, random");
             return 1;
         }
 
@@ -458,13 +478,15 @@ public static class ProfileCommands
 
         try
         {
-            manager.SetDefaults(profileName, name, description, duration, interval);
+            manager.SetDefaults(profileName, name, description, duration, interval, transition, transitionDuration);
 
             Console.WriteLine("Updated profile defaults:");
             if (name != null) Console.WriteLine($"  Name: {name}");
             if (description != null) Console.WriteLine($"  Description: {(string.IsNullOrEmpty(description) ? "(cleared)" : description)}");
             if (duration.HasValue) Console.WriteLine($"  Default Duration: {duration}s");
             if (interval.HasValue) Console.WriteLine($"  Default Update Interval: {interval}s");
+            if (transition != null) Console.WriteLine($"  Default Transition: {transition}");
+            if (transitionDuration.HasValue) Console.WriteLine($"  Default Transition Duration: {transitionDuration}ms");
 
             return 0;
         }
@@ -493,7 +515,7 @@ public static class ProfileCommands
         if (string.IsNullOrEmpty(paramName))
         {
             Console.Error.WriteLine("Error: Parameter name is required (--name or -n).");
-            Console.Error.WriteLine("Valid parameters: panel, type, source, duration, interval, background");
+            Console.Error.WriteLine("Valid parameters: panel, type, source, duration, interval, background, transition, transition_duration");
             return 1;
         }
 
@@ -527,7 +549,7 @@ public static class ProfileCommands
         catch (ArgumentException ex)
         {
             Console.Error.WriteLine($"Error: {ex.Message}");
-            Console.Error.WriteLine("Valid parameters: panel, type, source, duration, interval, background");
+            Console.Error.WriteLine("Valid parameters: panel, type, source, duration, interval, background, transition, transition_duration");
             return 1;
         }
     }
@@ -548,7 +570,7 @@ public static class ProfileCommands
         if (string.IsNullOrEmpty(paramName))
         {
             Console.Error.WriteLine("Error: Parameter name is required (--name or -n).");
-            Console.Error.WriteLine("Valid parameters: panel, type, source, duration, interval, background");
+            Console.Error.WriteLine("Valid parameters: panel, type, source, duration, interval, background, transition, transition_duration");
             return 1;
         }
 
@@ -721,10 +743,12 @@ OPTIONS:
         -b, --background <path> Background image path
 
     set-defaults options:
-        --name <name>           Set profile display name
-        --description <text>    Set profile description
-        --duration <sec>        Set default panel duration
-        --interval <sec>        Set default update interval
+        --name <name>                Set profile display name
+        --description <text>         Set profile description
+        --duration <sec>             Set default panel duration
+        --interval <sec>             Set default update interval
+        --transition <type>          Set default transition effect
+        --transition-duration <ms>   Set default transition duration (ms)
 
     set-panelparam parameters:
         panel                   Panel type ID (e.g., 'cpu-usage-graphic')
@@ -733,6 +757,26 @@ OPTIONS:
         duration                Display duration in seconds
         interval                Update interval in seconds
         background              Background image path
+        transition              Transition effect for this panel
+        transition_duration     Transition duration in milliseconds
+
+TRANSITION TYPES:
+    none        - No transition (instant switch)
+    fade        - Fade in from black
+    crossfade   - Crossfade/dissolve between panels
+    slide-left  - Slide in from the left
+    slide-right - Slide in from the right
+    slide-up    - Slide in from the top
+    slide-down  - Slide in from the bottom
+    wipe-left   - Horizontal wipe from right to left
+    wipe-right  - Horizontal wipe from left to right
+    wipe-up     - Vertical wipe from bottom to top
+    wipe-down   - Vertical wipe from top to bottom
+    zoom-in     - Zoom in from center
+    zoom-out    - Zoom out from edges
+    push-left   - Push previous panel out to the left
+    push-right  - Push previous panel out to the right
+    random      - Randomly select a transition (default)
 
 EXAMPLES:
 
@@ -758,6 +802,14 @@ EXAMPLES:
 
     # Set profile defaults
     lcdpossible profile set-defaults --duration 20 --interval 3
+    lcdpossible profile set-defaults --transition fade --transition-duration 500
+
+    # Set transition for a specific panel
+    lcdpossible profile set-panelparam -i 0 -n transition -v slide-left
+    lcdpossible profile set-panelparam -i 0 -n transition_duration -v 400
+
+    # Disable transitions (instant switch)
+    lcdpossible profile set-defaults --transition none
 
     # Export profile as YAML
     lcdpossible profile list-panels --format yaml > my-profile.yaml

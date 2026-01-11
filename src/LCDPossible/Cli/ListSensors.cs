@@ -1,4 +1,5 @@
 using System.Management;
+using System.Runtime.Versioning;
 using LibreHardwareMonitor.Hardware;
 
 namespace LCDPossible.Cli;
@@ -7,6 +8,7 @@ namespace LCDPossible.Cli;
 /// Lists all hardware sensors detected by LibreHardwareMonitor and WMI.
 /// Useful for debugging temperature detection issues.
 /// </summary>
+[SupportedOSPlatform("windows")]
 public static class ListSensors
 {
     public static Task<int> RunAsync()

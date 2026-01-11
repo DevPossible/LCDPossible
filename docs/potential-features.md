@@ -2,26 +2,7 @@
 
 Ideas and enhancements for future development.
 
-## thermal temp detection for various hardware
 
-detect the thermals for various hardware
-
-## Transition Effects for Panel Transitions
-
-Add visual transition effects when switching between display panels.
-
-**Possible effects:**
-- Fade in/out
-- Slide (left, right, up, down)
-- Crossfade between panels
-- Wipe transitions
-- Zoom in/out
-
-**Implementation considerations:**
-- Buffer previous frame for blending
-- Configurable transition duration (e.g., 200-500ms)
-- Per-panel or global transition settings in YAML profile
-- Option to disable for performance-critical scenarios
 
 ## 3D Scene Animation Panel
 
@@ -62,12 +43,12 @@ Display simple 3D animations using a web page panel with JavaScript 3D libraries
 - Consider presets for common animations (spinning cube, orbiting spheres, etc.)
 - Performance: limit polygon count and effects for smooth LCD refresh rates
 
-
-
-
-
-
-
 ## a panel to show network info (hostname, IP Addresses, netmask, gateway, etc...)
 
 Also add this to the default profile as a 5th page
+
+## a panel that wraps the HTML panel to display a banner with settings for text, font, size and color
+
+## an animated game plugin panel simulating various legacy games like pacman, tetris, ms pacman, asteroids, mario, zelda...
+
+## panel plugin for various animated screen savers

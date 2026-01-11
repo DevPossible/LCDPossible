@@ -1,4 +1,5 @@
 using System.Management;
+using System.Runtime.Versioning;
 using LCDPossible.Core.Monitoring;
 using LibreHardwareMonitor.Hardware;
 
@@ -8,6 +9,7 @@ namespace LCDPossible.Plugins.Core.Monitoring;
 /// Windows hardware monitor using LibreHardwareMonitor.
 /// Provides full hardware data including CPU, GPU, RAM, temps, fans, and power.
 /// </summary>
+[SupportedOSPlatform("windows")]
 internal sealed class WindowsMonitor : IPlatformMonitor
 {
     private Computer? _computer;

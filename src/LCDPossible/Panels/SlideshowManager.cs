@@ -1,5 +1,6 @@
 using LCDPossible.Core.Configuration;
 using LCDPossible.Core.Rendering;
+using LCDPossible.Core.Transitions;
 using Microsoft.Extensions.Logging;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
@@ -23,6 +24,12 @@ public sealed class SlideshowManager : IDisposable
     private DateTime _slideStartTime;
     private bool _initialized;
     private bool _disposed;
+
+    // Transition state
+    private Image<Rgba32>? _previousFrame;
+    private DateTime _transitionStartTime;
+    private bool _inTransition;
+    private TransitionType _currentTransitionType;
 
     public SlideshowManager(
         PanelFactory panelFactory,
@@ -123,6 +130,7 @@ public sealed class SlideshowManager : IDisposable
 
     /// <summary>
     /// Renders the current frame, advancing slides as needed.
+    /// Applies transition effects during slide changes.
     /// </summary>
     public async Task<Image<Rgba32>?> RenderCurrentFrameAsync(int width, int height, CancellationToken cancellationToken = default)
     {
@@ -132,31 +140,123 @@ public sealed class SlideshowManager : IDisposable
         }
 
         // Check if we need to advance to the next slide
-        CheckSlideTransition();
+        var (transitioned, previousIndex) = CheckSlideTransition();
 
         var currentItem = _items[_currentIndex];
 
+        // Render the current (next) frame
+        Image<Rgba32>? nextFrame;
         if (currentItem.Type == "image")
         {
-            return RenderImage(currentItem.Source, width, height);
+            nextFrame = RenderImage(currentItem.Source, width, height);
         }
-        else // panel
+        else
         {
-            return await RenderPanelAsync(currentItem, width, height, cancellationToken);
+            nextFrame = await RenderPanelAsync(currentItem, width, height, cancellationToken);
         }
+
+        if (nextFrame == null)
+        {
+            return null;
+        }
+
+        // Handle transition
+        if (_inTransition)
+        {
+            var elapsed = DateTime.UtcNow - _transitionStartTime;
+            var transitionDuration = TimeSpan.FromMilliseconds(currentItem.TransitionDurationMs);
+            var progress = (float)(elapsed.TotalMilliseconds / transitionDuration.TotalMilliseconds);
+
+            if (progress >= 1f)
+            {
+                // Transition complete
+                _inTransition = false;
+                UpdatePreviousFrame(nextFrame);
+                return nextFrame;
+            }
+
+            // Apply easing for smoother transitions
+            var easedProgress = TransitionEngine.EaseInOut(progress);
+
+            // Apply transition effect
+            var blendedFrame = TransitionEngine.Apply(
+                _currentTransitionType,
+                _previousFrame,
+                nextFrame,
+                easedProgress);
+
+            // Dispose the rendered next frame since we're returning the blended one
+            nextFrame.Dispose();
+            return blendedFrame;
+        }
+
+        // No transition - update previous frame and return
+        UpdatePreviousFrame(nextFrame);
+        return nextFrame;
     }
 
-    private void CheckSlideTransition()
+    /// <summary>
+    /// Updates the previous frame buffer for the next transition.
+    /// </summary>
+    private void UpdatePreviousFrame(Image<Rgba32> currentFrame)
     {
+        _previousFrame?.Dispose();
+        _previousFrame = currentFrame.Clone();
+    }
+
+    /// <summary>
+    /// Checks if slide should advance and initiates transition if needed.
+    /// </summary>
+    /// <returns>Tuple of (didTransition, previousIndex).</returns>
+    private (bool Transitioned, int PreviousIndex) CheckSlideTransition()
+    {
+        // Don't check for slide change while in transition
+        if (_inTransition)
+        {
+            return (false, _currentIndex);
+        }
+
         var currentItem = _items[_currentIndex];
         var elapsed = DateTime.UtcNow - _slideStartTime;
 
         if (elapsed.TotalSeconds >= currentItem.DurationSeconds)
         {
+            var previousIndex = _currentIndex;
             _currentIndex = (_currentIndex + 1) % _items.Count;
             _slideStartTime = DateTime.UtcNow;
-            _logger?.LogDebug("Advancing to slide {Index}: {Source}", _currentIndex, _items[_currentIndex].Source);
+
+            // Start transition for the new slide
+            var newItem = _items[_currentIndex];
+            var transitionType = newItem.Transition;
+
+            // Resolve random to an actual transition
+            if (transitionType == TransitionType.Random)
+            {
+                _currentTransitionType = transitionType.Resolve();
+            }
+            else
+            {
+                _currentTransitionType = transitionType;
+            }
+
+            // Only start transition if not "none"
+            if (_currentTransitionType != TransitionType.None)
+            {
+                _inTransition = true;
+                _transitionStartTime = DateTime.UtcNow;
+                _logger?.LogDebug("Starting {Transition} transition to slide {Index}: {Source}",
+                    _currentTransitionType, _currentIndex, newItem.Source);
+            }
+            else
+            {
+                _logger?.LogDebug("Advancing to slide {Index}: {Source} (no transition)",
+                    _currentIndex, newItem.Source);
+            }
+
+            return (true, previousIndex);
         }
+
+        return (false, _currentIndex);
     }
 
     private Image<Rgba32>? RenderImage(string imagePath, int width, int height)
@@ -268,7 +368,7 @@ public sealed class SlideshowManager : IDisposable
     }
 
     /// <summary>
-    /// Advances to the next slide immediately.
+    /// Advances to the next slide immediately with transition.
     /// </summary>
     public void NextSlide()
     {
@@ -276,11 +376,12 @@ public sealed class SlideshowManager : IDisposable
         {
             _currentIndex = (_currentIndex + 1) % _items.Count;
             _slideStartTime = DateTime.UtcNow;
+            StartManualTransition();
         }
     }
 
     /// <summary>
-    /// Goes back to the previous slide.
+    /// Goes back to the previous slide with transition.
     /// </summary>
     public void PreviousSlide()
     {
@@ -288,6 +389,31 @@ public sealed class SlideshowManager : IDisposable
         {
             _currentIndex = (_currentIndex - 1 + _items.Count) % _items.Count;
             _slideStartTime = DateTime.UtcNow;
+            StartManualTransition();
+        }
+    }
+
+    /// <summary>
+    /// Starts a transition for manual slide changes.
+    /// </summary>
+    private void StartManualTransition()
+    {
+        var newItem = _items[_currentIndex];
+        var transitionType = newItem.Transition;
+
+        if (transitionType == TransitionType.Random)
+        {
+            _currentTransitionType = transitionType.Resolve();
+        }
+        else
+        {
+            _currentTransitionType = transitionType;
+        }
+
+        if (_currentTransitionType != TransitionType.None)
+        {
+            _inTransition = true;
+            _transitionStartTime = DateTime.UtcNow;
         }
     }
 
@@ -299,6 +425,10 @@ public sealed class SlideshowManager : IDisposable
         }
 
         _disposed = true;
+
+        // Dispose transition state
+        _previousFrame?.Dispose();
+        _previousFrame = null;
 
         foreach (var panel in _panels)
         {
