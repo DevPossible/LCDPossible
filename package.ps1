@@ -24,20 +24,20 @@ function Ensure-DotnetTool {
 
 #region Version Management
 function Get-NextVersion {
-    # Try to get version from git tags
+    # Use conventional commits to calculate version
+    $versionScript = Join-Path $PSScriptRoot 'scripts' 'get-version.ps1'
+    if (Test-Path $versionScript) {
+        $version = & $versionScript
+        if ($version -and $version -match '^\d+\.\d+\.\d+$') {
+            return $version
+        }
+    }
+
+    # Fallback: try to get version from git tags
     $lastTag = git describe --tags --abbrev=0 2>$null
     if ($lastTag) {
         $current = [Version]($lastTag -replace '^v', '')
         return "$($current.Major).$($current.Minor).$($current.Build + 1)"
-    }
-
-    # Try to get from Directory.Build.props
-    $propsFile = Join-Path $PSScriptRoot 'Directory.Build.props'
-    if (Test-Path $propsFile) {
-        $content = Get-Content $propsFile -Raw
-        if ($content -match '<Version>([^<]+)</Version>') {
-            return $Matches[1]
-        }
     }
 
     return "0.1.0"
