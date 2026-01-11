@@ -76,6 +76,11 @@ curl -sSL https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts
 curl -sSL https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/install-macos.sh | bash
 ```
 
+**Proxmox VE** (run as root):
+```bash
+curl -sSL https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/install-proxmox.sh | bash
+```
+
 These scripts will:
 - Install all required dependencies (LibVLC, fonts)
 - Download the latest release
