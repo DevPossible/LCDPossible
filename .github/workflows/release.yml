@@ -180,7 +180,14 @@ jobs:
         run: dotnet build src/LCDPossible.sln --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test src/LCDPossible.sln --configuration Release --no-build --verbosity normal
+        run: |
+          # On macOS, skip video tests due to LibVLC native library loading issues
+          if [ "$RUNNER_OS" == "macOS" ]; then
+            dotnet test src/LCDPossible.sln --configuration Release --no-build --verbosity normal --filter "FullyQualifiedName!~Video&FullyQualifiedName!~WildcardAll"
+          else
+            dotnet test src/LCDPossible.sln --configuration Release --no-build --verbosity normal
+          fi
+        shell: bash
 
       - name: Publish
         shell: bash
