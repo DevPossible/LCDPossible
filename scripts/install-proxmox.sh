@@ -184,86 +184,129 @@ echo "  [OK] udev rules updated and reloaded."
 
 echo ""
 echo "[6/8] Configuring Proxmox API access..."
+PROXMOX_API_CONFIGURED=false
+CREATE_NEW_TOKEN=false
+
 # Check if Proxmox config already exists
 if [ -f "$CONFIG_DIR/appsettings.json" ]; then
     PROXMOX_ENABLED=$(jq -r '.LCDPossible.Proxmox.Enabled // false' "$CONFIG_DIR/appsettings.json" 2>/dev/null)
-    if [ "$PROXMOX_ENABLED" = "true" ]; then
-        echo "  [OK] Proxmox API already configured."
-    else
+    EXISTING_TOKEN_ID=$(jq -r '.LCDPossible.Proxmox.TokenId // ""' "$CONFIG_DIR/appsettings.json" 2>/dev/null)
+    EXISTING_API_URL=$(jq -r '.LCDPossible.Proxmox.ApiUrl // ""' "$CONFIG_DIR/appsettings.json" 2>/dev/null)
+
+    if [ "$PROXMOX_ENABLED" = "true" ] && [ -n "$EXISTING_TOKEN_ID" ] && [ "$EXISTING_TOKEN_ID" != "null" ]; then
+        # Existing configuration found
+        echo "  Existing Proxmox API configuration found:"
+        echo "    URL:      $EXISTING_API_URL"
+        echo "    Token ID: $EXISTING_TOKEN_ID"
         echo ""
-        read -p "  Configure Proxmox API integration? [Y/n] " -n 1 -r
+        echo "  Options:"
+        echo "    [K] Keep existing configuration"
+        echo "    [N] Create new API token (regenerate)"
+        echo "    [D] Disable Proxmox integration"
+        echo ""
+        # Read from /dev/tty to work with curl | bash
+        read -p "  Choice [K/n/d]: " -n 1 -r REPLY </dev/tty
+        echo
+
+        if [[ $REPLY =~ ^[Nn]$ ]]; then
+            # User wants to create new token
+            echo "  Creating new Proxmox API token..."
+            CREATE_NEW_TOKEN=true
+        elif [[ $REPLY =~ ^[Dd]$ ]]; then
+            # User wants to disable
+            echo "  Disabling Proxmox API integration..."
+            TMP_CONFIG=$(mktemp)
+            jq '.LCDPossible.Proxmox.Enabled = false' "$CONFIG_DIR/appsettings.json" > "$TMP_CONFIG"
+            mv "$TMP_CONFIG" "$CONFIG_DIR/appsettings.json"
+            echo "  [OK] Proxmox API disabled."
+        else
+            # Keep existing (default)
+            echo "  [OK] Keeping existing Proxmox API configuration."
+            PROXMOX_API_CONFIGURED=true
+        fi
+    else
+        # No existing config, ask if they want to set it up
+        echo ""
+        # Read from /dev/tty to work with curl | bash
+        read -p "  Configure Proxmox API integration? [Y/n] " -n 1 -r REPLY </dev/tty
         echo
         if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-            # Create API token for LCDPossible
-            PVE_USER="lcdpossible@pve"
-            PVE_TOKEN="lcdpossible"
-
-            echo "  Creating Proxmox API user and token..."
-
-            # Create user if it doesn't exist
-            if ! pveum user list | grep -q "lcdpossible@pve"; then
-                pveum user add "$PVE_USER" --comment "LCDPossible LCD Controller" 2>/dev/null || true
-                echo "    [OK] Created user: $PVE_USER"
-            else
-                echo "    [OK] User already exists: $PVE_USER"
-            fi
-
-            # Create or regenerate token
-            TOKEN_OUTPUT=$(pveum user token add "$PVE_USER" "$PVE_TOKEN" --privsep=0 2>&1 || true)
-            if echo "$TOKEN_OUTPUT" | grep -q "already exists"; then
-                # Token exists, delete and recreate
-                pveum user token remove "$PVE_USER" "$PVE_TOKEN" 2>/dev/null || true
-                TOKEN_OUTPUT=$(pveum user token add "$PVE_USER" "$PVE_TOKEN" --privsep=0 2>&1)
-            fi
-
-            # Extract token value
-            TOKEN_SECRET=$(echo "$TOKEN_OUTPUT" | grep "value" | awk '{print $NF}' | tr -d '\n')
-
-            if [ -n "$TOKEN_SECRET" ]; then
-                echo "    [OK] Created API token: $PVE_USER!$PVE_TOKEN"
-
-                # Grant read-only access
-                pveum aclmod / -user "$PVE_USER" -role PVEAuditor 2>/dev/null || true
-                echo "    [OK] Granted PVEAuditor role (read-only)"
-
-                # Get hostname for API URL
-                HOSTNAME=$(hostname -f 2>/dev/null || hostname)
-                API_URL="https://${HOSTNAME}:8006"
-
-                # Update config file with Proxmox settings
-                if [ -f "$CONFIG_DIR/appsettings.json" ]; then
-                    # Use jq to update the config
-                    TMP_CONFIG=$(mktemp)
-                    jq --arg url "$API_URL" \
-                       --arg tokenId "$PVE_USER!$PVE_TOKEN" \
-                       --arg tokenSecret "$TOKEN_SECRET" \
-                       '.LCDPossible.Proxmox = {
-                           "Enabled": true,
-                           "ApiUrl": $url,
-                           "TokenId": $tokenId,
-                           "TokenSecret": $tokenSecret,
-                           "IgnoreSslErrors": true,
-                           "PollingIntervalSeconds": 5,
-                           "ShowVms": true,
-                           "ShowContainers": true,
-                           "ShowAlerts": true,
-                           "MaxDisplayItems": 10
-                       }' "$CONFIG_DIR/appsettings.json" > "$TMP_CONFIG"
-                    mv "$TMP_CONFIG" "$CONFIG_DIR/appsettings.json"
-                    echo "    [OK] Updated appsettings.json with Proxmox API config"
-                fi
-
-                echo ""
-                echo "  Proxmox API configured:"
-                echo "    URL:      $API_URL"
-                echo "    Token ID: $PVE_USER!$PVE_TOKEN"
-                echo "    Secret:   (saved to config)"
-            else
-                echo "    [WARN] Could not create API token. Configure manually."
-            fi
+            CREATE_NEW_TOKEN=true
         else
             echo "  [SKIP] Proxmox API not configured."
         fi
+    fi
+else
+    # Config file doesn't exist yet - this shouldn't happen but handle it
+    echo "  [WARN] Config file not found, skipping Proxmox API setup."
+    echo "  Run the installer again after the config file is created."
+fi
+
+# Create new API token if requested
+if [ "$CREATE_NEW_TOKEN" = "true" ]; then
+    PVE_USER="lcdpossible@pve"
+    PVE_TOKEN="lcdpossible"
+
+    echo "  Creating Proxmox API user and token..."
+
+    # Create user if it doesn't exist
+    if ! pveum user list | grep -q "lcdpossible@pve"; then
+        pveum user add "$PVE_USER" --comment "LCDPossible LCD Controller" 2>/dev/null || true
+        echo "    [OK] Created user: $PVE_USER"
+    else
+        echo "    [OK] User already exists: $PVE_USER"
+    fi
+
+    # Create or regenerate token
+    TOKEN_OUTPUT=$(pveum user token add "$PVE_USER" "$PVE_TOKEN" --privsep=0 2>&1 || true)
+    if echo "$TOKEN_OUTPUT" | grep -q "already exists"; then
+        # Token exists, delete and recreate
+        pveum user token remove "$PVE_USER" "$PVE_TOKEN" 2>/dev/null || true
+        TOKEN_OUTPUT=$(pveum user token add "$PVE_USER" "$PVE_TOKEN" --privsep=0 2>&1)
+    fi
+
+    # Extract token value
+    TOKEN_SECRET=$(echo "$TOKEN_OUTPUT" | grep "value" | awk '{print $NF}' | tr -d '\n')
+
+    if [ -n "$TOKEN_SECRET" ]; then
+        echo "    [OK] Created API token: $PVE_USER!$PVE_TOKEN"
+
+        # Grant read-only access
+        pveum aclmod / -user "$PVE_USER" -role PVEAuditor 2>/dev/null || true
+        echo "    [OK] Granted PVEAuditor role (read-only)"
+
+        # Get hostname for API URL
+        HOSTNAME=$(hostname -f 2>/dev/null || hostname)
+        API_URL="https://${HOSTNAME}:8006"
+
+        # Update config file with Proxmox settings
+        TMP_CONFIG=$(mktemp)
+        jq --arg url "$API_URL" \
+           --arg tokenId "$PVE_USER!$PVE_TOKEN" \
+           --arg tokenSecret "$TOKEN_SECRET" \
+           '.LCDPossible.Proxmox = {
+               "Enabled": true,
+               "ApiUrl": $url,
+               "TokenId": $tokenId,
+               "TokenSecret": $tokenSecret,
+               "IgnoreSslErrors": true,
+               "PollingIntervalSeconds": 5,
+               "ShowVms": true,
+               "ShowContainers": true,
+               "ShowAlerts": true,
+               "MaxDisplayItems": 10
+           }' "$CONFIG_DIR/appsettings.json" > "$TMP_CONFIG"
+        mv "$TMP_CONFIG" "$CONFIG_DIR/appsettings.json"
+        echo "    [OK] Updated appsettings.json with Proxmox API config"
+
+        echo ""
+        echo "  Proxmox API configured:"
+        echo "    URL:      $API_URL"
+        echo "    Token ID: $PVE_USER!$PVE_TOKEN"
+        echo "    Secret:   (saved to config)"
+        PROXMOX_API_CONFIGURED=true
+    else
+        echo "    [WARN] Could not create API token. Configure manually."
     fi
 fi
 
@@ -317,7 +360,7 @@ echo "  [+] LibVLC (video playback)"
 echo "  [+] DejaVu fonts (text rendering)"
 echo "  [+] udev rules (USB device access)"
 echo "  [+] systemd service"
-if [ "$PROXMOX_ENABLED" = "true" ] || [[ ! $REPLY =~ ^[Nn]$ ]]; then
+if [ "$PROXMOX_API_CONFIGURED" = "true" ]; then
     echo "  [+] Proxmox API integration"
 fi
 echo ""

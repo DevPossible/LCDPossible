@@ -28,21 +28,43 @@ public sealed class HidSharpEnumerator : IDeviceEnumerator
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        return DeviceList.Local.GetHidDevices().Select(ToDeviceInfo);
+        return EnumerateSafe(DeviceList.Local.GetHidDevices());
     }
 
     public IEnumerable<HidDeviceInfo> EnumerateDevices(ushort vendorId)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        return DeviceList.Local.GetHidDevices(vendorId).Select(ToDeviceInfo);
+        return EnumerateSafe(DeviceList.Local.GetHidDevices(vendorId));
     }
 
     public IEnumerable<HidDeviceInfo> EnumerateDevices(ushort vendorId, ushort productId)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        return DeviceList.Local.GetHidDevices(vendorId, productId).Select(ToDeviceInfo);
+        return EnumerateSafe(DeviceList.Local.GetHidDevices(vendorId, productId));
+    }
+
+    private IEnumerable<HidDeviceInfo> EnumerateSafe(IEnumerable<HidDevice> devices)
+    {
+        foreach (var device in devices)
+        {
+            HidDeviceInfo? info = null;
+            try
+            {
+                info = ToDeviceInfo(device);
+            }
+            catch (Exception ex)
+            {
+                // HidSharp can throw when parsing malformed HID report descriptors on Linux
+                _logger?.LogDebug(ex, "Failed to enumerate device {DevicePath}, skipping", device.DevicePath);
+            }
+
+            if (info != null)
+            {
+                yield return info;
+            }
+        }
     }
 
     public IHidDevice OpenDevice(HidDeviceInfo deviceInfo)
@@ -128,9 +150,16 @@ public sealed class HidSharpEnumerator : IDeviceEnumerator
 
                 if (hidDevice != null)
                 {
-                    var deviceInfo = ToDeviceInfo(hidDevice);
-                    _logger?.LogInformation("Device arrived: {Device}", deviceInfo);
-                    DeviceArrived?.Invoke(this, new DeviceEventArgs { Device = deviceInfo });
+                    try
+                    {
+                        var deviceInfo = ToDeviceInfo(hidDevice);
+                        _logger?.LogInformation("Device arrived: {Device}", deviceInfo);
+                        DeviceArrived?.Invoke(this, new DeviceEventArgs { Device = deviceInfo });
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogDebug(ex, "Failed to get info for arrived device {DevicePath}", devicePath);
+                    }
                 }
             }
 
@@ -172,9 +201,9 @@ public sealed class HidSharpEnumerator : IDeviceEnumerator
             Manufacturer = TryGetProperty(() => device.GetManufacturer()),
             ProductName = TryGetProperty(() => device.GetProductName()),
             SerialNumber = TryGetProperty(() => device.GetSerialNumber()),
-            MaxInputReportLength = device.GetMaxInputReportLength(),
-            MaxOutputReportLength = device.GetMaxOutputReportLength(),
-            MaxFeatureReportLength = device.GetMaxFeatureReportLength(),
+            MaxInputReportLength = TryGetReportLength(() => device.GetMaxInputReportLength()),
+            MaxOutputReportLength = TryGetReportLength(() => device.GetMaxOutputReportLength()),
+            MaxFeatureReportLength = TryGetReportLength(() => device.GetMaxFeatureReportLength()),
         };
     }
 
@@ -187,6 +216,20 @@ public sealed class HidSharpEnumerator : IDeviceEnumerator
         catch
         {
             return null;
+        }
+    }
+
+    private static int TryGetReportLength(Func<int> getter)
+    {
+        try
+        {
+            return getter();
+        }
+        catch
+        {
+            // HidSharp can throw ArgumentOutOfRangeException when parsing
+            // malformed HID report descriptors on Linux. Return 0 as fallback.
+            return 0;
         }
     }
 }
