@@ -71,11 +71,14 @@ public sealed class ProxmoxSummaryPanel : BaseLivePanel
 
             // Resource usage bars
             var barY = boxY + boxHeight + 30;
+            var barHeight = 20;
+            var barWidth = width / 2 - 130; // Leave margins: 20 left + 80 label + 30 gap in middle
+
             DrawText(ctx, "CPU:", 20, barY, LabelFont!, SecondaryTextColor, 80);
-            DrawProgressBar(ctx, metrics.Summary.CpuUsagePercent, 100, barY, (width - 140) / 2, 25);
+            DrawProgressBar(ctx, metrics.Summary.CpuUsagePercent, 100, barY, barWidth, barHeight);
 
             DrawText(ctx, "RAM:", width / 2 + 20, barY, LabelFont!, SecondaryTextColor, 80);
-            DrawProgressBar(ctx, metrics.Summary.MemoryUsagePercent, width / 2 + 100, barY, (width - 140) / 2, 25);
+            DrawProgressBar(ctx, metrics.Summary.MemoryUsagePercent, width / 2 + 100, barY, barWidth, barHeight);
 
             // Recent alert (if any)
             if (metrics.Alerts.Count > 0)
