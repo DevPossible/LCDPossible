@@ -153,8 +153,15 @@ if [ "$SKIP_DOWNLOAD" != "true" ]; then
     $SUDO mkdir -p "$INSTALL_DIR"
     $SUDO tar -xzf "$TEMP_DIR/lcdpossible.tar.gz" -C "$INSTALL_DIR" --strip-components=1
 
+    # Migration: Remove old PascalCase executable if lowercase exists
+    # TODO: Remove this migration block after a few releases
+    if [ -f "$INSTALL_DIR/LCDPossible" ] && [ -f "$INSTALL_DIR/lcdpossible" ]; then
+        echo "  Migrating: Removing old PascalCase executable..."
+        $SUDO rm -f "$INSTALL_DIR/LCDPossible"
+    fi
+
     echo "  Setting executable permissions..."
-    $SUDO chmod +x "$INSTALL_DIR/LCDPossible"
+    $SUDO chmod +x "$INSTALL_DIR/lcdpossible"
     echo "  [OK] Extracted and configured."
 else
     echo "  [SKIP] Using existing installation."
@@ -197,16 +204,16 @@ echo "  [OK] udev rules updated and reloaded."
 echo ""
 echo "[6/8] Creating command symlink..."
 SYMLINK_PATH="/usr/local/bin/lcdpossible"
-# Check if symlink already points to correct target
-if [ -L "$SYMLINK_PATH" ] && [ "$(readlink "$SYMLINK_PATH")" = "$INSTALL_DIR/LCDPossible" ]; then
+# Check if symlink already points to correct target (lowercase)
+if [ -L "$SYMLINK_PATH" ] && [ "$(readlink "$SYMLINK_PATH")" = "$INSTALL_DIR/lcdpossible" ]; then
     echo "  [OK] Symlink already exists and is correct."
 else
     # Remove any existing file/symlink and create fresh
     if [ -L "$SYMLINK_PATH" ] || [ -e "$SYMLINK_PATH" ]; then
         $SUDO rm -f "$SYMLINK_PATH"
     fi
-    $SUDO ln -s "$INSTALL_DIR/LCDPossible" "$SYMLINK_PATH"
-    echo "  [OK] Created symlink: $SYMLINK_PATH -> $INSTALL_DIR/LCDPossible"
+    $SUDO ln -s "$INSTALL_DIR/lcdpossible" "$SYMLINK_PATH"
+    echo "  [OK] Created symlink: $SYMLINK_PATH -> $INSTALL_DIR/lcdpossible"
 fi
 
 echo ""
@@ -230,7 +237,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=$INSTALL_DIR/LCDPossible serve
+ExecStart=$INSTALL_DIR/lcdpossible serve
 WorkingDirectory=$INSTALL_DIR
 Environment=DOTNET_ENVIRONMENT=Production
 Environment=LCDPOSSIBLE_DATA_DIR=$CONFIG_DIR
@@ -275,7 +282,7 @@ echo "  [+] systemd service"
 echo "  [+] CLI command (lcdpossible)"
 echo ""
 echo "Locations:"
-echo "  Binary:  $INSTALL_DIR/LCDPossible"
+echo "  Binary:  $INSTALL_DIR/lcdpossible"
 echo "  Command: $SYMLINK_PATH"
 echo "  Config:  $CONFIG_DIR/appsettings.json"
 echo "  Service: $SERVICE_FILE"

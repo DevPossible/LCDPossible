@@ -113,7 +113,14 @@ public sealed class SlideshowManager : IDisposable
                 }
                 else
                 {
-                    _logger?.LogWarning("Failed to create panel: {Source}", item.Source);
+                    // Create an error panel for unknown/failed panel types
+                    // This keeps _panels in sync with _items and shows a helpful error message
+                    _logger?.LogWarning("Unknown panel type '{Source}' - displaying error panel", item.Source);
+                    var errorPanel = new ErrorPanel(
+                        item.Source,
+                        $"Panel type '{item.Source}' was not found. Check spelling or run 'lcdpossible panels' to see available types.");
+                    await errorPanel.InitializeAsync(cancellationToken);
+                    _panels.Add(errorPanel);
                 }
             }
             else if (item.Type == "image" && !string.IsNullOrEmpty(item.Source))

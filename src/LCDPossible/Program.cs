@@ -158,6 +158,7 @@ static async Task<int> RunCliAsync(string[] args)
         "debug" => await DebugTest.RunAsync(),
         "sensors" or "list-sensors" => await RunSensorsCommand(),
         "profile" => ProfileCommands.Run(args),
+        "service" => ServiceCommands.Run(args),
         "help" or "h" or "?" => ShowHelp(),
         "version" or "v" => ShowVersion(),
         "stop" => StopService(),
@@ -183,6 +184,7 @@ USAGE:
 SERVICE COMMANDS:
     serve, run              Start the LCD service (foreground)
     serve --service         Start as Windows Service
+    service <sub-command>   Manage service installation (install/remove/start/stop/restart)
 
 CLI COMMANDS:
     list                    List connected LCD devices
@@ -235,6 +237,10 @@ SHOW COMMAND:
       @background=path      Background image for the panel
 
 EXAMPLES:
+    lcdpossible service install               Install service (requires admin/sudo)
+    lcdpossible service start                 Start the installed service
+    lcdpossible service status                Check service status
+    lcdpossible service restart               Restart the service
     lcdpossible serve                         Start service in foreground
     lcdpossible list                          List all connected LCD devices
     lcdpossible list-panels                   List all available panel types

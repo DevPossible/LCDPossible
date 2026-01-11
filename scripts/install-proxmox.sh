@@ -78,25 +78,43 @@ else
 fi
 
 echo ""
-echo "[2/8] Fetching latest release..."
-RELEASE_INFO=$(curl -sSL "https://api.github.com/repos/$REPO/releases/latest")
-VERSION=$(echo "$RELEASE_INFO" | jq -r '.tag_name')
-DOWNLOAD_URL=$(echo "$RELEASE_INFO" | jq -r ".assets[] | select(.name | contains(\"$ARCH\")) | .browser_download_url" | head -1)
 
-if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
-    echo "ERROR: Could not determine latest version."
-    echo "Please check https://github.com/$REPO/releases"
-    exit 1
+# Check if using local tarball (for deploy-local.ps1)
+USE_LOCAL_TARBALL=false
+if [ -n "$LOCAL_TARBALL" ] && [ -f "$LOCAL_TARBALL" ]; then
+    USE_LOCAL_TARBALL=true
+    echo "[2/8] Using local tarball..."
+    echo "  Source: $LOCAL_TARBALL"
+
+    # Extract version from tarball name if possible (lcdpossible-X.Y.Z-runtime.tar.gz)
+    TARBALL_NAME=$(basename "$LOCAL_TARBALL")
+    VERSION=$(echo "$TARBALL_NAME" | sed -n 's/lcdpossible-\([0-9.]*\)-.*/v\1/p')
+    if [ -z "$VERSION" ]; then
+        VERSION="local"
+    fi
+    echo "  Version: $VERSION"
+else
+    echo "[2/8] Fetching latest release..."
+    RELEASE_INFO=$(curl -sSL "https://api.github.com/repos/$REPO/releases/latest")
+    VERSION=$(echo "$RELEASE_INFO" | jq -r '.tag_name')
+    DOWNLOAD_URL=$(echo "$RELEASE_INFO" | jq -r ".assets[] | select(.name | contains(\"$ARCH\")) | .browser_download_url" | head -1)
+
+    if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+        echo "ERROR: Could not determine latest version."
+        echo "Please check https://github.com/$REPO/releases"
+        exit 1
+    fi
+
+    if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" = "null" ]; then
+        echo "ERROR: No release found for architecture: $ARCH"
+        echo "Available releases:"
+        echo "$RELEASE_INFO" | jq -r '.assets[].name'
+        exit 1
+    fi
+
+    echo "  Latest version: $VERSION"
 fi
 
-if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" = "null" ]; then
-    echo "ERROR: No release found for architecture: $ARCH"
-    echo "Available releases:"
-    echo "$RELEASE_INFO" | jq -r '.assets[].name'
-    exit 1
-fi
-
-echo "  Latest version: $VERSION"
 echo "  Architecture: $ARCH"
 
 # Check installed version
@@ -107,7 +125,8 @@ if [ -f "$INSTALL_DIR/version.json" ]; then
     INSTALLED_VERSION=$(jq -r '.Version' "$INSTALL_DIR/version.json" 2>/dev/null || echo "")
     if [ -n "$INSTALLED_VERSION" ]; then
         echo "  Installed version: v$INSTALLED_VERSION"
-        if [ "$INSTALLED_VERSION" = "${VERSION#v}" ]; then
+        # Skip version comparison for local tarballs - always install
+        if [ "$USE_LOCAL_TARBALL" != "true" ] && [ "$INSTALLED_VERSION" = "${VERSION#v}" ]; then
             echo ""
             echo "  Version $VERSION is already installed."
             read -p "  Reinstall anyway? [y/N] " -n 1 -r
@@ -116,7 +135,7 @@ if [ -f "$INSTALL_DIR/version.json" ]; then
                 SKIP_DOWNLOAD=true
                 echo "  Skipping download, will verify configuration..."
             fi
-        else
+        elif [ "$USE_LOCAL_TARBALL" != "true" ]; then
             IS_UPGRADE=true
             echo ""
             echo "  ** Upgrading from v$INSTALLED_VERSION to $VERSION **"
@@ -127,21 +146,36 @@ fi
 echo ""
 echo "[3/8] Downloading and extracting..."
 if [ "$SKIP_DOWNLOAD" != "true" ]; then
-    TEMP_DIR=$(mktemp -d)
-    trap "rm -rf $TEMP_DIR" EXIT
-
-    echo "  Downloading from: $DOWNLOAD_URL"
-    curl -sSL "$DOWNLOAD_URL" -o "$TEMP_DIR/lcdpossible.tar.gz"
-
     echo "  Stopping service if running..."
     systemctl stop $SERVICE_NAME 2>/dev/null || true
 
-    echo "  Extracting to $INSTALL_DIR..."
-    mkdir -p "$INSTALL_DIR"
-    tar -xzf "$TEMP_DIR/lcdpossible.tar.gz" -C "$INSTALL_DIR" --strip-components=1
+    if [ "$USE_LOCAL_TARBALL" = "true" ]; then
+        # Use local tarball directly
+        echo "  Extracting local tarball to $INSTALL_DIR..."
+        mkdir -p "$INSTALL_DIR"
+        tar -xzf "$LOCAL_TARBALL" -C "$INSTALL_DIR" --strip-components=1
+    else
+        # Download from GitHub
+        TEMP_DIR=$(mktemp -d)
+        trap "rm -rf $TEMP_DIR" EXIT
+
+        echo "  Downloading from: $DOWNLOAD_URL"
+        curl -sSL "$DOWNLOAD_URL" -o "$TEMP_DIR/lcdpossible.tar.gz"
+
+        echo "  Extracting to $INSTALL_DIR..."
+        mkdir -p "$INSTALL_DIR"
+        tar -xzf "$TEMP_DIR/lcdpossible.tar.gz" -C "$INSTALL_DIR" --strip-components=1
+    fi
+
+    # Migration: Remove old PascalCase executable if lowercase exists
+    # TODO: Remove this migration block after a few releases
+    if [ -f "$INSTALL_DIR/LCDPossible" ] && [ -f "$INSTALL_DIR/lcdpossible" ]; then
+        echo "  Migrating: Removing old PascalCase executable..."
+        rm -f "$INSTALL_DIR/LCDPossible"
+    fi
 
     echo "  Setting executable permissions..."
-    chmod +x "$INSTALL_DIR/LCDPossible"
+    chmod +x "$INSTALL_DIR/lcdpossible"
     echo "  [OK] Extracted and configured."
 else
     echo "  [SKIP] Using existing installation."
@@ -313,16 +347,16 @@ fi
 echo ""
 echo "[7/9] Creating command symlink..."
 SYMLINK_PATH="/usr/local/bin/lcdpossible"
-# Check if symlink already points to correct target
-if [ -L "$SYMLINK_PATH" ] && [ "$(readlink "$SYMLINK_PATH")" = "$INSTALL_DIR/LCDPossible" ]; then
+# Check if symlink already points to correct target (lowercase)
+if [ -L "$SYMLINK_PATH" ] && [ "$(readlink "$SYMLINK_PATH")" = "$INSTALL_DIR/lcdpossible" ]; then
     echo "  [OK] Symlink already exists and is correct."
 else
     # Remove any existing file/symlink and create fresh
     if [ -L "$SYMLINK_PATH" ] || [ -e "$SYMLINK_PATH" ]; then
         rm -f "$SYMLINK_PATH"
     fi
-    ln -s "$INSTALL_DIR/LCDPossible" "$SYMLINK_PATH"
-    echo "  [OK] Created symlink: $SYMLINK_PATH -> $INSTALL_DIR/LCDPossible"
+    ln -s "$INSTALL_DIR/lcdpossible" "$SYMLINK_PATH"
+    echo "  [OK] Created symlink: $SYMLINK_PATH -> $INSTALL_DIR/lcdpossible"
 fi
 
 echo ""
@@ -346,7 +380,7 @@ After=network.target pve-cluster.service
 
 [Service]
 Type=simple
-ExecStart=$INSTALL_DIR/LCDPossible serve
+ExecStart=$INSTALL_DIR/lcdpossible serve
 WorkingDirectory=$INSTALL_DIR
 Environment=DOTNET_ENVIRONMENT=Production
 Environment=LCDPOSSIBLE_DATA_DIR=$CONFIG_DIR
@@ -394,7 +428,7 @@ if [ "$PROXMOX_API_CONFIGURED" = "true" ]; then
 fi
 echo ""
 echo "Locations:"
-echo "  Binary:  $INSTALL_DIR/LCDPossible"
+echo "  Binary:  $INSTALL_DIR/lcdpossible"
 echo "  Command: $SYMLINK_PATH"
 echo "  Config:  $CONFIG_DIR/appsettings.json"
 echo "  Service: $SERVICE_FILE"

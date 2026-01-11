@@ -125,8 +125,15 @@ if [ "$SKIP_DOWNLOAD" != "true" ]; then
     mkdir -p "$INSTALL_DIR"
     tar -xzf "$TEMP_DIR/lcdpossible.tar.gz" -C "$INSTALL_DIR" --strip-components=1
 
+    # Migration: Remove old PascalCase executable if lowercase exists
+    # TODO: Remove this migration block after a few releases
+    if [ -f "$INSTALL_DIR/LCDPossible" ] && [ -f "$INSTALL_DIR/lcdpossible" ]; then
+        echo "  Migrating: Removing old PascalCase executable..."
+        rm -f "$INSTALL_DIR/LCDPossible"
+    fi
+
     echo "  Setting executable permissions..."
-    chmod +x "$INSTALL_DIR/LCDPossible"
+    chmod +x "$INSTALL_DIR/lcdpossible"
     echo "  [OK] Extracted and configured."
 else
     echo "  [SKIP] Using existing installation."
@@ -164,8 +171,8 @@ else
     mkdir -p "$HOME/.local/bin"
 fi
 
-# Check if symlink already points to correct target
-if [ -L "$SYMLINK_PATH" ] && [ "$(readlink "$SYMLINK_PATH")" = "$INSTALL_DIR/LCDPossible" ]; then
+# Check if symlink already points to correct target (lowercase)
+if [ -L "$SYMLINK_PATH" ] && [ "$(readlink "$SYMLINK_PATH")" = "$INSTALL_DIR/lcdpossible" ]; then
     echo "  [OK] Symlink already exists and is correct."
 else
     # Remove any existing file/symlink and create fresh
@@ -177,11 +184,11 @@ else
         fi
     fi
     if [ "$USE_SUDO" = "true" ]; then
-        sudo ln -s "$INSTALL_DIR/LCDPossible" "$SYMLINK_PATH"
+        sudo ln -s "$INSTALL_DIR/lcdpossible" "$SYMLINK_PATH"
     else
-        ln -s "$INSTALL_DIR/LCDPossible" "$SYMLINK_PATH"
+        ln -s "$INSTALL_DIR/lcdpossible" "$SYMLINK_PATH"
     fi
-    echo "  [OK] Created symlink: $SYMLINK_PATH -> $INSTALL_DIR/LCDPossible"
+    echo "  [OK] Created symlink: $SYMLINK_PATH -> $INSTALL_DIR/lcdpossible"
 fi
 
 # Check if ~/.local/bin is in PATH
@@ -203,7 +210,7 @@ PLIST_CONTENT="<?xml version=\"1.0\" encoding=\"UTF-8\"?>
     <string>com.lcdpossible.service</string>
     <key>ProgramArguments</key>
     <array>
-        <string>$INSTALL_DIR/LCDPossible</string>
+        <string>$INSTALL_DIR/lcdpossible</string>
         <string>serve</string>
     </array>
     <key>WorkingDirectory</key>
@@ -253,7 +260,7 @@ echo "  [+] Launch agent (auto-start)"
 echo "  [+] CLI command (lcdpossible)"
 echo ""
 echo "Locations:"
-echo "  Binary:  $INSTALL_DIR/LCDPossible"
+echo "  Binary:  $INSTALL_DIR/lcdpossible"
 echo "  Command: $SYMLINK_PATH"
 echo "  Config:  $CONFIG_DIR/appsettings.json"
 echo "  Logs:    ~/Library/Logs/lcdpossible.log"

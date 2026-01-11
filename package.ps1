@@ -149,6 +149,16 @@ try {
 
         if ($LASTEXITCODE -ne 0) { throw "Publish failed for $runtime" }
 
+        # Rename executable to lowercase for Linux/macOS (case-sensitive filesystems)
+        if ($runtime -notlike 'win-*') {
+            $exePath = Join-Path $outputDir 'LCDPossible'
+            $lowerExePath = Join-Path $outputDir 'lcdpossible'
+            if (Test-Path $exePath) {
+                Move-Item $exePath $lowerExePath -Force
+                Write-Host "  Renamed executable to lowercase for $runtime" -ForegroundColor Gray
+            }
+        }
+
         # Create archive
         $archiveName = "lcdpossible-$Version-$runtime"
         if ($runtime -like 'win-*') {

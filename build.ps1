@@ -36,9 +36,35 @@ try {
     # Ensure required tools are installed
     Ensure-WingetPackage -PackageId 'Microsoft.DotNet.SDK.10' -Command 'dotnet'
 
-    # Clean previous build
+    # Clean previous build (handle locked files gracefully)
     if (Test-Path $BuildDir) {
-        Remove-Item $BuildDir -Recurse -Force
+        try {
+            Remove-Item $BuildDir -Recurse -Force -ErrorAction Stop
+        }
+        catch {
+            Write-Host "Warning: Could not fully clean build directory (files may be locked)" -ForegroundColor Yellow
+            Write-Host "  Attempting to kill processes locking files..." -ForegroundColor Yellow
+
+            # Try to kill Chrome instances from web panel plugins
+            Get-Process -Name chrome -ErrorAction SilentlyContinue |
+                Where-Object { $_.Path -like "*$BuildDir*" } |
+                Stop-Process -Force -ErrorAction SilentlyContinue
+
+            # Try to kill any LCDPossible processes
+            Get-Process -Name LCDPossible -ErrorAction SilentlyContinue |
+                Stop-Process -Force -ErrorAction SilentlyContinue
+
+            Start-Sleep -Milliseconds 500
+
+            # Try again
+            try {
+                Remove-Item $BuildDir -Recurse -Force -ErrorAction Stop
+                Write-Host "  Successfully cleaned after killing processes" -ForegroundColor Green
+            }
+            catch {
+                Write-Host "  Could not clean - proceeding with incremental build" -ForegroundColor Yellow
+            }
+        }
     }
 
     # Restore and build
