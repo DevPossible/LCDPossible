@@ -43,12 +43,10 @@ Display simple 3D animations using a web page panel with JavaScript 3D libraries
 - Consider presets for common animations (spinning cube, orbiting spheres, etc.)
 - Performance: limit polygon count and effects for smooth LCD refresh rates
 
-## a panel to show network info (hostname, IP Addresses, netmask, gateway, etc...)
 
-Also add this to the default profile as a 5th page
 
 ## a panel that wraps the HTML panel to display a banner with settings for text, font, size and color
 
 ## an animated game plugin panel simulating various legacy games like pacman, tetris, ms pacman, asteroids, mario, zelda...
 
-## panel plugin for various animated screen savers
+

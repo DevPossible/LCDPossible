@@ -143,7 +143,8 @@ public sealed class DisplayProfile
                 new SlideDefinition { Panel = "basic-info" },
                 new SlideDefinition { Panel = "cpu-usage-graphic" },
                 new SlideDefinition { Panel = "gpu-usage-graphic" },
-                new SlideDefinition { Panel = "ram-usage-graphic" }
+                new SlideDefinition { Panel = "ram-usage-graphic" },
+                new SlideDefinition { Panel = "network-info" }
             ]
         };
     }

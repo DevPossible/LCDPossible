@@ -136,6 +136,14 @@ public sealed class CorePlugin : IPanelPlugin
             Description = "Combined CPU and GPU temperature display",
             Category = "Thermal",
             IsLive = true
+        },
+        ["network-info"] = new PanelTypeInfo
+        {
+            TypeId = "network-info",
+            DisplayName = "Network Info",
+            Description = "Network configuration: hostname, IP, gateway, DNS",
+            Category = "System",
+            IsLive = true
         }
     };
 
@@ -178,6 +186,7 @@ public sealed class CorePlugin : IPanelPlugin
             "cpu-thermal-graphic" => new CpuThermalGraphicPanel(provider),
             "gpu-thermal-graphic" => new GpuThermalGraphicPanel(provider),
             "system-thermal-graphic" => new SystemThermalGraphicPanel(provider),
+            "network-info" => new NetworkInfoPanel(),
             _ => null
         };
 
