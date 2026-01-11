@@ -96,7 +96,7 @@ jobs:
           tar -czvf ./lcdpossible-${{ env.VERSION }}-${{ matrix.runtime }}.tar.gz -C ./publish .
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: lcdpossible-${{ matrix.runtime }}
           path: ./lcdpossible-${{ env.VERSION }}-${{ matrix.runtime }}${{ matrix.artifact_ext }}
@@ -136,13 +136,13 @@ jobs:
           ./installer/linux/rpm/build-rpm.sh ${{ env.VERSION }}
 
       - name: Upload DEB package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: lcdpossible-deb
           path: ./installer/linux/debian/*.deb
 
       - name: Upload RPM package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: lcdpossible-rpm
           path: ./installer/linux/rpm/*.rpm
