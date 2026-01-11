@@ -162,6 +162,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y vlc libvlc-dev fonts-dejavu-core
 
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
+        run: |
+          brew install --cask vlc
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -184,10 +189,28 @@ jobs:
             --configuration Release \
             --runtime ${{ matrix.runtime }} \
             --self-contained true \
-            -p:PublishSingleFile=true \
-            -p:IncludeNativeLibrariesForSelfExtract=true \
             -p:Version=${{ env.VERSION }} \
             --output ./publish
+
+      - name: Copy plugins to publish folder
+        shell: bash
+        run: |
+          # Build outputs plugins to .build/LCDPossible/bin/Release/net10.0/plugins/
+          # Copy them to the publish folder
+          BUILD_PLUGINS=".build/LCDPossible/bin/Release/net10.0/plugins"
+          if [ -d "$BUILD_PLUGINS" ]; then
+            cp -r "$BUILD_PLUGINS" ./publish/
+            echo "Copied plugins from $BUILD_PLUGINS"
+            ls -la ./publish/plugins/ || true
+          else
+            echo "Warning: Plugins folder not found at $BUILD_PLUGINS"
+            # Try alternate location
+            ALT_PLUGINS="src/LCDPossible/bin/Release/net10.0/plugins"
+            if [ -d "$ALT_PLUGINS" ]; then
+              cp -r "$ALT_PLUGINS" ./publish/
+              echo "Copied plugins from $ALT_PLUGINS"
+            fi
+          fi
 
       - name: Create archive (Windows)
         if: matrix.os == 'windows-latest'
