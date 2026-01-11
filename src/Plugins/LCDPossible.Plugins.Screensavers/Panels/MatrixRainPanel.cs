@@ -40,28 +40,7 @@ public sealed class MatrixRainPanel : BaseLivePanel
     public override Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         // Load a monospace font for the matrix effect
-        try
-        {
-            var families = SystemFonts.Families.ToArray();
-            var monoFamily = families.FirstOrDefault(f =>
-                f.Name.Contains("Consolas", StringComparison.OrdinalIgnoreCase) ||
-                f.Name.Contains("Courier", StringComparison.OrdinalIgnoreCase) ||
-                f.Name.Contains("Mono", StringComparison.OrdinalIgnoreCase));
-
-            if (monoFamily.Name != null)
-            {
-                _matrixFont = monoFamily.CreateFont(CharSize, FontStyle.Bold);
-            }
-            else if (families.Length > 0)
-            {
-                _matrixFont = families[0].CreateFont(CharSize, FontStyle.Bold);
-            }
-        }
-        catch
-        {
-            // Font loading failed - we'll draw rectangles instead
-        }
-
+        _matrixFont = FontHelper.GetPreferredMonoFont(CharSize, FontStyle.Bold);
         return Task.CompletedTask;
     }
 

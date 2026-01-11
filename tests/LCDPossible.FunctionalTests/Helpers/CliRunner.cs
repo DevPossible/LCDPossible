@@ -113,6 +113,11 @@ public sealed class CliRunner : IDisposable
             throw new TimeoutException($"CLI command timed out: {_exePath} {string.Join(" ", args)}");
         }
 
+        // IMPORTANT: Call WaitForExit() without timeout after the timeout-based wait returns true.
+        // This ensures all async output handlers have finished processing their data.
+        // See: https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.process.waitforexit
+        process.WaitForExit();
+
         return new CliResult(
             process.ExitCode,
             stdout.ToString().TrimEnd(),

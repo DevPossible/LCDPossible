@@ -21,27 +21,7 @@ public sealed class ClockPanel : BaseLivePanel
 
     public override Task InitializeAsync(CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var families = SystemFonts.Families.ToArray();
-            var family = families.FirstOrDefault(f =>
-                f.Name.Contains("Arial", StringComparison.OrdinalIgnoreCase) ||
-                f.Name.Contains("Segoe", StringComparison.OrdinalIgnoreCase));
-
-            if (family.Name != null)
-            {
-                _digitFont = family.CreateFont(16, FontStyle.Regular);
-            }
-            else if (families.Length > 0)
-            {
-                _digitFont = families[0].CreateFont(16, FontStyle.Regular);
-            }
-        }
-        catch
-        {
-            // Font loading failed
-        }
-
+        _digitFont = FontHelper.GetPreferredFont(16);
         return Task.CompletedTask;
     }
 
