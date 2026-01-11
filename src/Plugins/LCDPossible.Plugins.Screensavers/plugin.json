@@ -1,0 +1,139 @@
+{
+  "id": "lcdpossible.screensavers",
+  "name": "Screensaver Panels",
+  "version": "1.0.0",
+  "author": "LCDPossible Team",
+  "description": "Animated screensaver effects including starfield, matrix rain, bouncing logo, pac-man, and more.",
+  "minimumSdkVersion": "1.0.0",
+  "assemblyName": "LCDPossible.Plugins.Screensavers.dll",
+  "panelTypes": [
+    {
+      "typeId": "screensaver",
+      "displayName": "Screensaver",
+      "description": "Random screensaver effect",
+      "category": "Screensaver",
+      "isLive": true,
+      "prefixPattern": "screensaver:"
+    },
+    {
+      "typeId": "starfield",
+      "displayName": "Starfield",
+      "description": "Classic starfield warp effect with stars streaming from center",
+      "category": "Screensaver",
+      "isLive": true
+    },
+    {
+      "typeId": "matrix-rain",
+      "displayName": "Matrix Rain",
+      "description": "Digital rain effect inspired by The Matrix",
+      "category": "Screensaver",
+      "isLive": true
+    },
+    {
+      "typeId": "bouncing-logo",
+      "displayName": "Bouncing Logo",
+      "description": "Logo bouncing off screen edges (DVD screensaver style)",
+      "category": "Screensaver",
+      "isLive": true
+    },
+    {
+      "typeId": "mystify",
+      "displayName": "Mystify",
+      "description": "Bouncing connected polygons with color trails",
+      "category": "Screensaver",
+      "isLive": true
+    },
+    {
+      "typeId": "plasma",
+      "displayName": "Plasma",
+      "description": "Classic demoscene plasma effect",
+      "category": "Screensaver",
+      "isLive": true
+    },
+    {
+      "typeId": "fire",
+      "displayName": "Fire",
+      "description": "Classic demoscene fire effect with palette animation",
+      "category": "Screensaver",
+      "isLive": true
+    },
+    {
+      "typeId": "game-of-life",
+      "displayName": "Game of Life",
+      "description": "Conway's cellular automaton with colorful patterns",
+      "category": "Screensaver",
+      "isLive": true
+    },
+    {
+      "typeId": "bubbles",
+      "displayName": "Bubbles",
+      "description": "Floating, bouncing translucent bubbles",
+      "category": "Screensaver",
+      "isLive": true
+    },
+    {
+      "typeId": "rain",
+      "displayName": "Rain",
+      "description": "Falling raindrops with splash effects",
+      "category": "Screensaver",
+      "isLive": true
+    },
+    {
+      "typeId": "spiral",
+      "displayName": "Spiral",
+      "description": "Hypnotic rotating spiral pattern",
+      "category": "Screensaver",
+      "isLive": true
+    },
+    {
+      "typeId": "clock",
+      "displayName": "Clock",
+      "description": "Analog clock with smooth second hand",
+      "category": "Screensaver",
+      "isLive": true
+    },
+    {
+      "typeId": "noise",
+      "displayName": "Static",
+      "description": "TV static / white noise effect",
+      "category": "Screensaver",
+      "isLive": true
+    },
+    {
+      "typeId": "warp-tunnel",
+      "displayName": "Warp Tunnel",
+      "description": "Flying through a colorful warp tunnel",
+      "category": "Screensaver",
+      "isLive": true
+    },
+    {
+      "typeId": "pipes",
+      "displayName": "Pipes",
+      "description": "3D pipes growing in random directions (classic Windows)",
+      "category": "Screensaver",
+      "isLive": true
+    },
+    {
+      "typeId": "asteroids",
+      "displayName": "Asteroids",
+      "description": "Asteroids game simulation with vector graphics",
+      "category": "Screensaver",
+      "isLive": true
+    },
+    {
+      "typeId": "missile-command",
+      "displayName": "Missile Command",
+      "description": "Defend cities from incoming missiles",
+      "category": "Screensaver",
+      "isLive": true
+    },
+    {
+      "typeId": "falling-blocks",
+      "displayName": "Falling Blocks",
+      "description": "Tetris-style falling blocks simulator with AI gameplay (1-3 players)",
+      "category": "Screensaver",
+      "isLive": true,
+      "prefixPattern": "falling-blocks:"
+    }
+  ]
+}

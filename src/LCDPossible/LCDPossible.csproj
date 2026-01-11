@@ -46,6 +46,10 @@
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <OutputItemType>PluginOutput</OutputItemType>
     </ProjectReference>
+    <ProjectReference Include="..\Plugins\LCDPossible.Plugins.Screensavers\LCDPossible.Plugins.Screensavers.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <OutputItemType>PluginOutput</OutputItemType>
+    </ProjectReference>
   </ItemGroup>
 
   <!-- Copy plugins to output/plugins/{pluginname}/ after build -->
@@ -100,6 +104,14 @@
     </ItemGroup>
     <Copy SourceFiles="@(ProxmoxPluginFiles)"
           DestinationFolder="$(PluginsOutputDir)proxmox\%(RecursiveDir)"
+          SkipUnchangedFiles="true" />
+
+    <!-- Screensavers plugin -->
+    <ItemGroup>
+      <ScreensaversPluginFiles Include="$(BuildOutputRoot)LCDPossible.Plugins.Screensavers\bin\$(Configuration)\$(TargetFramework)\**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ScreensaversPluginFiles)"
+          DestinationFolder="$(PluginsOutputDir)screensavers\%(RecursiveDir)"
           SkipUnchangedFiles="true" />
 
     <Message Text="Copied plugins to $(PluginsOutputDir)" Importance="high" />

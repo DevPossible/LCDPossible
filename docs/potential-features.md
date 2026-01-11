@@ -53,5 +53,10 @@ Display simple 3D animations using a web page panel with JavaScript 3D libraries
 
 write a robust set of functional tests that starts by deleting the default profile yaml file, then uses the cli commands to create and modify the file - test each command under profile verb by actually calling the exe and then verify the actual file changes
 
+## dynamic help text
+each panel needs to expose its own metadata including help text and examples
+the plugin system and manager classes need to load this data dynamically and expose it via the help text (instead of static help text), as well as provide commands to list all panels with their description, and another command to get the panel specific help that show the possible parameters and examples
 
-## expand the youtube video panel to support playlist - when the URL is a playlist, then it should pick a random video to play
+add these requirements to the new panel and new screensaver skills, and then go through each panel and add the metadata
+
+#error page
