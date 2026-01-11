@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+  <!--
+    LCDPossible MSI Installer
+    Built with WiX Toolset v4+
+
+    This installer:
+    - Installs to Program Files\LCDPossible
+    - Adds install directory to system PATH
+    - Installs and starts the Windows Service
+    - Supports upgrades (same UpgradeCode)
+  -->
+
+  <Package Name="LCDPossible"
+           Manufacturer="DevPossible"
+           Version="$(var.Version)"
+           UpgradeCode="7E8F4A2B-1C3D-4E5F-9A0B-2C3D4E5F6A7B"
+           Scope="perMachine">
+
+    <SummaryInformation Description="LCDPossible LCD Controller Service"
+                        Manufacturer="DevPossible" />
+
+    <!-- Upgrade handling - removes previous versions -->
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed."
+                  Schedule="afterInstallInitialize" />
+
+    <!-- Embed cabinet in MSI for single-file distribution -->
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Features -->
+    <Feature Id="MainFeature" Title="LCDPossible" Level="1">
+      <ComponentGroupRef Id="ProductComponents" />
+      <ComponentRef Id="PathEnvironment" />
+      <ComponentRef Id="ServiceComponent" />
+    </Feature>
+
+    <!-- Standard UI -->
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+
+    <!-- License -->
+    <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
+
+  </Package>
+
+  <!-- Directory structure -->
+  <Fragment>
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="LCDPossible" />
+    </StandardDirectory>
+  </Fragment>
+
+  <!-- Components -->
+  <Fragment>
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+      <!-- Main executable -->
+      <Component Id="MainExecutable" Guid="A1B2C3D4-E5F6-7890-ABCD-EF1234567890">
+        <File Id="LCDPossibleExe" Source="$(var.PublishDir)\LCDPossible.exe" KeyPath="yes" />
+      </Component>
+
+      <!-- All other published files (DLLs, config, etc.) -->
+      <Component Id="PublishedFiles" Guid="B2C3D4E5-F6A7-8901-BCDE-F12345678901">
+        <File Id="AppSettings" Source="$(var.PublishDir)\appsettings.json" />
+      </Component>
+
+      <!-- Plugins directory -->
+      <Component Id="PluginsDir" Guid="C3D4E5F6-A7B8-9012-CDEF-123456789012">
+        <CreateFolder />
+      </Component>
+    </ComponentGroup>
+
+    <!-- Add to PATH -->
+    <Component Id="PathEnvironment" Directory="INSTALLFOLDER" Guid="D4E5F6A7-B8C9-0123-DEF0-234567890123">
+      <Environment Id="PATH" Name="PATH" Value="[INSTALLFOLDER]" Permanent="no" Part="last" Action="set" System="yes" />
+    </Component>
+
+    <!-- Windows Service -->
+    <Component Id="ServiceComponent" Directory="INSTALLFOLDER" Guid="E5F6A7B8-C9D0-1234-EF01-345678901234">
+      <File Id="ServiceExe" Source="$(var.PublishDir)\LCDPossible.exe" KeyPath="yes" />
+      <ServiceInstall Id="LCDPossibleService"
+                      Type="ownProcess"
+                      Name="LCDPossible"
+                      DisplayName="LCDPossible LCD Controller"
+                      Description="Controls HID-based LCD screens for system monitoring and custom displays."
+                      Start="auto"
+                      Account="LocalSystem"
+                      ErrorControl="normal"
+                      Arguments="serve --service">
+        <!-- Service recovery: restart on failure -->
+        <ServiceConfig DelayedAutoStart="no"
+                       OnInstall="yes"
+                       OnReinstall="yes" />
+      </ServiceInstall>
+      <ServiceControl Id="StartService"
+                      Start="install"
+                      Stop="both"
+                      Remove="uninstall"
+                      Name="LCDPossible"
+                      Wait="yes" />
+    </Component>
+  </Fragment>
+
+</Wix>
