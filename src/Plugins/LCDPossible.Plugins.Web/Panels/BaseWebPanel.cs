@@ -180,7 +180,13 @@ public abstract class BaseWebPanel : IDisplayPanel
         return new Image<Rgba32>(width, height, Color.Black);
     }
 
-    public virtual async void Dispose()
+    public void Dispose()
+    {
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
     {
         if (_disposed)
         {
@@ -189,24 +195,34 @@ public abstract class BaseWebPanel : IDisplayPanel
 
         _disposed = true;
 
-        _lastFrame?.Dispose();
-        _lastFrame = null;
-
-        if (Page != null)
+        if (disposing)
         {
+            _lastFrame?.Dispose();
+            _lastFrame = null;
+
+            if (Page != null)
+            {
+                try
+                {
+                    // Synchronously close the page with timeout
+                    Page.CloseAsync().Wait(TimeSpan.FromSeconds(5));
+                }
+                catch
+                {
+                    // Ignore errors during cleanup
+                }
+                Page = null;
+            }
+
+            // Release browser reference synchronously with timeout
             try
             {
-                await Page.CloseAsync();
+                ReleaseBrowserAsync().Wait(TimeSpan.FromSeconds(5));
             }
             catch
             {
-                // Ignore errors during cleanup
+                // Ignore timeout - browser will be cleaned up eventually
             }
-            Page = null;
         }
-
-        await ReleaseBrowserAsync();
-
-        GC.SuppressFinalize(this);
     }
 }
