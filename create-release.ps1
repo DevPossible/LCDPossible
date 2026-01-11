@@ -276,7 +276,7 @@ if ($LASTEXITCODE -ne 0) {
 Write-Success "GitHub CLI authenticated"
 
 # ============================================================================
-# Determine Version
+# Determine Version (using conventional commits)
 # ============================================================================
 
 Write-Step "Version Determination"
@@ -302,16 +302,44 @@ if ($lastTag) {
     Write-Info "Commits since last release: $commitCount"
 }
 
-# Prompt for version if not provided
+# Calculate version from conventional commits if not provided
 if (-not $Version) {
-    # Suggest next version based on current
-    $versionParts = $currentVersion.Split('.')
-    $suggestedVersion = "$($versionParts[0]).$([int]$versionParts[1] + 1).0"
+    $versionScript = Join-Path $PSScriptRoot 'scripts' 'get-version.ps1'
+    if (Test-Path $versionScript) {
+        Write-Info "Calculating version from conventional commits..."
+        $calculatedVersion = & $versionScript -Verbose:$false
+        if ($calculatedVersion -and $calculatedVersion -match '^\d+\.\d+\.\d+$') {
+            Write-Info "Calculated version: $calculatedVersion"
 
-    Write-Host "`nEnter version number (suggested: $suggestedVersion): " -NoNewline -ForegroundColor Yellow
-    $Version = Read-Host
-    if ([string]::IsNullOrWhiteSpace($Version)) {
-        $Version = $suggestedVersion
+            # Check if calculated version already exists as a tag
+            if (Test-TagExists "v$calculatedVersion") {
+                Write-Warning "Version v$calculatedVersion already exists as a tag."
+                Write-Host "`nEnter a different version number: " -NoNewline -ForegroundColor Yellow
+                $Version = Read-Host
+            } else {
+                Write-Host "`nUse calculated version $calculatedVersion? (Y/n or enter different version): " -NoNewline -ForegroundColor Yellow
+                $response = Read-Host
+                if ([string]::IsNullOrWhiteSpace($response) -or $response -match '^[Yy]$') {
+                    $Version = $calculatedVersion
+                } else {
+                    $Version = $response
+                }
+            }
+        } else {
+            Write-Warning "Could not calculate version from commits"
+            Write-Host "`nEnter version number: " -NoNewline -ForegroundColor Yellow
+            $Version = Read-Host
+        }
+    } else {
+        Write-Warning "Version calculation script not found at $versionScript"
+        # Fallback to simple increment suggestion
+        $versionParts = $currentVersion.Split('.')
+        $suggestedVersion = "$($versionParts[0]).$([int]$versionParts[1] + 1).0"
+        Write-Host "`nEnter version number (suggested: $suggestedVersion): " -NoNewline -ForegroundColor Yellow
+        $Version = Read-Host
+        if ([string]::IsNullOrWhiteSpace($Version)) {
+            $Version = $suggestedVersion
+        }
     }
 }
 

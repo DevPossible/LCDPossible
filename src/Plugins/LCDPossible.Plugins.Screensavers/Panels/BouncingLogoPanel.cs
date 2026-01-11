@@ -234,56 +234,34 @@ public sealed class BouncingLogoPanel : BaseLivePanel
 
     private void LoadLogoFont()
     {
-        try
+        var fontSize = _size switch
         {
-            var fontSize = _size switch
-            {
-                SizePreset.Small => 32f,
-                SizePreset.Medium => 64f,
-                SizePreset.Large => 96f,
-                _ => 64f
-            };
+            SizePreset.Small => 32f,
+            SizePreset.Medium => 64f,
+            SizePreset.Large => 96f,
+            _ => 64f
+        };
 
-            var families = SystemFonts.Families.ToArray();
-            var family = families.FirstOrDefault(f =>
-                f.Name.Contains("Arial", StringComparison.OrdinalIgnoreCase) ||
-                f.Name.Contains("Helvetica", StringComparison.OrdinalIgnoreCase) ||
-                f.Name.Contains("Impact", StringComparison.OrdinalIgnoreCase));
+        _logoFont = FontHelper.GetPreferredFont(fontSize, FontStyle.Bold);
 
-            if (family.Name != null)
-            {
-                _logoFont = family.CreateFont(fontSize, FontStyle.Bold);
-            }
-            else if (families.Length > 0)
-            {
-                _logoFont = families[0].CreateFont(fontSize, FontStyle.Bold);
-            }
-
-            // Measure text bounds
-            if (_logoFont != null)
-            {
-                var bounds = TextMeasurer.MeasureBounds(_text, new TextOptions(_logoFont));
-                _logoWidth = bounds.Width + 20; // Add padding for rotation
-                _logoHeight = bounds.Height + 20;
-            }
-            else
-            {
-                // Fallback dimensions
-                _logoWidth = _size switch
-                {
-                    SizePreset.Small => 100,
-                    SizePreset.Medium => 180,
-                    SizePreset.Large => 280,
-                    _ => 180
-                };
-                _logoHeight = _logoWidth * 0.4f;
-            }
+        // Measure text bounds
+        if (_logoFont != null)
+        {
+            var bounds = TextMeasurer.MeasureBounds(_text, new TextOptions(_logoFont));
+            _logoWidth = bounds.Width + 20; // Add padding for rotation
+            _logoHeight = bounds.Height + 20;
         }
-        catch
+        else
         {
-            // Font loading failed - we'll draw a rectangle
-            _logoWidth = 180;
-            _logoHeight = 80;
+            // Fallback dimensions
+            _logoWidth = _size switch
+            {
+                SizePreset.Small => 100,
+                SizePreset.Medium => 180,
+                SizePreset.Large => 280,
+                _ => 180
+            };
+            _logoHeight = _logoWidth * 0.4f;
         }
     }
 

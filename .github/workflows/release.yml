@@ -5,14 +5,14 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version to build artifacts for (e.g., 0.1.1). Leave empty for normal release-please flow.'
+      force_release:
+        description: 'Force a release even without new conventional commits'
         required: false
-        type: string
+        type: boolean
+        default: false
 
 permissions:
   contents: write
-  pull-requests: write
 
 env:
   DOTNET_NOLOGO: true
@@ -20,31 +20,75 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
-  release-please:
-    name: Release Please
+  calculate-version:
+    name: Calculate Version
     runs-on: ubuntu-latest
     outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
-      version: ${{ steps.release.outputs.version }}
+      version: ${{ steps.version.outputs.version }}
+      should_release: ${{ steps.version.outputs.should_release }}
+      changelog: ${{ steps.changelog.outputs.changelog }}
 
     steps:
-      - name: Release Please
-        id: release
-        uses: googleapis/release-please-action@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          config-file: .github/release-please-config.json
-          manifest-file: .github/release-please-manifest.json
+          fetch-depth: 0  # Full history for version calculation
+
+      - name: Calculate version from conventional commits
+        id: version
+        run: |
+          chmod +x ./scripts/get-version.sh
+          VERSION=$(./scripts/get-version.sh)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          # Check if this version already exists as a tag
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "Tag v$VERSION already exists"
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          else
+            echo "New version: $VERSION"
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate changelog
+        id: changelog
+        if: steps.version.outputs.should_release == 'true' || inputs.force_release
+        run: |
+          # Get last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          # Generate changelog from commits
+          if [ -n "$LAST_TAG" ]; then
+            COMMITS=$(git log "$LAST_TAG..HEAD" --pretty=format:"- %s" --reverse)
+          else
+            COMMITS=$(git log --pretty=format:"- %s" --reverse | head -50)
+          fi
+
+          # Create changelog content
+          CHANGELOG="## What's Changed
+
+          $COMMITS
+
+          **Full Changelog**: https://github.com/${{ github.repository }}/compare/${LAST_TAG:-initial}...v${{ steps.version.outputs.version }}"
+
+          # Save to file (multi-line output)
+          echo "$CHANGELOG" > changelog.md
+          echo "changelog_file=changelog.md" >> $GITHUB_OUTPUT
+
+      - name: Upload changelog
+        if: steps.version.outputs.should_release == 'true' || inputs.force_release
+        uses: actions/upload-artifact@v4
+        with:
+          name: changelog
+          path: changelog.md
 
   build-artifacts:
     name: Build (${{ matrix.runtime }})
-    needs: release-please
-    if: needs.release-please.outputs.release_created == 'true' || inputs.version != ''
+    needs: calculate-version
+    if: needs.calculate-version.outputs.should_release == 'true' || inputs.force_release
     runs-on: ${{ matrix.os }}
     env:
-      VERSION: ${{ inputs.version || needs.release-please.outputs.version }}
-      TAG_NAME: ${{ inputs.version && format('v{0}', inputs.version) || needs.release-please.outputs.tag_name }}
+      VERSION: ${{ needs.calculate-version.outputs.version }}
     strategy:
       fail-fast: false
       matrix:
@@ -61,16 +105,34 @@ jobs:
           - runtime: osx-x64
             os: macos-latest
             artifact_ext: .tar.gz
+          - runtime: osx-arm64
+            os: macos-latest
+            artifact_ext: .tar.gz
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y vlc libvlc-dev fonts-dejavu-core
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
           dotnet-quality: 'preview'
+
+      - name: Restore
+        run: dotnet restore src/LCDPossible.sln
+
+      - name: Build
+        run: dotnet build src/LCDPossible.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test src/LCDPossible.sln --configuration Release --no-build --verbosity normal
 
       - name: Publish
         shell: bash
@@ -101,77 +163,40 @@ jobs:
           name: lcdpossible-${{ matrix.runtime }}
           path: ./lcdpossible-${{ env.VERSION }}-${{ matrix.runtime }}${{ matrix.artifact_ext }}
 
-  build-installers:
-    name: Build Installers
-    needs: [release-please, build-artifacts]
-    if: needs.release-please.outputs.release_created == 'true' || inputs.version != ''
+  create-release:
+    name: Create Release
+    needs: [calculate-version, build-artifacts]
+    if: needs.calculate-version.outputs.should_release == 'true' || inputs.force_release
     runs-on: ubuntu-latest
     env:
-      VERSION: ${{ inputs.version || needs.release-please.outputs.version }}
-      TAG_NAME: ${{ inputs.version && format('v{0}', inputs.version) || needs.release-please.outputs.tag_name }}
+      VERSION: ${{ needs.calculate-version.outputs.version }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - name: Download changelog
+        uses: actions/download-artifact@v4
+        with:
+          name: changelog
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@v7
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
         with:
           path: ./artifacts
+          pattern: lcdpossible-*
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: '10.0.x'
-          dotnet-quality: 'preview'
-
-      - name: Build DEB package
-        run: |
-          chmod +x ./installer/linux/debian/build-deb.sh
-          ./installer/linux/debian/build-deb.sh ${{ env.VERSION }}
-
-      - name: Build RPM package
-        run: |
-          chmod +x ./installer/linux/rpm/build-rpm.sh
-          ./installer/linux/rpm/build-rpm.sh ${{ env.VERSION }}
-
-      - name: Upload DEB package
-        uses: actions/upload-artifact@v6
-        with:
-          name: lcdpossible-deb
-          path: ./installer/linux/debian/*.deb
-
-      - name: Upload RPM package
-        uses: actions/upload-artifact@v6
-        with:
-          name: lcdpossible-rpm
-          path: ./installer/linux/rpm/*.rpm
-
-  upload-to-release:
-    name: Upload to Release
-    needs: [release-please, build-artifacts, build-installers]
-    if: needs.release-please.outputs.release_created == 'true' || inputs.version != ''
-    runs-on: ubuntu-latest
-    env:
-      TAG_NAME: ${{ inputs.version && format('v{0}', inputs.version) || needs.release-please.outputs.tag_name }}
-
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v7
-        with:
-          path: ./artifacts
-
-      - name: Display structure of downloaded files
+      - name: Display artifacts
         run: ls -R ./artifacts
 
-      - name: Upload to GitHub Release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.TAG_NAME }}
+          tag_name: v${{ env.VERSION }}
+          name: LCDPossible v${{ env.VERSION }}
+          body_path: changelog.md
+          draft: false
+          prerelease: false
           files: |
             ./artifacts/lcdpossible-win-x64/*
             ./artifacts/lcdpossible-linux-x64/*
             ./artifacts/lcdpossible-linux-arm64/*
             ./artifacts/lcdpossible-osx-x64/*
-            ./artifacts/lcdpossible-deb/*
-            ./artifacts/lcdpossible-rpm/*
+            ./artifacts/lcdpossible-osx-arm64/*

@@ -169,30 +169,9 @@ public sealed class FallingBlocksPanel : BaseLivePanel
 
     private void InitializeFonts()
     {
-        try
-        {
-            var families = SystemFonts.Families.ToArray();
-            var family = families.FirstOrDefault(f =>
-                f.Name.Contains("Arial", StringComparison.OrdinalIgnoreCase) ||
-                f.Name.Contains("Segoe", StringComparison.OrdinalIgnoreCase));
-
-            if (family.Name != null)
-            {
-                _labelFont = family.CreateFont(10, FontStyle.Regular);
-                _valueFont = family.CreateFont(12, FontStyle.Bold);
-                _titleFont = family.CreateFont(14, FontStyle.Bold);
-            }
-            else if (families.Length > 0)
-            {
-                _labelFont = families[0].CreateFont(10, FontStyle.Regular);
-                _valueFont = families[0].CreateFont(12, FontStyle.Bold);
-                _titleFont = families[0].CreateFont(14, FontStyle.Bold);
-            }
-        }
-        catch
-        {
-            // Font loading failed
-        }
+        _labelFont = FontHelper.GetPreferredFont(10, FontStyle.Regular);
+        _valueFont = FontHelper.GetPreferredFont(12, FontStyle.Bold);
+        _titleFont = FontHelper.GetPreferredFont(14, FontStyle.Bold);
     }
 
     private void InitializePlayers()
