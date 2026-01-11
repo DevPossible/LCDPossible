@@ -33,11 +33,11 @@ static bool ShouldRunAsService(string[] args)
     if (WindowsServiceHelpers.IsWindowsService())
         return true;
 
-    // Explicit service command
+    // Explicit service start command (not "service" which is the management command)
     if (args.Length > 0)
     {
         var command = args[0].ToLowerInvariant().TrimStart('-', '/');
-        return command is "serve" or "run" or "service";
+        return command is "serve" or "run";
     }
 
     return false;

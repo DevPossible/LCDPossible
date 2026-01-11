@@ -55,6 +55,10 @@
 .EXAMPLE
     .\deploy-local.ps1 -TargetHost myserver -SkipBuild
     Deploys using existing build in .dist folder
+
+.EXAMPLE
+    .\deploy-local.ps1 -TargetHost myserver -StayRemote
+    Deploys and opens an interactive SSH session after completion
 #>
 param(
     [Parameter(Mandatory = $true, Position = 0)]
@@ -71,6 +75,7 @@ param(
 
     [switch]$SkipBuild,
     [switch]$SkipTests,
+    [switch]$StayRemote,
     [string]$SshKey,
     [int]$Port = 22,
     [string]$Version
@@ -308,9 +313,17 @@ Write-Host "=============================================" -ForegroundColor Gree
 Write-Host "  Deployment Complete!" -ForegroundColor Green
 Write-Host "=============================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "Next steps:" -ForegroundColor Yellow
-Write-Host "  ssh $SshTarget"
-Write-Host "  lcdpossible list"
-Write-Host "  lcdpossible status"
-Write-Host "  sudo journalctl -u lcdpossible -f"
-Write-Host ""
+
+if ($StayRemote) {
+    Write-Host "Connecting to remote host..." -ForegroundColor Yellow
+    Write-Host ""
+    # Start interactive SSH session
+    ssh @SshOptions $SshTarget
+} else {
+    Write-Host "Next steps:" -ForegroundColor Yellow
+    Write-Host "  ssh $SshTarget"
+    Write-Host "  lcdpossible list"
+    Write-Host "  lcdpossible status"
+    Write-Host "  sudo journalctl -u lcdpossible -f"
+    Write-Host ""
+}

@@ -153,7 +153,11 @@ if [ "$SKIP_DOWNLOAD" != "true" ]; then
         # Use local tarball directly
         echo "  Extracting local tarball to $INSTALL_DIR..."
         mkdir -p "$INSTALL_DIR"
-        tar -xzf "$LOCAL_TARBALL" -C "$INSTALL_DIR" --strip-components=1
+        # Clear existing files except config
+        find "$INSTALL_DIR" -maxdepth 1 -type f -name "*.pdb" -delete 2>/dev/null || true
+        rm -f "$INSTALL_DIR/lcdpossible" 2>/dev/null || true
+        # Extract tarball (files are at root level, no strip needed)
+        tar -xzvf "$LOCAL_TARBALL" -C "$INSTALL_DIR"
     else
         # Download from GitHub
         TEMP_DIR=$(mktemp -d)
@@ -164,7 +168,11 @@ if [ "$SKIP_DOWNLOAD" != "true" ]; then
 
         echo "  Extracting to $INSTALL_DIR..."
         mkdir -p "$INSTALL_DIR"
-        tar -xzf "$TEMP_DIR/lcdpossible.tar.gz" -C "$INSTALL_DIR" --strip-components=1
+        # Clear existing files except config
+        find "$INSTALL_DIR" -maxdepth 1 -type f -name "*.pdb" -delete 2>/dev/null || true
+        rm -f "$INSTALL_DIR/lcdpossible" 2>/dev/null || true
+        # Extract tarball (files are at root level, no strip needed)
+        tar -xzvf "$TEMP_DIR/lcdpossible.tar.gz" -C "$INSTALL_DIR"
     fi
 
     # Migration: Remove old PascalCase executable if lowercase exists

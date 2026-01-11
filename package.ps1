@@ -22,6 +22,95 @@ function Ensure-DotnetTool {
 }
 #endregion
 
+#region Platform-Specific Runtime Filtering
+function Remove-NonMatchingRuntimes {
+    <#
+    .SYNOPSIS
+        Removes platform-specific runtime directories that don't match the target runtime.
+    .DESCRIPTION
+        Scans all plugin directories for 'runtimes' folders and removes subdirectories
+        that don't match the target platform. This significantly reduces package size.
+    .PARAMETER PluginsDir
+        Path to the plugins directory to scan.
+    .PARAMETER TargetRuntime
+        Target runtime identifier (e.g., 'linux-x64', 'win-x64', 'osx-arm64').
+    .RETURNS
+        Number of directories removed.
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$PluginsDir,
+
+        [Parameter(Mandatory)]
+        [string]$TargetRuntime
+    )
+
+    $removedCount = 0
+
+    # Parse target runtime: "linux-x64" -> os="linux", arch="x64"
+    $parts = $TargetRuntime.Split('-')
+    $targetOs = $parts[0].ToLowerInvariant()
+    $targetArch = if ($parts.Length -gt 1) { $parts[1].ToLowerInvariant() } else { $null }
+
+    # Define which runtime directories to keep for each target OS
+    # Be precise: exact match + base/generic versions only
+    $keepExact = switch ($targetOs) {
+        'linux' {
+            @(
+                "linux-$targetArch",       # Exact match (e.g., linux-x64)
+                'linux',                    # Base linux (no arch)
+                'unix'                      # Unix generic
+            )
+        }
+        'win' {
+            @(
+                "win-$targetArch",          # Exact match (e.g., win-x64)
+                'win',                      # Base windows (no arch)
+                'windows'                   # Windows generic
+            )
+        }
+        'osx' {
+            @(
+                "osx-$targetArch",          # Exact match (e.g., osx-arm64)
+                'osx',                      # Base macOS (no arch)
+                'unix'                      # Unix generic (macOS is unix-like)
+            )
+        }
+        default {
+            @($TargetRuntime)               # Just keep exact match
+        }
+    }
+
+    # Find all 'runtimes' directories in all plugins
+    $runtimesDirs = Get-ChildItem -Path $PluginsDir -Directory -Recurse -Filter 'runtimes' -ErrorAction SilentlyContinue
+
+    foreach ($runtimesDir in $runtimesDirs) {
+        # Get all platform subdirectories
+        $platformDirs = Get-ChildItem -Path $runtimesDir.FullName -Directory -ErrorAction SilentlyContinue
+
+        foreach ($platformDir in $platformDirs) {
+            $platformName = $platformDir.Name.ToLowerInvariant()
+
+            # Check if this platform should be kept (exact match only, no wildcards)
+            $shouldKeep = $keepExact -contains $platformName
+
+            if (-not $shouldKeep) {
+                Remove-Item -Path $platformDir.FullName -Recurse -Force -ErrorAction SilentlyContinue
+                $removedCount++
+            }
+        }
+
+        # If runtimes directory is now empty, remove it too
+        $remaining = Get-ChildItem -Path $runtimesDir.FullName -ErrorAction SilentlyContinue
+        if ($remaining.Count -eq 0) {
+            Remove-Item -Path $runtimesDir.FullName -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    return $removedCount
+}
+#endregion
+
 #region Version Management
 function Get-NextVersion {
     # Use conventional commits to calculate version
@@ -149,6 +238,22 @@ try {
 
         if ($LASTEXITCODE -ne 0) { throw "Publish failed for $runtime" }
 
+        # Copy plugins from build output (they're not included in single-file publish)
+        $buildPluginsDir = Join-Path $BuildDir 'LCDPossible' 'bin' 'Release' 'net10.0' $runtime 'plugins'
+        $publishPluginsDir = Join-Path $outputDir 'plugins'
+        if (Test-Path $buildPluginsDir) {
+            Copy-Item -Path $buildPluginsDir -Destination $publishPluginsDir -Recurse -Force
+            Write-Host "  Copied plugins to publish output" -ForegroundColor Gray
+
+            # Remove platform-specific runtime files that don't match the target
+            $removedCount = Remove-NonMatchingRuntimes -PluginsDir $publishPluginsDir -TargetRuntime $runtime
+            if ($removedCount -gt 0) {
+                Write-Host "  Removed $removedCount non-matching runtime directories" -ForegroundColor Gray
+            }
+        } else {
+            Write-Host "  [WARN] Plugins directory not found in build output: $buildPluginsDir" -ForegroundColor Yellow
+        }
+
         # Rename executable to lowercase for Linux/macOS (case-sensitive filesystems)
         if ($runtime -notlike 'win-*') {
             $exePath = Join-Path $outputDir 'LCDPossible'
@@ -170,9 +275,16 @@ try {
             $tarPath = Join-Path $DistDir "$archiveName.tar.gz"
             if (Get-Command tar -ErrorAction SilentlyContinue) {
                 Push-Location $outputDir
-                tar -czvf $tarPath *
+                # Use relative path for tar (avoids Windows C: being interpreted as remote host)
+                $relativeTarPath = "../../$archiveName.tar.gz"
+                # Exclude obj folder (intermediate files that shouldn't be published)
+                tar -czvf $relativeTarPath --exclude='obj' --exclude='obj/*' *
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "  Created: $tarPath" -ForegroundColor Gray
+                } else {
+                    Write-Host "  [WARN] Failed to create tarball" -ForegroundColor Yellow
+                }
                 Pop-Location
-                Write-Host "  Created: $tarPath" -ForegroundColor Gray
             }
         }
     }
