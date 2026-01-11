@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
     <!-- Version (managed by Release Please) -->
-    <Version>0.2.5</Version>
+    <Version>0.1.4</Version>
 
     <!-- Package metadata -->
     <Authors>LCDPossible Contributors</Authors>
