@@ -63,6 +63,11 @@ Display simple 3D animations using a web page panel with JavaScript 3D libraries
 - Performance: limit polygon count and effects for smooth LCD refresh rates
 
 
-## cli socket host and cli guest 
 
-When the app is running, if you run the CLI again with new params, it should communicate the command to the running process - in this way users could automate updates to happed with other tooling
+
+
+
+
+## a panel to show network info (hostname, IP Addresses, netmask, gateway, etc...)
+
+Also add this to the default profile as a 5th page

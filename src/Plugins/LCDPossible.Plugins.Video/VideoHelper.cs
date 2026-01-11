@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using YoutubeExplode;
 using YoutubeExplode.Videos.Streams;
 
@@ -9,6 +10,7 @@ namespace LCDPossible.Plugins.Video;
 internal static class VideoHelper
 {
     private static readonly YoutubeClient YoutubeClient = new();
+    private static bool? _ytDlpAvailable;
 
     /// <summary>
     /// Checks if a path is a URL.
@@ -38,7 +40,7 @@ internal static class VideoHelper
 
     /// <summary>
     /// Gets the direct stream URL for a YouTube video.
-    /// Returns the best quality stream URL that LibVLC can play.
+    /// Tries yt-dlp first (more reliable), falls back to YoutubeExplode.
     /// </summary>
     /// <param name="youtubeUrl">The YouTube video URL.</param>
     /// <param name="preferredQuality">Preferred quality (360, 480, 720, 1080). Default: 480.</param>
@@ -48,6 +50,111 @@ internal static class VideoHelper
         string youtubeUrl,
         int preferredQuality = 480,
         CancellationToken cancellationToken = default)
+    {
+        // Try yt-dlp first (more reliable with YouTube's anti-bot measures)
+        if (IsYtDlpAvailable())
+        {
+            try
+            {
+                var url = await GetYouTubeStreamUrlViaYtDlpAsync(youtubeUrl, preferredQuality, cancellationToken);
+                if (!string.IsNullOrEmpty(url))
+                {
+                    return url;
+                }
+            }
+            catch
+            {
+                // Fall through to YoutubeExplode
+            }
+        }
+
+        // Fallback to YoutubeExplode
+        return await GetYouTubeStreamUrlViaExplodeAsync(youtubeUrl, preferredQuality, cancellationToken);
+    }
+
+    /// <summary>
+    /// Checks if yt-dlp is available on the system.
+    /// </summary>
+    private static bool IsYtDlpAvailable()
+    {
+        if (_ytDlpAvailable.HasValue)
+        {
+            return _ytDlpAvailable.Value;
+        }
+
+        try
+        {
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "yt-dlp",
+                    Arguments = "--version",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                }
+            };
+            process.Start();
+            process.WaitForExit(3000);
+            _ytDlpAvailable = process.ExitCode == 0;
+        }
+        catch
+        {
+            _ytDlpAvailable = false;
+        }
+
+        return _ytDlpAvailable.Value;
+    }
+
+    /// <summary>
+    /// Gets YouTube stream URL using yt-dlp command-line tool.
+    /// </summary>
+    private static async Task<string> GetYouTubeStreamUrlViaYtDlpAsync(
+        string youtubeUrl,
+        int preferredQuality,
+        CancellationToken cancellationToken)
+    {
+        // Format: best video+audio up to specified height, or best available
+        var formatSpec = $"bestvideo[height<={preferredQuality}]+bestaudio/best[height<={preferredQuality}]/best";
+
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "yt-dlp",
+                Arguments = $"-f \"{formatSpec}\" -g \"{youtubeUrl}\"",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            }
+        };
+
+        process.Start();
+
+        var output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
+        await process.WaitForExitAsync(cancellationToken);
+
+        if (process.ExitCode != 0)
+        {
+            var error = await process.StandardError.ReadToEndAsync(cancellationToken);
+            throw new InvalidOperationException($"yt-dlp failed: {error}");
+        }
+
+        // yt-dlp -g returns the URL(s), take the first one (video URL)
+        var urls = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        return urls.Length > 0 ? urls[0].Trim() : string.Empty;
+    }
+
+    /// <summary>
+    /// Gets YouTube stream URL using YoutubeExplode library.
+    /// </summary>
+    private static async Task<string> GetYouTubeStreamUrlViaExplodeAsync(
+        string youtubeUrl,
+        int preferredQuality,
+        CancellationToken cancellationToken)
     {
         var streamManifest = await YoutubeClient.Videos.Streams.GetManifestAsync(youtubeUrl, cancellationToken);
 

@@ -1,8 +1,10 @@
 using LCDPossible.Core.Configuration;
 using LCDPossible.Core.Devices;
+using LCDPossible.Core.Ipc;
 using LCDPossible.Core.Monitoring;
 using LCDPossible.Core.Plugins;
 using LCDPossible.Core.Rendering;
+using LCDPossible.Ipc;
 using LCDPossible.Monitoring;
 using LCDPossible.Panels;
 using Microsoft.Extensions.Options;
@@ -17,6 +19,7 @@ namespace LCDPossible;
 /// </summary>
 public sealed class LcdWorker : BackgroundService
 {
+    private readonly IHostApplicationLifetime _appLifetime;
     private readonly DeviceManager _deviceManager;
     private readonly ProfileLoader _profileLoader;
     private readonly PluginManager _pluginManager;
@@ -28,13 +31,17 @@ public sealed class LcdWorker : BackgroundService
     private readonly Dictionary<string, Image<Rgba32>?> _staticImages = [];
     private readonly Dictionary<string, SlideshowManager> _slideshows = [];
     private readonly Dictionary<string, IDisplayPanel> _singlePanels = [];
+    private readonly Dictionary<string, float> _brightnessLevels = []; // 0.0 to 1.0
 
     private ISystemInfoProvider? _systemProvider;
     private IProxmoxProvider? _proxmoxProvider;
     private PanelFactory? _panelFactory;
     private DisplayProfile? _displayProfile;
+    private IpcServer? _ipcServer;
+    private IpcCommandHandler? _ipcCommandHandler;
 
     public LcdWorker(
+        IHostApplicationLifetime appLifetime,
         DeviceManager deviceManager,
         ProfileLoader profileLoader,
         PluginManager pluginManager,
@@ -42,6 +49,7 @@ public sealed class LcdWorker : BackgroundService
         ILogger<LcdWorker> logger,
         ILoggerFactory loggerFactory)
     {
+        _appLifetime = appLifetime ?? throw new ArgumentNullException(nameof(appLifetime));
         _deviceManager = deviceManager ?? throw new ArgumentNullException(nameof(deviceManager));
         _profileLoader = profileLoader ?? throw new ArgumentNullException(nameof(profileLoader));
         _pluginManager = pluginManager ?? throw new ArgumentNullException(nameof(pluginManager));
@@ -77,6 +85,9 @@ public sealed class LcdWorker : BackgroundService
             // Initialize slideshows and panels for each device
             await InitializeDisplayModesAsync(stoppingToken);
 
+            // Start IPC server for CLI communication
+            await StartIpcServerAsync(stoppingToken);
+
             // Main render loop
             var frameDelay = TimeSpan.FromMilliseconds(1000.0 / _options.General.TargetFrameRate);
 
@@ -105,6 +116,9 @@ public sealed class LcdWorker : BackgroundService
         }
         finally
         {
+            // Stop IPC server
+            await StopIpcServerAsync();
+
             _deviceManager.StopMonitoring();
             _deviceManager.DeviceDiscovered -= OnDeviceDiscovered;
             _deviceManager.DeviceDisconnected -= OnDeviceDisconnected;
@@ -427,6 +441,10 @@ public sealed class LcdWorker : BackgroundService
                         disposeFrame = true;
                     }
 
+                    // Apply software brightness adjustment
+                    var brightness = GetBrightnessLevel(configKey);
+                    ApplyBrightness(frame, brightness);
+
                     var encoded = _encoder.Encode(frame, device.Capabilities);
                     await device.SendFrameAsync(encoded, ColorFormat.Jpeg, cancellationToken);
 
@@ -594,4 +612,169 @@ public sealed class LcdWorker : BackgroundService
         _logger.LogInformation("Device disconnected: {Device}", e.Device.Info);
         _connectedDevices.Remove(e.Device.Info.UniqueId);
     }
+
+    #region IPC Server
+
+    private async Task StartIpcServerAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            _ipcServer = new IpcServer(_loggerFactory.CreateLogger<IpcServer>());
+            _ipcCommandHandler = new IpcCommandHandler(
+                _appLifetime,
+                _deviceManager,
+                _panelFactory,
+                () => _connectedDevices,
+                () => _slideshows,
+                () => _displayProfile,
+                SetSlideshowAsync,
+                SetStaticImageAsync,
+                SetBrightnessAsync,
+                _loggerFactory.CreateLogger<IpcCommandHandler>());
+
+            _ipcServer.RequestReceived += OnIpcRequest;
+            await _ipcServer.StartAsync(cancellationToken);
+
+            _logger.LogInformation("IPC server started at {Path}", IpcPaths.GetFullPipePath());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to start IPC server. CLI commands will not work while service is running.");
+        }
+    }
+
+    private async Task StopIpcServerAsync()
+    {
+        if (_ipcServer is null)
+            return;
+
+        try
+        {
+            _ipcServer.RequestReceived -= OnIpcRequest;
+            await _ipcServer.StopAsync(CancellationToken.None);
+            _ipcServer.Dispose();
+            _ipcServer = null;
+            _ipcCommandHandler = null;
+            _logger.LogInformation("IPC server stopped");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error stopping IPC server");
+        }
+    }
+
+    private async void OnIpcRequest(object? sender, IpcRequestEventArgs e)
+    {
+        if (_ipcCommandHandler is null)
+        {
+            await e.SendResponseAsync(
+                IpcResponse.Fail(e.Request.Id, IpcErrorCodes.InternalError, "Command handler not initialized"),
+                CancellationToken.None);
+            return;
+        }
+
+        try
+        {
+            var response = await _ipcCommandHandler.HandleAsync(e.Request, CancellationToken.None);
+            await e.SendResponseAsync(response, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling IPC request");
+            await e.SendResponseAsync(
+                IpcResponse.Fail(e.Request.Id, ex),
+                CancellationToken.None);
+        }
+    }
+
+    /// <summary>
+    /// Sets or replaces the slideshow for a device/config key.
+    /// </summary>
+    internal Task SetSlideshowAsync(string configKey, SlideshowManager slideshow, CancellationToken cancellationToken)
+    {
+        // Dispose old slideshow if exists
+        if (_slideshows.TryGetValue(configKey, out var oldSlideshow))
+        {
+            oldSlideshow.Dispose();
+        }
+
+        _slideshows[configKey] = slideshow;
+        _logger.LogInformation("Slideshow updated for {ConfigKey}", configKey);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Sets a static image for a device/config key.
+    /// </summary>
+    internal Task SetStaticImageAsync(string configKey, Image<Rgba32>? image)
+    {
+        // Dispose old image if exists
+        if (_staticImages.TryGetValue(configKey, out var oldImage))
+        {
+            oldImage?.Dispose();
+        }
+
+        _staticImages[configKey] = image;
+
+        // When setting a static image, we should also update the device mode to "static"
+        // For now, the image will be used when the device mode is already "static"
+        // or we can override by temporarily replacing the slideshow
+
+        _logger.LogInformation("Static image set for {ConfigKey}", configKey);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Sets the software brightness level for a device/config key.
+    /// Note: This is software brightness (image adjustment), not hardware brightness.
+    /// The Trofeo Vision LCD does not support hardware brightness control.
+    /// </summary>
+    /// <param name="configKey">Device config key or "default".</param>
+    /// <param name="level">Brightness level 0-100 (50 = normal, 0 = black, 100 = max brightness).</param>
+    internal Task SetBrightnessAsync(string configKey, int level)
+    {
+        // Convert 0-100 to 0.0-1.0 range for ImageSharp
+        // 50 = 0.5 = normal brightness
+        // 0 = 0.0 = black
+        // 100 = 1.0 = maximum brightness
+        var normalizedLevel = Math.Clamp(level / 100f, 0f, 1f);
+        _brightnessLevels[configKey] = normalizedLevel;
+
+        _logger.LogInformation("Software brightness set to {Level}% for {ConfigKey}", level, configKey);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Gets the current brightness level for a device/config key.
+    /// </summary>
+    internal float GetBrightnessLevel(string configKey)
+    {
+        if (_brightnessLevels.TryGetValue(configKey, out var level))
+        {
+            return level;
+        }
+        if (_brightnessLevels.TryGetValue("default", out level))
+        {
+            return level;
+        }
+        return 0.5f; // Default: 50% (normal brightness)
+    }
+
+    /// <summary>
+    /// Applies software brightness adjustment to an image.
+    /// </summary>
+    private void ApplyBrightness(Image<Rgba32> image, float brightness)
+    {
+        // brightness is 0.0 to 1.0, where 0.5 is normal
+        // ImageSharp Brightness uses -1 to 1 where 0 is unchanged
+        // Convert: 0.0 -> -1.0, 0.5 -> 0.0, 1.0 -> 1.0
+        var adjustment = (brightness - 0.5f) * 2f;
+
+        if (Math.Abs(adjustment) > 0.01f)
+        {
+            image.Mutate(ctx => ctx.Brightness(1f + adjustment));
+        }
+    }
+
+    #endregion
 }

@@ -42,6 +42,37 @@ public sealed class SlideshowManager : IDisposable
         : null;
 
     /// <summary>
+    /// Gets the current slide index.
+    /// </summary>
+    public int CurrentIndex => _currentIndex;
+
+    /// <summary>
+    /// Gets the total number of slides.
+    /// </summary>
+    public int TotalSlides => _items.Count;
+
+    /// <summary>
+    /// Gets the current panel ID (or source for images).
+    /// </summary>
+    public string? CurrentPanelId => CurrentItem?.Source;
+
+    /// <summary>
+    /// Gets the time remaining on the current slide.
+    /// </summary>
+    public TimeSpan TimeRemaining
+    {
+        get
+        {
+            if (CurrentItem == null)
+                return TimeSpan.Zero;
+
+            var elapsed = DateTime.UtcNow - _slideStartTime;
+            var remaining = TimeSpan.FromSeconds(CurrentItem.DurationSeconds) - elapsed;
+            return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
+        }
+    }
+
+    /// <summary>
     /// Initializes all panels in the slideshow.
     /// </summary>
     public async Task InitializeAsync(CancellationToken cancellationToken = default)

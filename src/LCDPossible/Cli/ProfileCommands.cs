@@ -1,0 +1,767 @@
+using LCDPossible.Core;
+using LCDPossible.Core.Configuration;
+
+namespace LCDPossible.Cli;
+
+/// <summary>
+/// CLI command handler for profile management operations.
+/// </summary>
+public static class ProfileCommands
+{
+    /// <summary>
+    /// Runs a profile sub-command.
+    /// </summary>
+    public static int Run(string[] args)
+    {
+        // Find the sub-command (first arg after "profile")
+        var subCommand = GetSubCommand(args);
+
+        if (string.IsNullOrEmpty(subCommand))
+        {
+            return ShowProfileHelp();
+        }
+
+        return subCommand switch
+        {
+            "new" => NewProfile(args),
+            "list" or "list-profiles" => ListProfiles(args),
+            "list-panels" => ListPanels(args),
+            "append-panel" or "add" or "add-panel" => AppendPanel(args),
+            "remove-panel" or "remove" => RemovePanel(args),
+            "move-panel" or "move" => MovePanel(args),
+            "set-defaults" => SetDefaults(args),
+            "set-panelparam" or "set-param" or "set" => SetPanelParam(args),
+            "get-panelparam" or "get-param" or "get" => GetPanelParam(args),
+            "clear-panelparams" or "clear-params" or "clear" => ClearPanelParams(args),
+            "delete" => DeleteProfile(args),
+            "show" => ShowProfile(args),
+            "help" or "-h" or "--help" or "/?" => ShowProfileHelp(),
+            _ => UnknownSubCommand(subCommand)
+        };
+    }
+
+    private static string? GetSubCommand(string[] args)
+    {
+        // Find first arg after "profile" that isn't a flag
+        var foundProfile = false;
+        foreach (var arg in args)
+        {
+            if (arg.Equals("profile", StringComparison.OrdinalIgnoreCase))
+            {
+                foundProfile = true;
+                continue;
+            }
+
+            if (foundProfile && !arg.StartsWith("-") && !arg.StartsWith("/"))
+            {
+                return arg.ToLowerInvariant();
+            }
+        }
+        return null;
+    }
+
+    private static string? GetProfileName(string[] args)
+    {
+        // Look for --profile or -p flag, or use positional arg after sub-command
+        for (var i = 0; i < args.Length - 1; i++)
+        {
+            if (args[i] is "--profile" or "-p")
+            {
+                return args[i + 1];
+            }
+        }
+        return null; // Will use default profile
+    }
+
+    private static string? GetArgValue(string[] args, params string[] names)
+    {
+        for (var i = 0; i < args.Length - 1; i++)
+        {
+            foreach (var name in names)
+            {
+                if (args[i].Equals(name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return args[i + 1];
+                }
+            }
+        }
+        return null;
+    }
+
+    private static int? GetIntArg(string[] args, params string[] names)
+    {
+        var value = GetArgValue(args, names);
+        return int.TryParse(value, out var result) ? result : null;
+    }
+
+    private static string? GetPositionalArg(string[] args, int position)
+    {
+        // Get the nth non-flag argument after "profile sub-command"
+        // Must skip both flags AND their values (e.g., -p test-profile)
+        var count = 0;
+        var foundSubCommand = false;
+        var skipNext = false;
+
+        // Known flags that take a value (must skip the following arg)
+        var flagsWithValue = new[] { "-p", "--profile", "-f", "--format", "-d", "--duration",
+            "-i", "--interval", "--index", "-n", "--name", "-v", "--value",
+            "-b", "--background", "--description", "--from", "--to", "-t" };
+
+        for (var i = 0; i < args.Length; i++)
+        {
+            var arg = args[i];
+
+            if (skipNext)
+            {
+                skipNext = false;
+                continue;
+            }
+
+            // Check if this is a flag
+            if (arg.StartsWith("-") || arg.StartsWith("/"))
+            {
+                // If it's a flag that takes a value, skip the next arg too
+                if (flagsWithValue.Any(f => arg.Equals(f, StringComparison.OrdinalIgnoreCase)))
+                {
+                    skipNext = true;
+                }
+                continue;
+            }
+
+            if (arg.Equals("profile", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (!foundSubCommand)
+            {
+                foundSubCommand = true; // Skip sub-command itself
+                continue;
+            }
+
+            if (count == position)
+            {
+                return arg;
+            }
+            count++;
+        }
+        return null;
+    }
+
+    private static bool HasFlag(string[] args, params string[] names)
+    {
+        foreach (var arg in args)
+        {
+            foreach (var name in names)
+            {
+                if (arg.Equals(name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static int NewProfile(string[] args)
+    {
+        var profileName = GetPositionalArg(args, 0) ?? GetArgValue(args, "--name", "-n");
+
+        if (string.IsNullOrEmpty(profileName))
+        {
+            Console.Error.WriteLine("Error: Profile name is required.");
+            Console.Error.WriteLine("Usage: lcdpossible profile new <profile-name>");
+            return 1;
+        }
+
+        var description = GetArgValue(args, "--description", "-d");
+        var manager = new ProfileManager();
+
+        if (manager.ProfileExists(profileName))
+        {
+            Console.Error.WriteLine($"Error: Profile '{profileName}' already exists.");
+            Console.Error.WriteLine($"Path: {ProfileManager.GetProfilePath(profileName)}");
+            return 1;
+        }
+
+        var profile = manager.CreateNewProfile(profileName, description);
+        var path = ProfileManager.GetProfilePath(profileName);
+
+        Console.WriteLine($"Created new profile: {profileName}");
+        Console.WriteLine($"Path: {path}");
+        Console.WriteLine();
+        Console.WriteLine("Profile is empty. Add panels with:");
+        Console.WriteLine($"  lcdpossible profile append-panel basic-info -p {profileName}");
+
+        return 0;
+    }
+
+    private static int ListProfiles(string[] args)
+    {
+        var manager = new ProfileManager();
+        var profiles = manager.ListProfiles().ToList();
+        var outputFormat = GetArgValue(args, "--format", "-f")?.ToLowerInvariant();
+
+        if (profiles.Count == 0)
+        {
+            Console.WriteLine("No profiles found.");
+            Console.WriteLine($"Profiles directory: {ProfileManager.ProfilesDirectory}");
+            Console.WriteLine();
+            Console.WriteLine("Create a new profile with:");
+            Console.WriteLine("  lcdpossible profile new my-profile");
+            return 0;
+        }
+
+        if (outputFormat == "json")
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(profiles, new System.Text.Json.JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+            Console.WriteLine(json);
+            return 0;
+        }
+
+        Console.WriteLine($"Profiles ({profiles.Count}):");
+        Console.WriteLine($"Directory: {ProfileManager.ProfilesDirectory}");
+        Console.WriteLine();
+
+        foreach (var profileName in profiles)
+        {
+            try
+            {
+                var profile = manager.LoadProfile(profileName);
+                Console.WriteLine($"  {profileName}");
+                Console.WriteLine($"    Name: {profile.Name}");
+                Console.WriteLine($"    Slides: {profile.Slides.Count}");
+                if (!string.IsNullOrEmpty(profile.Description))
+                {
+                    Console.WriteLine($"    Description: {profile.Description}");
+                }
+            }
+            catch
+            {
+                Console.WriteLine($"  {profileName} (error loading)");
+            }
+        }
+
+        return 0;
+    }
+
+    private static int ListPanels(string[] args)
+    {
+        var profileName = GetProfileName(args) ?? GetPositionalArg(args, 0);
+        var outputFormat = GetArgValue(args, "--format", "-f")?.ToLowerInvariant();
+        var manager = new ProfileManager();
+
+        DisplayProfile profile;
+        try
+        {
+            profile = manager.LoadProfile(profileName);
+        }
+        catch (FileNotFoundException)
+        {
+            Console.Error.WriteLine($"Error: Profile not found: {ProfileManager.GetProfilePath(profileName)}");
+            return 1;
+        }
+
+        if (outputFormat == "json")
+        {
+            Console.WriteLine(manager.ToJson(profile));
+            return 0;
+        }
+
+        if (outputFormat == "yaml")
+        {
+            Console.WriteLine(manager.ToYaml(profile));
+            return 0;
+        }
+
+        // Human-readable format
+        Console.WriteLine($"Profile: {profile.Name}");
+        if (!string.IsNullOrEmpty(profile.Description))
+        {
+            Console.WriteLine($"Description: {profile.Description}");
+        }
+        Console.WriteLine($"Default Duration: {profile.DefaultDurationSeconds}s");
+        Console.WriteLine($"Default Update Interval: {profile.DefaultUpdateIntervalSeconds}s");
+        Console.WriteLine();
+
+        if (profile.Slides.Count == 0)
+        {
+            Console.WriteLine("No panels configured.");
+            return 0;
+        }
+
+        Console.WriteLine($"Panels ({profile.Slides.Count}):");
+        for (var i = 0; i < profile.Slides.Count; i++)
+        {
+            var slide = profile.Slides[i];
+            var panelType = slide.Panel ?? slide.Source ?? "(unknown)";
+            var type = slide.Type ?? "panel";
+
+            Console.WriteLine($"  [{i}] {panelType}");
+
+            if (slide.Type != null)
+            {
+                Console.WriteLine($"       type: {slide.Type}");
+            }
+            if (slide.Duration.HasValue)
+            {
+                Console.WriteLine($"       duration: {slide.Duration}s");
+            }
+            if (slide.UpdateInterval.HasValue)
+            {
+                Console.WriteLine($"       update_interval: {slide.UpdateInterval}s");
+            }
+            if (!string.IsNullOrEmpty(slide.Background))
+            {
+                Console.WriteLine($"       background: {slide.Background}");
+            }
+            if (!string.IsNullOrEmpty(slide.Source) && slide.Source != slide.Panel)
+            {
+                Console.WriteLine($"       source: {slide.Source}");
+            }
+        }
+
+        return 0;
+    }
+
+    private static int AppendPanel(string[] args)
+    {
+        var profileName = GetProfileName(args);
+        var panelType = GetPositionalArg(args, 0);
+
+        if (string.IsNullOrEmpty(panelType))
+        {
+            Console.Error.WriteLine("Error: Panel type is required.");
+            Console.Error.WriteLine("Usage: lcdpossible profile append-panel <panel-type> [-p <profile>]");
+            Console.Error.WriteLine("       lcdpossible profile append-panel cpu-usage-graphic");
+            return 1;
+        }
+
+        var duration = GetIntArg(args, "--duration", "-d");
+        var interval = GetIntArg(args, "--interval", "-i", "--update-interval");
+        var background = GetArgValue(args, "--background", "-b");
+
+        var manager = new ProfileManager();
+
+        try
+        {
+            var (index, slide) = manager.AppendPanel(profileName, panelType, duration, interval, background);
+
+            Console.WriteLine($"Added panel at index {index}:");
+            Console.WriteLine($"  Panel: {panelType}");
+            if (duration.HasValue) Console.WriteLine($"  Duration: {duration}s");
+            if (interval.HasValue) Console.WriteLine($"  Update Interval: {interval}s");
+            if (!string.IsNullOrEmpty(background)) Console.WriteLine($"  Background: {background}");
+
+            return 0;
+        }
+        catch (FileNotFoundException)
+        {
+            Console.Error.WriteLine($"Error: Profile not found: {ProfileManager.GetProfilePath(profileName)}");
+            Console.Error.WriteLine("Create a new profile first with: lcdpossible profile new <name>");
+            return 1;
+        }
+    }
+
+    private static int RemovePanel(string[] args)
+    {
+        var profileName = GetProfileName(args);
+        var indexStr = GetPositionalArg(args, 0) ?? GetArgValue(args, "--index", "-i");
+
+        if (!int.TryParse(indexStr, out var index))
+        {
+            Console.Error.WriteLine("Error: Valid panel index is required.");
+            Console.Error.WriteLine("Usage: lcdpossible profile remove-panel <index> [-p <profile>]");
+            Console.Error.WriteLine("       lcdpossible profile remove-panel 2");
+            return 1;
+        }
+
+        var manager = new ProfileManager();
+
+        try
+        {
+            var removed = manager.RemovePanel(profileName, index);
+            var panelType = removed?.Panel ?? removed?.Source ?? "(unknown)";
+            Console.WriteLine($"Removed panel at index {index}: {panelType}");
+            return 0;
+        }
+        catch (FileNotFoundException)
+        {
+            Console.Error.WriteLine($"Error: Profile not found: {ProfileManager.GetProfilePath(profileName)}");
+            return 1;
+        }
+        catch (ArgumentOutOfRangeException ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 1;
+        }
+    }
+
+    private static int MovePanel(string[] args)
+    {
+        var profileName = GetProfileName(args);
+        var fromStr = GetPositionalArg(args, 0) ?? GetArgValue(args, "--from", "-f");
+        var toStr = GetPositionalArg(args, 1) ?? GetArgValue(args, "--to", "-t");
+
+        if (!int.TryParse(fromStr, out var fromIndex) || !int.TryParse(toStr, out var toIndex))
+        {
+            Console.Error.WriteLine("Error: Valid from and to indices are required.");
+            Console.Error.WriteLine("Usage: lcdpossible profile move-panel <from-index> <to-index> [-p <profile>]");
+            Console.Error.WriteLine("       lcdpossible profile move-panel 0 3");
+            return 1;
+        }
+
+        var manager = new ProfileManager();
+
+        try
+        {
+            manager.MovePanel(profileName, fromIndex, toIndex);
+            Console.WriteLine($"Moved panel from index {fromIndex} to index {toIndex}");
+            return 0;
+        }
+        catch (FileNotFoundException)
+        {
+            Console.Error.WriteLine($"Error: Profile not found: {ProfileManager.GetProfilePath(profileName)}");
+            return 1;
+        }
+        catch (ArgumentOutOfRangeException ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 1;
+        }
+    }
+
+    private static int SetDefaults(string[] args)
+    {
+        var profileName = GetProfileName(args);
+        var name = GetArgValue(args, "--name", "-n");
+        var description = GetArgValue(args, "--description", "-d");
+        var duration = GetIntArg(args, "--duration");
+        var interval = GetIntArg(args, "--interval", "--update-interval");
+
+        if (name == null && description == null && !duration.HasValue && !interval.HasValue)
+        {
+            Console.Error.WriteLine("Error: At least one setting is required.");
+            Console.Error.WriteLine("Usage: lcdpossible profile set-defaults [-p <profile>] [options]");
+            Console.Error.WriteLine("Options:");
+            Console.Error.WriteLine("  --name <name>              Set profile name");
+            Console.Error.WriteLine("  --description <text>       Set profile description");
+            Console.Error.WriteLine("  --duration <seconds>       Set default panel duration");
+            Console.Error.WriteLine("  --interval <seconds>       Set default update interval");
+            return 1;
+        }
+
+        var manager = new ProfileManager();
+
+        try
+        {
+            manager.SetDefaults(profileName, name, description, duration, interval);
+
+            Console.WriteLine("Updated profile defaults:");
+            if (name != null) Console.WriteLine($"  Name: {name}");
+            if (description != null) Console.WriteLine($"  Description: {(string.IsNullOrEmpty(description) ? "(cleared)" : description)}");
+            if (duration.HasValue) Console.WriteLine($"  Default Duration: {duration}s");
+            if (interval.HasValue) Console.WriteLine($"  Default Update Interval: {interval}s");
+
+            return 0;
+        }
+        catch (FileNotFoundException)
+        {
+            Console.Error.WriteLine($"Error: Profile not found: {ProfileManager.GetProfilePath(profileName)}");
+            return 1;
+        }
+    }
+
+    private static int SetPanelParam(string[] args)
+    {
+        var profileName = GetProfileName(args);
+        var indexStr = GetArgValue(args, "--index", "-i");
+        var paramName = GetArgValue(args, "--name", "-n");
+        var paramValue = GetArgValue(args, "--value", "-v");
+
+        if (!int.TryParse(indexStr, out var index))
+        {
+            Console.Error.WriteLine("Error: Valid panel index is required (--index or -i).");
+            Console.Error.WriteLine("Usage: lcdpossible profile set-panelparam -i <index> -n <name> -v <value>");
+            Console.Error.WriteLine("       lcdpossible profile set-panelparam -i 2 -n duration -v 30");
+            return 1;
+        }
+
+        if (string.IsNullOrEmpty(paramName))
+        {
+            Console.Error.WriteLine("Error: Parameter name is required (--name or -n).");
+            Console.Error.WriteLine("Valid parameters: panel, type, source, duration, interval, background");
+            return 1;
+        }
+
+        var manager = new ProfileManager();
+
+        try
+        {
+            manager.SetPanelParameter(profileName, index, paramName, paramValue);
+
+            if (string.IsNullOrEmpty(paramValue))
+            {
+                Console.WriteLine($"Cleared parameter '{paramName}' for panel at index {index}");
+            }
+            else
+            {
+                Console.WriteLine($"Set '{paramName}' = '{paramValue}' for panel at index {index}");
+            }
+
+            return 0;
+        }
+        catch (FileNotFoundException)
+        {
+            Console.Error.WriteLine($"Error: Profile not found: {ProfileManager.GetProfilePath(profileName)}");
+            return 1;
+        }
+        catch (ArgumentOutOfRangeException ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 1;
+        }
+        catch (ArgumentException ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            Console.Error.WriteLine("Valid parameters: panel, type, source, duration, interval, background");
+            return 1;
+        }
+    }
+
+    private static int GetPanelParam(string[] args)
+    {
+        var profileName = GetProfileName(args);
+        var indexStr = GetArgValue(args, "--index", "-i");
+        var paramName = GetArgValue(args, "--name", "-n");
+
+        if (!int.TryParse(indexStr, out var index))
+        {
+            Console.Error.WriteLine("Error: Valid panel index is required (--index or -i).");
+            Console.Error.WriteLine("Usage: lcdpossible profile get-panelparam -i <index> -n <name>");
+            return 1;
+        }
+
+        if (string.IsNullOrEmpty(paramName))
+        {
+            Console.Error.WriteLine("Error: Parameter name is required (--name or -n).");
+            Console.Error.WriteLine("Valid parameters: panel, type, source, duration, interval, background");
+            return 1;
+        }
+
+        var manager = new ProfileManager();
+
+        try
+        {
+            var value = manager.GetPanelParameter(profileName, index, paramName);
+
+            if (value == null)
+            {
+                Console.WriteLine($"(not set)");
+            }
+            else
+            {
+                Console.WriteLine(value);
+            }
+
+            return 0;
+        }
+        catch (FileNotFoundException)
+        {
+            Console.Error.WriteLine($"Error: Profile not found: {ProfileManager.GetProfilePath(profileName)}");
+            return 1;
+        }
+        catch (ArgumentOutOfRangeException ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 1;
+        }
+        catch (ArgumentException ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 1;
+        }
+    }
+
+    private static int ClearPanelParams(string[] args)
+    {
+        var profileName = GetProfileName(args);
+        var indexStr = GetPositionalArg(args, 0) ?? GetArgValue(args, "--index", "-i");
+
+        if (!int.TryParse(indexStr, out var index))
+        {
+            Console.Error.WriteLine("Error: Valid panel index is required.");
+            Console.Error.WriteLine("Usage: lcdpossible profile clear-panelparams <index> [-p <profile>]");
+            return 1;
+        }
+
+        var manager = new ProfileManager();
+
+        try
+        {
+            manager.ClearPanelParameters(profileName, index);
+            Console.WriteLine($"Cleared all parameters for panel at index {index}");
+            return 0;
+        }
+        catch (FileNotFoundException)
+        {
+            Console.Error.WriteLine($"Error: Profile not found: {ProfileManager.GetProfilePath(profileName)}");
+            return 1;
+        }
+        catch (ArgumentOutOfRangeException ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 1;
+        }
+    }
+
+    private static int DeleteProfile(string[] args)
+    {
+        var profileName = GetPositionalArg(args, 0);
+
+        if (string.IsNullOrEmpty(profileName))
+        {
+            Console.Error.WriteLine("Error: Profile name is required.");
+            Console.Error.WriteLine("Usage: lcdpossible profile delete <profile-name>");
+            return 1;
+        }
+
+        // Safety check for default profile
+        if (profileName.Equals("default", StringComparison.OrdinalIgnoreCase))
+        {
+            var force = HasFlag(args, "--force", "-f");
+            if (!force)
+            {
+                Console.Error.WriteLine("Warning: You are about to delete the default profile.");
+                Console.Error.WriteLine("Use --force to confirm: lcdpossible profile delete default --force");
+                return 1;
+            }
+        }
+
+        var manager = new ProfileManager();
+        var path = ProfileManager.GetProfilePath(profileName);
+
+        if (manager.DeleteProfile(profileName))
+        {
+            Console.WriteLine($"Deleted profile: {profileName}");
+            Console.WriteLine($"Path: {path}");
+            return 0;
+        }
+        else
+        {
+            Console.Error.WriteLine($"Error: Profile not found: {path}");
+            return 1;
+        }
+    }
+
+    private static int ShowProfile(string[] args)
+    {
+        var profileName = GetProfileName(args) ?? GetPositionalArg(args, 0);
+        var outputFormat = GetArgValue(args, "--format", "-f")?.ToLowerInvariant();
+
+        // Delegate to list-panels which shows detailed panel info
+        return ListPanels(args);
+    }
+
+    private static int UnknownSubCommand(string subCommand)
+    {
+        Console.Error.WriteLine($"Unknown profile sub-command: {subCommand}");
+        Console.Error.WriteLine("Use 'lcdpossible profile help' for available commands.");
+        return 1;
+    }
+
+    private static int ShowProfileHelp()
+    {
+        Console.WriteLine(@"
+PROFILE MANAGEMENT COMMANDS
+
+Manage display profiles in the user data directory.
+
+USAGE:
+    lcdpossible profile <sub-command> [options]
+
+PROFILE LOCATION:
+    Profiles are stored in: " + ProfileManager.ProfilesDirectory + @"
+
+SUB-COMMANDS:
+
+  Profile Operations:
+    new <name>                  Create a new empty profile
+    list                        List all available profiles
+    delete <name>               Delete a profile (use --force for default)
+    show [name]                 Show profile details (alias for list-panels)
+
+  Panel Operations:
+    list-panels [-p <profile>]  List panels in a profile
+    append-panel <type>         Add a panel to the end of the profile
+    remove-panel <index>        Remove a panel at the specified index
+    move-panel <from> <to>      Move a panel from one position to another
+
+  Panel Parameters:
+    set-panelparam -i <index> -n <name> -v <value>
+                                Set a parameter for a panel (empty value = delete)
+    get-panelparam -i <index> -n <name>
+                                Get a parameter value for a panel
+    clear-panelparams <index>   Clear all parameters for a panel
+
+  Profile Defaults:
+    set-defaults                Set profile-level default settings
+
+OPTIONS:
+
+    -p, --profile <name>        Target profile name (default: 'default')
+    -f, --format <format>       Output format: json, yaml (for list commands)
+
+    append-panel options:
+        -d, --duration <sec>    Panel display duration
+        -i, --interval <sec>    Data update interval
+        -b, --background <path> Background image path
+
+    set-defaults options:
+        --name <name>           Set profile display name
+        --description <text>    Set profile description
+        --duration <sec>        Set default panel duration
+        --interval <sec>        Set default update interval
+
+    set-panelparam parameters:
+        panel                   Panel type ID (e.g., 'cpu-usage-graphic')
+        type                    Slide type ('panel' or 'image')
+        source                  Source path for images
+        duration                Display duration in seconds
+        interval                Update interval in seconds
+        background              Background image path
+
+EXAMPLES:
+
+    # Create a new profile
+    lcdpossible profile new my-gaming-profile
+
+    # Add panels to a profile
+    lcdpossible profile append-panel cpu-usage-graphic -p my-gaming-profile
+    lcdpossible profile append-panel gpu-usage-graphic -p my-gaming-profile -d 10
+    lcdpossible profile append-panel basic-info
+
+    # List panels in a profile
+    lcdpossible profile list-panels -p my-gaming-profile
+    lcdpossible profile list-panels --format json
+
+    # Modify panel parameters
+    lcdpossible profile set-panelparam -i 0 -n duration -v 30
+    lcdpossible profile set-panelparam -i 1 -n interval -v 2
+
+    # Move and remove panels
+    lcdpossible profile move-panel 0 2
+    lcdpossible profile remove-panel 1
+
+    # Set profile defaults
+    lcdpossible profile set-defaults --duration 20 --interval 3
+
+    # Export profile as YAML
+    lcdpossible profile list-panels --format yaml > my-profile.yaml
+");
+        return 0;
+    }
+}

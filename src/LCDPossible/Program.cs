@@ -1,10 +1,13 @@
+using System.Text.Json;
 using LCDPossible.Core.Configuration;
 using LCDPossible.Core.Devices;
+using LCDPossible.Core.Ipc;
 using LCDPossible.Core.Plugins;
 using LCDPossible.Core.Rendering;
 using LCDPossible.Core.Usb;
 using LCDPossible;
 using LCDPossible.Cli;
+using LCDPossible.Ipc;
 using LCDPossible.Monitoring;
 using LCDPossible.Panels;
 using Microsoft.Extensions.Hosting.WindowsServices;
@@ -127,11 +130,20 @@ static async Task<int> RunCliAsync(string[] args)
 
     if (string.IsNullOrEmpty(command))
     {
-        // No command specified - default to "show" with default profile
-        command = "show";
+        // No command specified - show help
+        return ShowHelp();
     }
 
     command = command.ToLowerInvariant();
+
+    // Commands that should be routed through IPC when service is running
+    var ipcCommands = new[] { "show", "set-image", "test", "status", "set-brightness", "next", "previous", "stop" };
+
+    // Check if service is running and this is an IPC-capable command
+    if (ipcCommands.Contains(command) && IpcPaths.IsServiceRunning())
+    {
+        return await RunViaIpcAsync(command, args);
+    }
 
     return command switch
     {
@@ -142,10 +154,13 @@ static async Task<int> RunCliAsync(string[] args)
         "show" => await ShowPanels(args),
         "debug" => await DebugTest.RunAsync(),
         "sensors" or "list-sensors" => await ListSensors.RunAsync(),
-        "show-profile" => ShowProfileInfo(args),
-        "generate-profile" => GenerateSampleProfile(args),
+        "profile" => ProfileCommands.Run(args),
         "help" or "h" or "?" => ShowHelp(),
         "version" or "v" => ShowVersion(),
+        "stop" => StopService(),
+        "next" => AdvanceSlide(),
+        "previous" => PreviousSlide(),
+        "set-brightness" => await SetBrightness(args),
         _ => UnknownCommand(command)
     };
 }
@@ -172,8 +187,20 @@ CLI COMMANDS:
     test                    Display a test pattern on the LCD
     set-image               Send an image file to the LCD display
     show                    Quick display panels (uses default profile if no panels specified)
-    show-profile            Show current or specified profile information
-    generate-profile        Generate a sample profile YAML file
+    profile <sub-command>   Manage display profiles (use 'profile help' for details)
+
+RUNTIME COMMANDS (when service is running):
+    status                  Get service status and current slideshow info
+    show <panels>           Change the current slideshow panels
+    set-image -p <file>     Display a static image
+    test                    Display a test pattern
+    set-brightness <0-100>  Set display brightness
+    next                    Advance to next slide
+    previous                Go to previous slide
+    stop                    Stop the service gracefully
+
+    Note: When the service is running, these commands communicate via IPC.
+    When the service is not running, they operate directly on the device.
 
 GENERAL OPTIONS:
     --help, -h, /?, /h      Show this help message
@@ -185,8 +212,12 @@ DEVICE OPTIONS:
 IMAGE OPTIONS:
     --path, -p <file>       Path to image file (required for set-image)
 
-PROFILE OPTIONS:
-    --output, -o <file>     Output path for generate-profile command
+PROFILE COMMANDS:
+    Use 'lcdpossible profile help' for full profile management documentation.
+    Quick examples:
+        lcdpossible profile new my-profile
+        lcdpossible profile append-panel cpu-usage-graphic
+        lcdpossible profile list-panels
 
 SHOW COMMAND:
     Quick display of panels using inline profile format:
@@ -207,10 +238,10 @@ EXAMPLES:
     lcdpossible show basic-info               Show basic info panel
     lcdpossible show basic-info|@duration=10  Show with 10s duration
     lcdpossible show basic-info,cpu-usage-graphic   Show multiple panels
-    lcdpossible show-profile                  Show loaded profile info
-    lcdpossible show-profile c:\my-profile.yaml    Show specific profile
-    lcdpossible generate-profile              Generate sample YAML to console
-    lcdpossible generate-profile -o profile.yaml   Save sample to file
+    lcdpossible profile list                  List available profiles
+    lcdpossible profile new my-profile        Create a new profile
+    lcdpossible profile append-panel cpu-info Add a panel to a profile
+    lcdpossible profile list-panels           Show panels in default profile
 
 CONFIGURATION:
     LCDPossible uses a YAML profile for slideshow configuration.
@@ -318,18 +349,6 @@ static string? GetImagePath(string[] args)
     for (var i = 0; i < args.Length - 1; i++)
     {
         if (args[i] is "--path" or "-p")
-        {
-            return args[i + 1];
-        }
-    }
-    return null;
-}
-
-static string? GetOutputPath(string[] args)
-{
-    for (var i = 0; i < args.Length - 1; i++)
-    {
-        if (args[i] is "--output" or "-o")
         {
             return args[i + 1];
         }
@@ -767,120 +786,304 @@ static Image<Rgba32> GenerateTestPattern(int width, int height)
     return image;
 }
 
-static int ShowProfileInfo(string[] args)
-{
-    Console.WriteLine("Display Profile Information\n");
-
-    // Check if a specific profile path was provided
-    string? profilePath = GetProfileFilePath(args);
-    DisplayProfile profile;
-
-    if (!string.IsNullOrEmpty(profilePath))
-    {
-        // Load from specified file
-        if (!File.Exists(profilePath))
-        {
-            Console.Error.WriteLine($"Error: Profile file not found: {profilePath}");
-            return 1;
-        }
-
-        Console.WriteLine($"Loading profile from: {profilePath}\n");
-        var loader = new ProfileLoader();
-        profile = loader.LoadProfileFromFile(profilePath);
-    }
-    else
-    {
-        // Show search paths and load default
-        Console.WriteLine("Profile search paths (in order):");
-        foreach (var path in ProfileLoader.GetProfileSearchPaths())
-        {
-            var exists = File.Exists(path);
-            var marker = exists ? "[FOUND]" : "[not found]";
-            Console.WriteLine($"  {marker} {path}");
-        }
-        Console.WriteLine();
-
-        // Load and display profile
-        var loader = new ProfileLoader();
-        profile = loader.LoadProfile();
-    }
-
-    Console.WriteLine($"Active Profile: {profile.Name}");
-    if (!string.IsNullOrEmpty(profile.Description))
-    {
-        Console.WriteLine($"Description:    {profile.Description}");
-    }
-    Console.WriteLine($"\nDefault Settings:");
-    Console.WriteLine($"  Update Interval: {profile.DefaultUpdateIntervalSeconds} second(s)");
-    Console.WriteLine($"  Panel Duration:  {profile.DefaultDurationSeconds} second(s)");
-
-    Console.WriteLine($"\nSlides ({profile.Slides.Count}):");
-    for (var i = 0; i < profile.Slides.Count; i++)
-    {
-        var slide = profile.Slides[i];
-        var type = slide.Type ?? "panel";
-        var source = type == "image" ? slide.Source : (slide.Panel ?? slide.Source ?? "unknown");
-        var duration = slide.Duration ?? profile.DefaultDurationSeconds;
-        var updateInterval = slide.UpdateInterval ?? profile.DefaultUpdateIntervalSeconds;
-
-        Console.WriteLine($"  [{i + 1}] {type}: {source}");
-        Console.WriteLine($"      Duration: {duration}s, Update: {updateInterval}s");
-        if (!string.IsNullOrEmpty(slide.Background))
-        {
-            Console.WriteLine($"      Background: {slide.Background}");
-        }
-    }
-
-    return 0;
-}
-
-static string? GetProfileFilePath(string[] args)
-{
-    // For "show-profile" command, check for path after the command
-    // lcdpossible show-profile c:\temp\profile.yaml
-    for (var i = 0; i < args.Length - 1; i++)
-    {
-        var arg = args[i].ToLowerInvariant().TrimStart('-', '/');
-        if (arg == "show-profile")
-        {
-            var nextArg = args[i + 1];
-            // Make sure it's not another flag
-            if (!nextArg.StartsWith("-") && !nextArg.StartsWith("/"))
-            {
-                return nextArg;
-            }
-        }
-    }
-    return null;
-}
-
-static int GenerateSampleProfile(string[] args)
-{
-    var outputPath = GetOutputPath(args);
-    var yaml = ProfileLoader.GenerateSampleProfileYaml();
-
-    if (string.IsNullOrEmpty(outputPath))
-    {
-        Console.WriteLine("# Sample LCDPossible Display Profile");
-        Console.WriteLine("# Save to your user data directory:");
-        Console.WriteLine($"#   {Path.Combine(ProfileLoader.GetUserDataDirectory(), ProfileLoader.DefaultProfileFileName)}");
-        Console.WriteLine("#");
-        Console.WriteLine("# Or use 'lcdpossible generate-profile -o profile.yaml' to save directly.");
-        Console.WriteLine();
-        Console.WriteLine(yaml);
-    }
-    else
-    {
-        File.WriteAllText(outputPath, yaml);
-        Console.WriteLine($"Sample profile saved to: {outputPath}");
-    }
-
-    return 0;
-}
-
 static string GetVersion()
 {
     var assembly = typeof(Program).Assembly;
     var version = assembly.GetName().Version;
     return version?.ToString(3) ?? "0.0.0";
 }
+
+#region IPC Client Functions
+
+static async Task<int> RunViaIpcAsync(string command, string[] args)
+{
+    Console.WriteLine($"Sending command to running service: {command}");
+
+    try
+    {
+        using var client = new IpcClient();
+        await client.ConnectAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+
+        var request = BuildIpcRequest(command, args);
+        var response = await client.SendAsync(request, CancellationToken.None);
+
+        if (response.Success)
+        {
+            PrintIpcResponse(command, response);
+            return 0;
+        }
+        else
+        {
+            Console.Error.WriteLine($"Error: {response.Error?.Message ?? "Unknown error"}");
+            return 1;
+        }
+    }
+    catch (TimeoutException)
+    {
+        Console.Error.WriteLine("Error: Could not connect to service (timeout)");
+        Console.Error.WriteLine("The service may have stopped. Try running the command directly.");
+        return 1;
+    }
+    catch (IpcException ex)
+    {
+        Console.Error.WriteLine($"Error: {ex.Message}");
+        return 1;
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"Error: {ex.Message}");
+        return 1;
+    }
+}
+
+static IpcRequest BuildIpcRequest(string command, string[] args)
+{
+    var ipcArgs = new Dictionary<string, string>();
+
+    switch (command)
+    {
+        case "show":
+            var panels = GetShowProfile(args);
+            if (!string.IsNullOrEmpty(panels))
+            {
+                ipcArgs["panels"] = panels;
+            }
+            break;
+
+        case "set-image":
+            var imagePath = GetImagePath(args);
+            if (!string.IsNullOrEmpty(imagePath))
+            {
+                ipcArgs["path"] = Path.GetFullPath(imagePath);
+            }
+            break;
+
+        case "test":
+            var testDeviceIndex = GetDeviceIndex(args);
+            if (testDeviceIndex > 0)
+            {
+                ipcArgs["device"] = testDeviceIndex.ToString();
+            }
+            break;
+
+        case "set-brightness":
+            var brightnessLevel = GetBrightnessLevel(args);
+            if (brightnessLevel.HasValue)
+            {
+                ipcArgs["level"] = brightnessLevel.Value.ToString();
+            }
+            var brightnessDeviceIndex = GetDeviceIndex(args);
+            if (brightnessDeviceIndex > 0)
+            {
+                ipcArgs["device"] = brightnessDeviceIndex.ToString();
+            }
+            break;
+    }
+
+    return IpcRequest.Create(command, ipcArgs);
+}
+
+static void PrintIpcResponse(string command, IpcResponse response)
+{
+    if (response.Data is null)
+    {
+        Console.WriteLine("OK");
+        return;
+    }
+
+    // Handle JsonElement data
+    if (response.Data is JsonElement element)
+    {
+        switch (command)
+        {
+            case "status":
+                PrintStatusResponse(element);
+                break;
+
+            case "list":
+                PrintListResponse(element);
+                break;
+
+            default:
+                // Print message if present
+                if (element.TryGetProperty("message", out var messageProp))
+                {
+                    Console.WriteLine(messageProp.GetString());
+                }
+                else
+                {
+                    Console.WriteLine(element.ToString());
+                }
+                break;
+        }
+    }
+    else
+    {
+        Console.WriteLine(response.Data.ToString());
+    }
+}
+
+static void PrintStatusResponse(JsonElement data)
+{
+    Console.WriteLine("Service Status:");
+    Console.WriteLine($"  Version: {data.GetProperty("version").GetString()}");
+    Console.WriteLine($"  Running: {data.GetProperty("isRunning").GetBoolean()}");
+
+    if (data.TryGetProperty("profileName", out var profileProp) && profileProp.ValueKind != JsonValueKind.Null)
+    {
+        Console.WriteLine($"  Profile: {profileProp.GetString()}");
+    }
+
+    Console.WriteLine($"  Devices: {data.GetProperty("connectedDevices").GetInt32()}");
+
+    if (data.TryGetProperty("devices", out var devices) && devices.ValueKind == JsonValueKind.Array)
+    {
+        foreach (var device in devices.EnumerateArray())
+        {
+            var name = device.GetProperty("name").GetString();
+            var connected = device.GetProperty("isConnected").GetBoolean();
+            var width = device.GetProperty("width").GetInt32();
+            var height = device.GetProperty("height").GetInt32();
+            Console.WriteLine($"    - {name} ({width}x{height}) [{(connected ? "Connected" : "Disconnected")}]");
+        }
+    }
+
+    if (data.TryGetProperty("currentSlideshow", out var slideshow) && slideshow.ValueKind != JsonValueKind.Null)
+    {
+        var current = slideshow.GetProperty("currentIndex").GetInt32() + 1;
+        var total = slideshow.GetProperty("totalSlides").GetInt32();
+        var panel = slideshow.GetProperty("currentPanel").GetString();
+        var remaining = slideshow.GetProperty("secondsRemaining").GetInt32();
+        Console.WriteLine($"  Slideshow: Slide {current}/{total} - {panel} ({remaining}s remaining)");
+    }
+}
+
+static void PrintListResponse(JsonElement data)
+{
+    var count = data.GetProperty("count").GetInt32();
+    Console.WriteLine($"Connected devices: {count}");
+
+    if (data.TryGetProperty("devices", out var devices) && devices.ValueKind == JsonValueKind.Array)
+    {
+        var index = 0;
+        foreach (var device in devices.EnumerateArray())
+        {
+            var name = device.GetProperty("name").GetString();
+            var vid = device.GetProperty("vendorId").GetUInt16();
+            var pid = device.GetProperty("productId").GetUInt16();
+            var width = device.GetProperty("width").GetInt32();
+            var height = device.GetProperty("height").GetInt32();
+            var connected = device.GetProperty("isConnected").GetBoolean();
+
+            Console.WriteLine($"  [{index}] {name}");
+            Console.WriteLine($"      VID:0x{vid:X4} PID:0x{pid:X4}");
+            Console.WriteLine($"      Resolution: {width}x{height}");
+            Console.WriteLine($"      Status: {(connected ? "Connected" : "Disconnected")}");
+            index++;
+        }
+    }
+}
+
+static int? GetBrightnessLevel(string[] args)
+{
+    // Look for brightness value after "set-brightness" or as --level/-l flag
+    for (var i = 0; i < args.Length - 1; i++)
+    {
+        if (args[i] is "--level" or "-l" && int.TryParse(args[i + 1], out var level))
+        {
+            return level;
+        }
+    }
+
+    // Also check for value directly after set-brightness command
+    for (var i = 0; i < args.Length - 1; i++)
+    {
+        if (args[i].ToLowerInvariant() == "set-brightness" && int.TryParse(args[i + 1], out var level))
+        {
+            return level;
+        }
+    }
+
+    return null;
+}
+
+static int StopService()
+{
+    Console.Error.WriteLine("Error: Service is not running.");
+    Console.Error.WriteLine("Use 'lcdpossible serve' to start the service.");
+    return 1;
+}
+
+static int AdvanceSlide()
+{
+    Console.Error.WriteLine("Error: Service is not running.");
+    Console.Error.WriteLine("Use 'lcdpossible serve' to start the service, then use 'next' to advance slides.");
+    return 1;
+}
+
+static int PreviousSlide()
+{
+    Console.Error.WriteLine("Error: Service is not running.");
+    Console.Error.WriteLine("Use 'lcdpossible serve' to start the service, then use 'previous' to go back.");
+    return 1;
+}
+
+static async Task<int> SetBrightness(string[] args)
+{
+    var level = GetBrightnessLevel(args);
+    if (!level.HasValue)
+    {
+        Console.Error.WriteLine("Error: Missing brightness level.");
+        Console.Error.WriteLine("Usage: lcdpossible set-brightness <level>");
+        Console.Error.WriteLine("       lcdpossible set-brightness --level 50");
+        return 1;
+    }
+
+    if (level < 0 || level > 100)
+    {
+        Console.Error.WriteLine("Error: Brightness level must be between 0 and 100.");
+        return 1;
+    }
+
+    // When service is not running, we need to set brightness directly
+    using var enumerator = new HidSharpEnumerator();
+    using var deviceManager = new DeviceManager(enumerator);
+
+    DriverRegistry.RegisterAllDrivers(deviceManager, enumerator);
+
+    var devices = deviceManager.DiscoverDevices().ToList();
+
+    if (devices.Count == 0)
+    {
+        Console.Error.WriteLine("Error: No LCD devices found.");
+        return 1;
+    }
+
+    var deviceIndex = GetDeviceIndex(args);
+    if (deviceIndex < 0 || deviceIndex >= devices.Count)
+    {
+        Console.Error.WriteLine($"Error: Invalid device index {deviceIndex}. Available: 0-{devices.Count - 1}");
+        return 1;
+    }
+
+    var device = devices[deviceIndex];
+
+    try
+    {
+        await device.ConnectAsync();
+        await device.SetBrightnessAsync((byte)level.Value);
+        Console.WriteLine($"Brightness set to {level.Value}% on {device.Info.Name}");
+        return 0;
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"Error: {ex.Message}");
+        return 1;
+    }
+    finally
+    {
+        await device.DisconnectAsync();
+    }
+}
+
+#endregion
