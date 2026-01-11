@@ -49,9 +49,9 @@ public sealed class CpuThermalGraphicPanel : BaseLivePanel
 
             DrawTemperaturePieChart(ctx, temp, pieCenterX, pieCenterY, pieRadius);
 
-            // Temperature text in center of pie
+            // Temperature text in center of pie (offset up by ~half font height for vertical centering)
             var tempColor = GetTemperatureColor(temp);
-            DrawCenteredText(ctx, $"{temp:F0}°C", pieCenterX, pieCenterY + 10, ValueFont!, tempColor);
+            DrawCenteredText(ctx, $"{temp:F0}°C", pieCenterX, pieCenterY - 30, ValueFont!, tempColor);
 
             // Additional info at bottom
             var infoY = height - 80;
@@ -170,9 +170,9 @@ public sealed class GpuThermalGraphicPanel : BaseLivePanel
 
             DrawTemperaturePieChart(ctx, temp, pieCenterX, pieCenterY, pieRadius);
 
-            // Temperature text in center of pie
+            // Temperature text in center of pie (offset up by ~half font height for vertical centering)
             var tempColor = GetTemperatureColor(temp);
-            DrawCenteredText(ctx, $"{temp:F0}°C", pieCenterX, pieCenterY + 10, ValueFont!, tempColor);
+            DrawCenteredText(ctx, $"{temp:F0}°C", pieCenterX, pieCenterY - 30, ValueFont!, tempColor);
 
             // Additional info at bottom
             var infoY = height - 80;
@@ -301,8 +301,8 @@ public sealed class SystemThermalGraphicPanel : BaseLivePanel
             // CPU Pie Chart
             DrawTemperaturePieChart(ctx, cpuTemp, cpuX, pieCenterY, pieRadius);
 
-            // Temperature text in center of pie
-            DrawCenteredText(ctx, $"{cpuTemp:F0}°C", cpuX, pieCenterY + 8, TitleFont!, GetTemperatureColor(cpuTemp));
+            // Temperature text in center of pie (offset up by ~half font height for vertical centering)
+            DrawCenteredText(ctx, $"{cpuTemp:F0}°C", cpuX, pieCenterY - 15, TitleFont!, GetTemperatureColor(cpuTemp));
 
             if (metrics.Cpu?.PowerWatts.HasValue == true)
             {
@@ -322,8 +322,8 @@ public sealed class SystemThermalGraphicPanel : BaseLivePanel
             // GPU Pie Chart
             DrawTemperaturePieChart(ctx, gpuTemp, gpuX, pieCenterY, pieRadius);
 
-            // Temperature text in center of pie
-            DrawCenteredText(ctx, $"{gpuTemp:F0}°C", gpuX, pieCenterY + 8, TitleFont!, GetTemperatureColor(gpuTemp));
+            // Temperature text in center of pie (offset up by ~half font height for vertical centering)
+            DrawCenteredText(ctx, $"{gpuTemp:F0}°C", gpuX, pieCenterY - 15, TitleFont!, GetTemperatureColor(gpuTemp));
 
             if (metrics.Gpu?.PowerWatts.HasValue == true)
             {
