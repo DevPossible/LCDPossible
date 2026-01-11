@@ -1,0 +1,19 @@
+{
+  "id": "lcdpossible.video",
+  "name": "Video Panels",
+  "version": "1.0.0",
+  "author": "LCDPossible Team",
+  "description": "Video playback panels for LCDPossible (supports local files, URLs, and YouTube)",
+  "assemblyName": "LCDPossible.Plugins.Video.dll",
+  "minimumSdkVersion": "1.0.0",
+  "panelTypes": [
+    {
+      "typeId": "video",
+      "displayName": "Video",
+      "description": "Plays video files, URLs, or YouTube links",
+      "category": "Media",
+      "isLive": true,
+      "prefixPattern": "video:"
+    }
+  ]
+}

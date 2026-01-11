@@ -1,0 +1,27 @@
+{
+  "id": "lcdpossible.web",
+  "name": "Web Panels",
+  "version": "1.0.0",
+  "author": "LCDPossible Team",
+  "description": "HTML and web page panels using headless browser rendering",
+  "assemblyName": "LCDPossible.Plugins.Web.dll",
+  "minimumSdkVersion": "1.0.0",
+  "panelTypes": [
+    {
+      "typeId": "html",
+      "displayName": "HTML File",
+      "description": "Renders a local HTML file",
+      "category": "Web",
+      "isLive": true,
+      "prefixPattern": "html:"
+    },
+    {
+      "typeId": "web",
+      "displayName": "Web Page",
+      "description": "Renders a live website from URL",
+      "category": "Web",
+      "isLive": true,
+      "prefixPattern": "web:"
+    }
+  ]
+}

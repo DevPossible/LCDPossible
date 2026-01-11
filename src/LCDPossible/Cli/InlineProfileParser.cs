@@ -173,6 +173,8 @@ public static class InlineProfileParser
     /// <summary>
     /// Checks if a panel type string is valid.
     /// Handles both exact matches (cpu-info) and prefix-based panels (animated-gif:path, video:url).
+    /// Note: Since plugins are loaded on-demand, we can only validate known patterns here.
+    /// The actual panel loading will fail later if the panel type doesn't exist.
     /// </summary>
     private static bool IsValidPanelType(string panelType)
     {
@@ -194,21 +196,25 @@ public static class InlineProfileParser
             return true;
         }
 
-        // Check for exact matches in available panels (excluding template entries)
-        foreach (var available in Panels.PanelFactory.AvailablePanels)
-        {
-            // Skip template entries like "animated-gif:<path>"
-            if (available.Contains('<'))
-            {
-                continue;
-            }
+        // Known built-in panel types (core plugin)
+        string[] coreTypes =
+        [
+            "basic-info", "basic-usage-text", "os-info", "os-status", "os-notifications",
+            "cpu-info", "cpu-usage-text", "cpu-usage-graphic",
+            "gpu-info", "gpu-usage-text", "gpu-usage-graphic",
+            "ram-info", "ram-usage-text", "ram-usage-graphic"
+        ];
 
-            if (available.Equals(panelType, StringComparison.OrdinalIgnoreCase))
+        foreach (var coreType in coreTypes)
+        {
+            if (coreType.Equals(lowerType, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
         }
 
-        return false;
+        // Allow any panel type that looks valid (will be validated at load time)
+        // This allows user plugins without requiring plugin loading for validation
+        return !string.IsNullOrWhiteSpace(panelType) && !panelType.Contains(' ');
     }
 }

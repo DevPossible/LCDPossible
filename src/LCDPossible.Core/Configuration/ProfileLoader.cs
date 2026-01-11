@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
@@ -6,19 +5,20 @@ using YamlDotNet.Serialization.NamingConventions;
 namespace LCDPossible.Core.Configuration;
 
 /// <summary>
-/// Loads display profiles from system-wide configuration locations.
+/// Loads display profiles from user and system configuration locations.
+/// Uses PlatformPaths for cross-platform path resolution.
 /// </summary>
 public sealed class ProfileLoader
 {
     /// <summary>
     /// Default profile filename.
     /// </summary>
-    public const string DefaultProfileFileName = "display-profile.yaml";
+    public const string DefaultProfileFileName = "profile.yaml";
 
     /// <summary>
-    /// Alternative profile filename.
+    /// Alternative profile filename (legacy).
     /// </summary>
-    public const string AlternativeProfileFileName = "profile.yaml";
+    public const string AlternativeProfileFileName = "display-profile.yaml";
 
     private readonly ILogger<ProfileLoader>? _logger;
     private readonly IDeserializer _deserializer;
@@ -33,51 +33,39 @@ public sealed class ProfileLoader
     }
 
     /// <summary>
-    /// Gets the system-wide configuration directory for the current platform.
+    /// Gets the user data directory for LCDPossible.
     /// </summary>
-    public static string GetSystemConfigDirectory()
-    {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            // Windows: C:\ProgramData\LCDPossible
-            var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-            return Path.Combine(programData, "LCDPossible");
-        }
-        else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-        {
-            // Linux: /etc/lcdpossible
-            return "/etc/lcdpossible";
-        }
-        else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-        {
-            // macOS: /Library/Application Support/LCDPossible
-            return "/Library/Application Support/LCDPossible";
-        }
-        else
-        {
-            // Fallback to current directory
-            return Path.Combine(AppContext.BaseDirectory, "config");
-        }
-    }
+    public static string GetUserDataDirectory() => PlatformPaths.GetUserDataDirectory();
+
+    /// <summary>
+    /// Gets the primary profile path.
+    /// </summary>
+    public static string GetProfilePath() => PlatformPaths.GetProfilePath();
 
     /// <summary>
     /// Gets all possible profile file paths in order of priority.
+    /// User directory first, then app directory, then current directory.
     /// </summary>
     public static IEnumerable<string> GetProfileSearchPaths()
     {
-        var systemDir = GetSystemConfigDirectory();
+        // User data directory (highest priority)
+        yield return PlatformPaths.GetProfilePath();
 
-        // System-wide locations (highest priority)
-        yield return Path.Combine(systemDir, DefaultProfileFileName);
-        yield return Path.Combine(systemDir, AlternativeProfileFileName);
+        // Also check for alternative filename in user directory
+        var userDir = PlatformPaths.GetUserDataDirectory();
+        yield return Path.Combine(userDir, AlternativeProfileFileName);
 
-        // Application directory (fallback)
+        // Application directory
         yield return Path.Combine(AppContext.BaseDirectory, DefaultProfileFileName);
         yield return Path.Combine(AppContext.BaseDirectory, AlternativeProfileFileName);
 
-        // Current working directory (lowest priority)
-        yield return Path.Combine(Directory.GetCurrentDirectory(), DefaultProfileFileName);
-        yield return Path.Combine(Directory.GetCurrentDirectory(), AlternativeProfileFileName);
+        // Current working directory (lowest priority, for development)
+        var cwd = Directory.GetCurrentDirectory();
+        if (!cwd.Equals(AppContext.BaseDirectory, StringComparison.OrdinalIgnoreCase))
+        {
+            yield return Path.Combine(cwd, DefaultProfileFileName);
+            yield return Path.Combine(cwd, AlternativeProfileFileName);
+        }
     }
 
     /// <summary>
@@ -139,7 +127,7 @@ public sealed class ProfileLoader
     }
 
     /// <summary>
-    /// Saves a profile to the system configuration directory.
+    /// Saves a profile to the user data directory.
     /// </summary>
     public void SaveProfile(DisplayProfile profile, string? fileName = null)
     {
@@ -147,10 +135,10 @@ public sealed class ProfileLoader
             .WithNamingConvention(UnderscoredNamingConvention.Instance)
             .Build();
 
-        var systemDir = GetSystemConfigDirectory();
-        Directory.CreateDirectory(systemDir);
+        var userDir = PlatformPaths.GetUserDataDirectory();
+        Directory.CreateDirectory(userDir);
 
-        var filePath = Path.Combine(systemDir, fileName ?? DefaultProfileFileName);
+        var filePath = Path.Combine(userDir, fileName ?? DefaultProfileFileName);
         var yaml = serializer.Serialize(profile);
         File.WriteAllText(filePath, yaml);
 

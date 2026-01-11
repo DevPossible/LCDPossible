@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- NuGet Package Properties -->
+    <PackageId>LCDPossible.Sdk</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>LCDPossible Team</Authors>
+    <Description>SDK for developing LCDPossible display panel plugins. Create custom panels for HID-based LCD screens.</Description>
+    <PackageTags>lcd;panel;plugin;sdk;hid;display</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/your-org/LCDPossible</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/your-org/LCDPossible</RepositoryUrl>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Core library for IDisplayPanel, ISystemInfoProvider, etc. -->
+    <ProjectReference Include="..\LCDPossible.Core\LCDPossible.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Required for fonts and drawing in BaseLivePanel -->
+    <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.5" />
+  </ItemGroup>
+
+</Project>

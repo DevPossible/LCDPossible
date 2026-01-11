@@ -1,0 +1,98 @@
+{
+  "id": "lcdpossible.core",
+  "name": "LCDPossible Core Panels",
+  "version": "1.0.0",
+  "author": "LCDPossible Team",
+  "description": "Core system information panels including CPU, GPU, RAM, and basic system info.",
+  "minimumSdkVersion": "1.0.0",
+  "assemblyName": "LCDPossible.Plugins.Core.dll",
+  "panelTypes": [
+    {
+      "typeId": "cpu-info",
+      "displayName": "CPU Info",
+      "description": "Detailed CPU information including model, usage, temperature, frequency, and power",
+      "category": "System",
+      "isLive": true,
+      "dependencies": ["LibreHardwareMonitorLib"]
+    },
+    {
+      "typeId": "cpu-usage-text",
+      "displayName": "CPU Usage Text",
+      "description": "CPU usage displayed as large text percentage",
+      "category": "System",
+      "isLive": true,
+      "dependencies": ["LibreHardwareMonitorLib"]
+    },
+    {
+      "typeId": "cpu-usage-graphic",
+      "displayName": "CPU Usage Graphic",
+      "description": "CPU usage with graphical bars including per-core breakdown",
+      "category": "System",
+      "isLive": true,
+      "dependencies": ["LibreHardwareMonitorLib"]
+    },
+    {
+      "typeId": "ram-info",
+      "displayName": "RAM Info",
+      "description": "Memory information including total, used, and available",
+      "category": "System",
+      "isLive": true,
+      "dependencies": ["LibreHardwareMonitorLib"]
+    },
+    {
+      "typeId": "ram-usage-text",
+      "displayName": "RAM Usage Text",
+      "description": "RAM usage displayed as large text",
+      "category": "System",
+      "isLive": true,
+      "dependencies": ["LibreHardwareMonitorLib"]
+    },
+    {
+      "typeId": "ram-usage-graphic",
+      "displayName": "RAM Usage Graphic",
+      "description": "RAM usage with graphical bar",
+      "category": "System",
+      "isLive": true,
+      "dependencies": ["LibreHardwareMonitorLib"]
+    },
+    {
+      "typeId": "gpu-info",
+      "displayName": "GPU Info",
+      "description": "GPU information including model, usage, temperature, and VRAM",
+      "category": "System",
+      "isLive": true,
+      "dependencies": ["LibreHardwareMonitorLib"]
+    },
+    {
+      "typeId": "gpu-usage-text",
+      "displayName": "GPU Usage Text",
+      "description": "GPU usage displayed as large text",
+      "category": "System",
+      "isLive": true,
+      "dependencies": ["LibreHardwareMonitorLib"]
+    },
+    {
+      "typeId": "gpu-usage-graphic",
+      "displayName": "GPU Usage Graphic",
+      "description": "GPU usage with graphical bars",
+      "category": "System",
+      "isLive": true,
+      "dependencies": ["LibreHardwareMonitorLib"]
+    },
+    {
+      "typeId": "basic-info",
+      "displayName": "Basic Info",
+      "description": "Basic system information including hostname, OS, and uptime",
+      "category": "System",
+      "isLive": true
+    },
+    {
+      "typeId": "basic-usage-text",
+      "displayName": "Basic Usage Text",
+      "description": "Simple CPU/RAM/GPU usage summary",
+      "category": "System",
+      "isLive": true,
+      "dependencies": ["LibreHardwareMonitorLib"]
+    }
+  ]
+}

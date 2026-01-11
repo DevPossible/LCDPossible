@@ -1,6 +1,7 @@
 using LCDPossible.Core.Configuration;
 using LCDPossible.Core.Devices;
 using LCDPossible.Core.Monitoring;
+using LCDPossible.Core.Plugins;
 using LCDPossible.Core.Rendering;
 using LCDPossible.Monitoring;
 using LCDPossible.Panels;
@@ -18,6 +19,7 @@ public sealed class LcdWorker : BackgroundService
 {
     private readonly DeviceManager _deviceManager;
     private readonly ProfileLoader _profileLoader;
+    private readonly PluginManager _pluginManager;
     private readonly ILogger<LcdWorker> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly LcdPossibleOptions _options;
@@ -35,12 +37,14 @@ public sealed class LcdWorker : BackgroundService
     public LcdWorker(
         DeviceManager deviceManager,
         ProfileLoader profileLoader,
+        PluginManager pluginManager,
         IOptions<LcdPossibleOptions> options,
         ILogger<LcdWorker> logger,
         ILoggerFactory loggerFactory)
     {
         _deviceManager = deviceManager ?? throw new ArgumentNullException(nameof(deviceManager));
         _profileLoader = profileLoader ?? throw new ArgumentNullException(nameof(profileLoader));
+        _pluginManager = pluginManager ?? throw new ArgumentNullException(nameof(pluginManager));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
@@ -140,17 +144,10 @@ public sealed class LcdWorker : BackgroundService
 
     private async Task InitializeProvidersAsync(CancellationToken cancellationToken)
     {
-        // Initialize local hardware monitoring
-        try
-        {
-            _systemProvider = new LocalHardwareProvider(_loggerFactory.CreateLogger<LocalHardwareProvider>());
-            await _systemProvider.InitializeAsync(cancellationToken);
-            _logger.LogInformation("Local hardware monitoring initialized");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to initialize local hardware monitoring");
-        }
+        // Use stub system provider - actual hardware monitoring is done by the Core plugin
+        _systemProvider = new StubSystemInfoProvider();
+        await _systemProvider.InitializeAsync(cancellationToken);
+        _logger.LogInformation("System info provider initialized (stub - plugins provide real data)");
 
         // Initialize Proxmox if configured
         if (_options.Proxmox.Enabled)
@@ -169,11 +166,16 @@ public sealed class LcdWorker : BackgroundService
             }
         }
 
+        // Discover available plugins
+        _pluginManager.DiscoverPlugins();
+        _logger.LogInformation("Discovered {Count} plugins", _pluginManager.DiscoveredPlugins.Count);
+
         // Create panel factory with color scheme from profile
         _panelFactory = new PanelFactory(
-            _systemProvider ?? new LocalHardwareProvider(),
+            _pluginManager,
+            _systemProvider,
             _proxmoxProvider,
-            _loggerFactory.CreateLogger<PanelFactory>());
+            _loggerFactory);
 
         if (_displayProfile != null)
         {

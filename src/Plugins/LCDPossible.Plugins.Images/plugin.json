@@ -1,0 +1,27 @@
+{
+  "id": "lcdpossible.images",
+  "name": "Image Panels",
+  "version": "1.0.0",
+  "author": "LCDPossible Team",
+  "description": "Animated GIF and image sequence panels for LCDPossible",
+  "assemblyName": "LCDPossible.Plugins.Images.dll",
+  "minimumSdkVersion": "1.0.0",
+  "panelTypes": [
+    {
+      "typeId": "animated-gif",
+      "displayName": "Animated GIF",
+      "description": "Plays animated GIF files or URLs",
+      "category": "Media",
+      "isLive": true,
+      "prefixPattern": "animated-gif:"
+    },
+    {
+      "typeId": "image-sequence",
+      "displayName": "Image Sequence",
+      "description": "Plays a sequence of numbered images from a folder",
+      "category": "Media",
+      "isLive": true,
+      "prefixPattern": "image-sequence:"
+    }
+  ]
+}

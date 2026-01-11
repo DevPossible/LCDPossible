@@ -1,5 +1,6 @@
 using LCDPossible.Core.Configuration;
 using LCDPossible.Core.Devices;
+using LCDPossible.Core.Plugins;
 using LCDPossible.Core.Rendering;
 using LCDPossible.Core.Usb;
 using LCDPossible;
@@ -66,6 +67,10 @@ static async Task<int> RunServiceAsync(string[] args)
 
         // Register profile loader
         builder.Services.AddSingleton<ProfileLoader>();
+
+        // Register plugin manager
+        builder.Services.AddSingleton<PluginManager>(sp =>
+            new PluginManager(sp.GetService<ILoggerFactory>(), sp));
 
         // Register core services
         builder.Services.AddSingleton<IDeviceEnumerator>(sp =>
@@ -386,10 +391,10 @@ static async Task<int> ShowPanels(string[] args)
         Console.Error.WriteLine("  @background=path  Background image for the panel");
         Console.Error.WriteLine();
         Console.Error.WriteLine("Available panels:");
-        foreach (var p in PanelFactory.AvailablePanels)
-        {
-            Console.Error.WriteLine($"  {p}");
-        }
+        Console.Error.WriteLine("  System: basic-info, cpu-info, cpu-usage-graphic, gpu-info, gpu-usage-graphic, ram-info, ram-usage-graphic");
+        Console.Error.WriteLine("  Media:  animated-gif:<path>, image-sequence:<folder>, video:<path|url>");
+        Console.Error.WriteLine("  Web:    html:<path>, web:<url>");
+        Console.Error.WriteLine("  Proxmox: proxmox-summary, proxmox-vms");
         return 1;
     }
 
@@ -432,12 +437,16 @@ static async Task<int> ShowPanels(string[] args)
         await device.ConnectAsync();
         Console.WriteLine("Connected!");
 
-        // Create system info provider
-        using var systemProvider = new LocalHardwareProvider();
+        // Create stub system info provider - plugins provide actual hardware data
+        using var systemProvider = new StubSystemInfoProvider();
         await systemProvider.InitializeAsync();
 
+        // Create plugin manager and discover plugins
+        using var pluginManager = new PluginManager();
+        pluginManager.DiscoverPlugins();
+
         // Create panel factory and slideshow manager
-        var panelFactory = new PanelFactory(systemProvider);
+        var panelFactory = new PanelFactory(pluginManager, systemProvider);
         using var slideshow = new SlideshowManager(panelFactory, items);
         await slideshow.InitializeAsync();
 
@@ -783,10 +792,10 @@ static int GenerateSampleProfile(string[] args)
     if (string.IsNullOrEmpty(outputPath))
     {
         Console.WriteLine("# Sample LCDPossible Display Profile");
-        Console.WriteLine("# Copy to your system config directory:");
-        Console.WriteLine($"#   Windows: {Path.Combine(ProfileLoader.GetSystemConfigDirectory(), ProfileLoader.DefaultProfileFileName)}");
-        Console.WriteLine("#   Linux:   /etc/lcdpossible/display-profile.yaml");
-        Console.WriteLine("#   macOS:   /Library/Application Support/LCDPossible/display-profile.yaml");
+        Console.WriteLine("# Save to your user data directory:");
+        Console.WriteLine($"#   {Path.Combine(ProfileLoader.GetUserDataDirectory(), ProfileLoader.DefaultProfileFileName)}");
+        Console.WriteLine("#");
+        Console.WriteLine("# Or use 'lcdpossible generate-profile -o profile.yaml' to save directly.");
         Console.WriteLine();
         Console.WriteLine(yaml);
     }

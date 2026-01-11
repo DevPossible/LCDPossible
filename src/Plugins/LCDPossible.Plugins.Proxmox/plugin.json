@@ -1,0 +1,12 @@
+{
+  "id": "lcdpossible.proxmox",
+  "name": "Proxmox VE Panels",
+  "version": "1.0.0",
+  "author": "LCDPossible Team",
+  "description": "Proxmox VE cluster monitoring panels",
+  "assemblyName": "LCDPossible.Plugins.Proxmox.dll",
+  "panelTypes": [
+    { "typeId": "proxmox-summary", "prefixPattern": null },
+    { "typeId": "proxmox-vms", "prefixPattern": null }
+  ]
+}
