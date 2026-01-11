@@ -82,26 +82,33 @@ FEAT_COUNT=0
 FIX_COUNT=0
 OTHER_COUNT=0
 
+# Regex patterns (must be in variables for bash compatibility)
+BREAKING_PATTERN='^[a-z]+(\([^)]+\))?!:'
+BREAKING_CHANGE_PATTERN='BREAKING CHANGE:'
+FEAT_PATTERN='^feat(\([^)]+\))?:'
+FIX_PATTERN='^fix(\([^)]+\))?:'
+OTHER_PATTERN='^(docs|style|refactor|perf|test|build|ci|chore)(\([^)]+\))?:'
+
 while IFS= read -r commit; do
     [[ -z "$commit" ]] && continue
 
     # Check for breaking changes (type!: or BREAKING CHANGE:)
-    if [[ "$commit" =~ ^[a-z]+(\([^)]+\))?\!: ]] || [[ "$commit" =~ BREAKING\ CHANGE: ]]; then
+    if [[ "$commit" =~ $BREAKING_PATTERN ]] || [[ "$commit" =~ $BREAKING_CHANGE_PATTERN ]]; then
         HAS_BREAKING=true
         ((BREAKING_COUNT++))
         log "BREAKING: $commit"
     # Check for features
-    elif [[ "$commit" =~ ^feat(\([^)]+\))?: ]]; then
+    elif [[ "$commit" =~ $FEAT_PATTERN ]]; then
         HAS_FEAT=true
         ((FEAT_COUNT++))
         log "FEAT: $commit"
     # Check for fixes
-    elif [[ "$commit" =~ ^fix(\([^)]+\))?: ]]; then
+    elif [[ "$commit" =~ $FIX_PATTERN ]]; then
         HAS_FIX=true
         ((FIX_COUNT++))
         log "FIX: $commit"
     # Other conventional commits
-    elif [[ "$commit" =~ ^(docs|style|refactor|perf|test|build|ci|chore)(\([^)]+\))?: ]]; then
+    elif [[ "$commit" =~ $OTHER_PATTERN ]]; then
         ((OTHER_COUNT++))
         log "OTHER: $commit"
     else
