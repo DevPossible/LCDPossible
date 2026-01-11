@@ -24,6 +24,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y vlc libvlc-dev fonts-dejavu-core
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:

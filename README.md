@@ -47,52 +47,100 @@ lcdpossible serve
 
 ## Installation
 
-### Windows
+### One-Line Install (Recommended)
 
-**Option 1: Download Release (Recommended)**
+Install LCDPossible with all dependencies using a single command:
+
+**Windows** (PowerShell as Administrator):
+```powershell
+irm https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/install-windows.ps1 | iex
+```
+
+**Ubuntu/Debian**:
+```bash
+curl -sSL https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/install-ubuntu.sh | bash
+```
+
+**Fedora/RHEL**:
+```bash
+curl -sSL https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/install-fedora.sh | bash
+```
+
+**Arch Linux**:
+```bash
+curl -sSL https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/install-arch.sh | bash
+```
+
+**macOS**:
+```bash
+curl -sSL https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/install-macos.sh | bash
+```
+
+These scripts will:
+- Install all required dependencies (LibVLC, fonts)
+- Download the latest release
+- Set up USB device permissions (Linux)
+- Install and enable the service (systemd/launchd/Windows Service)
+
+### Manual Installation
+
+<details>
+<summary>Windows (Manual)</summary>
 
 1. Download the latest `lcdpossible-x.x.x-win-x64.zip` from [Releases](https://github.com/DevPossible/LCDPossible/releases)
 2. Extract to a folder (e.g., `C:\Program Files\LCDPossible`)
 3. Run `LCDPossible.exe` from the command line or add to PATH
 
-**Option 2: Install as Windows Service**
-
+**Install as Windows Service:**
 ```powershell
-# After extracting, install as a service (run as Administrator)
+# Run as Administrator
 sc.exe create LCDPossible binPath= "C:\Program Files\LCDPossible\LCDPossible.exe serve --service" start= auto
 sc.exe start LCDPossible
 ```
+</details>
 
-### Linux
+<details>
+<summary>Linux (Manual)</summary>
 
 ```bash
+# Install dependencies (Ubuntu/Debian)
+sudo apt install vlc libvlc-dev fonts-dejavu-core
+
 # Download and extract
 wget https://github.com/DevPossible/LCDPossible/releases/latest/download/lcdpossible-x.x.x-linux-x64.tar.gz
 sudo mkdir -p /opt/lcdpossible
 sudo tar -xzf lcdpossible-*.tar.gz -C /opt/lcdpossible
 
 # Install udev rules for USB access
-sudo cp /opt/lcdpossible/99-lcdpossible.rules /etc/udev/rules.d/
-sudo udevadm control --reload-rules
-sudo udevadm trigger
+sudo tee /etc/udev/rules.d/99-lcdpossible.rules << 'EOF'
+SUBSYSTEM=="usb", ATTR{idVendor}=="0416", ATTR{idProduct}=="5302", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0416", MODE="0666", TAG+="uaccess"
+EOF
+sudo udevadm control --reload-rules && sudo udevadm trigger
 
 # Add to PATH
 echo 'export PATH="/opt/lcdpossible:$PATH"' >> ~/.bashrc
 source ~/.bashrc
 ```
+</details>
 
-### macOS
+<details>
+<summary>macOS (Manual)</summary>
 
 ```bash
+# Install dependencies
+brew install vlc
+
 # Download and extract
 curl -LO https://github.com/DevPossible/LCDPossible/releases/latest/download/lcdpossible-x.x.x-osx-x64.tar.gz
-sudo mkdir -p /usr/local/lcdpossible
-sudo tar -xzf lcdpossible-*.tar.gz -C /usr/local/lcdpossible
+mkdir -p ~/.local/share/lcdpossible
+tar -xzf lcdpossible-*.tar.gz -C ~/.local/share/lcdpossible
 
 # Add to PATH
-echo 'export PATH="/usr/local/lcdpossible:$PATH"' >> ~/.zshrc
+echo 'export PATH="$HOME/.local/share/lcdpossible:$PATH"' >> ~/.zshrc
 source ~/.zshrc
 ```
+</details>
 
 ### Build from Source
 
@@ -362,11 +410,28 @@ Add to `appsettings.json`:
       "TokenId": "monitor@pve!lcdpossible",
       "TokenSecret": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
       "IgnoreSslErrors": true,
-      "PollingIntervalSeconds": 5
+      "PollingIntervalSeconds": 5,
+      "ShowVms": true,
+      "ShowContainers": true,
+      "ShowAlerts": true,
+      "MaxDisplayItems": 10
     }
   }
 }
 ```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `Enabled` | `false` | Enable Proxmox integration |
+| `ApiUrl` | `""` | Proxmox API URL (e.g., `https://proxmox.local:8006`) |
+| `TokenId` | `""` | API token ID (format: `user@realm!tokenid`) |
+| `TokenSecret` | `""` | API token secret |
+| `IgnoreSslErrors` | `false` | Skip SSL verification (for self-signed certs) |
+| `PollingIntervalSeconds` | `5` | How often to fetch metrics |
+| `ShowVms` | `true` | Show VM status in panels |
+| `ShowContainers` | `true` | Show container status in panels |
+| `ShowAlerts` | `true` | Show cluster alerts |
+| `MaxDisplayItems` | `10` | Max items per category |
 
 ## Linux USB Permissions
 

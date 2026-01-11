@@ -239,6 +239,21 @@ sudo pacman -S vlc
 brew install vlc
 ```
 
+**Linux - Font Requirements:** Panels that render text require TrueType fonts:
+```bash
+# Linux (Debian/Ubuntu) - minimal font package
+sudo apt install fonts-dejavu-core
+
+# Linux (Fedora/RHEL)
+sudo dnf install dejavu-sans-fonts
+
+# Linux (Arch)
+sudo pacman -S ttf-dejavu
+
+# Docker/minimal environments - add to Dockerfile
+RUN apt-get update && apt-get install -y fonts-dejavu-core
+```
+
 **Windows:**
 - Use `Microsoft.Extensions.Hosting.WindowsServices` for service registration
 - LibVLC native binaries are included automatically via NuGet
