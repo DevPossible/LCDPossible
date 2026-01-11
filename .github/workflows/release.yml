@@ -36,6 +36,9 @@ jobs:
 
       - name: Determine version
         id: version
+        env:
+          # Force release on push to main, or when manually triggered with force_release
+          FORCE_RELEASE: ${{ github.event_name == 'push' || inputs.force_release }}
         run: |
           # First, check if HEAD already has a tag
           EXISTING_TAG=$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
@@ -57,14 +60,29 @@ jobs:
           chmod +x ./scripts/get-version.sh
           VERSION=$(./scripts/get-version.sh)
           echo "Calculated version: $VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
           # Check if this calculated version already exists as a tag (on a different commit)
           if git rev-parse "v$VERSION" >/dev/null 2>&1; then
             echo "Tag v$VERSION already exists on a different commit"
-            echo "should_release=false" >> $GITHUB_OUTPUT
+
+            if [ "$FORCE_RELEASE" = "true" ]; then
+              # Force release: bump patch until we find an unused version
+              echo "Force release enabled, finding next available version..."
+              IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+              while git rev-parse "v$MAJOR.$MINOR.$PATCH" >/dev/null 2>&1; do
+                PATCH=$((PATCH + 1))
+              done
+              VERSION="$MAJOR.$MINOR.$PATCH"
+              echo "Next available version: $VERSION"
+              echo "version=$VERSION" >> $GITHUB_OUTPUT
+              echo "should_release=true" >> $GITHUB_OUTPUT
+            else
+              echo "version=$VERSION" >> $GITHUB_OUTPUT
+              echo "should_release=false" >> $GITHUB_OUTPUT
+            fi
           else
             echo "New version: $VERSION"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
             echo "should_release=true" >> $GITHUB_OUTPUT
           fi
 
