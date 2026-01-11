@@ -128,9 +128,7 @@ npm-debug.log*
 # =============================================================================
 # Project-specific
 # =============================================================================
-# Claude Code local config
-.claude/
-!CLAUDE.md
 
 # MCP debug tools
 .mcp-debug-tools/
+.claude/settings.local.json

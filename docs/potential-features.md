@@ -49,4 +49,6 @@ Display simple 3D animations using a web page panel with JavaScript 3D libraries
 
 ## an animated game plugin panel simulating various legacy games like pacman, tetris, ms pacman, asteroids, mario, zelda...
 
+## functional tests
 
+write a robust set of functional tests that starts by deleting the default profile yaml file, then uses the cli commands to create and modify the file - test each command under profile verb by actually calling the exe and then verify the actual file changes
