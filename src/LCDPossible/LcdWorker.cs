@@ -781,6 +781,7 @@ public sealed class LcdWorker : BackgroundService
                 SetSlideshowAsync,
                 SetStaticImageAsync,
                 SetBrightnessAsync,
+                ReloadProfileAsync,
                 _loggerFactory.CreateLogger<IpcCommandHandler>());
 
             _ipcServer.RequestReceived += OnIpcRequest;
@@ -836,6 +837,47 @@ public sealed class LcdWorker : BackgroundService
                 IpcResponse.Fail(e.Request.Id, ex),
                 CancellationToken.None);
         }
+    }
+
+    /// <summary>
+    /// Reloads the display profile from disk and reinitializes the slideshow.
+    /// Called via IPC when profile is modified by CLI commands.
+    /// </summary>
+    internal async Task ReloadProfileAsync(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Reloading display profile...");
+
+        // Reload profile from disk
+        var newProfile = _profileLoader.LoadProfile();
+        _displayProfile = newProfile;
+        _logger.LogInformation("Loaded profile '{ProfileName}' with {Count} slides",
+            newProfile.Name, newProfile.Slides.Count);
+
+        // Update panel factory color scheme
+        if (_panelFactory != null)
+        {
+            _panelFactory.SetColorScheme(newProfile.Colors);
+        }
+
+        // Dispose old default slideshow
+        if (_slideshows.TryGetValue("default", out var oldSlideshow))
+        {
+            oldSlideshow.Dispose();
+            _slideshows.Remove("default");
+        }
+
+        // Clear any cached errors for panels that might now work
+        _failedPanels.Clear();
+        foreach (var cached in _panelErrorCache.Values)
+        {
+            cached.ErrorFrame.Dispose();
+        }
+        _panelErrorCache.Clear();
+
+        // Reinitialize default slideshow
+        await InitializeDefaultSlideshowAsync(cancellationToken);
+
+        _logger.LogInformation("Profile reload complete");
     }
 
     /// <summary>

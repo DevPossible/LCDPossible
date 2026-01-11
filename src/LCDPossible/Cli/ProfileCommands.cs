@@ -1,5 +1,7 @@
 using LCDPossible.Core;
 using LCDPossible.Core.Configuration;
+using LCDPossible.Core.Ipc;
+using LCDPossible.Ipc;
 
 namespace LCDPossible.Cli;
 
@@ -35,6 +37,7 @@ public static class ProfileCommands
             "clear-panelparams" or "clear-params" or "clear" => ClearPanelParams(args),
             "delete" => DeleteProfile(args),
             "show" => ShowProfile(args),
+            "reload" => ReloadProfile(args),
             "help" or "-h" or "--help" or "/?" => ShowProfileHelp(),
             _ => UnknownSubCommand(subCommand)
         };
@@ -367,6 +370,7 @@ public static class ProfileCommands
             if (interval.HasValue) Console.WriteLine($"  Update Interval: {interval}s");
             if (!string.IsNullOrEmpty(background)) Console.WriteLine($"  Background: {background}");
 
+            NotifyServiceReload();
             return 0;
         }
         catch (FileNotFoundException)
@@ -397,6 +401,7 @@ public static class ProfileCommands
             var removed = manager.RemovePanel(profileName, index);
             var panelType = removed?.Panel ?? removed?.Source ?? "(unknown)";
             Console.WriteLine($"Removed panel at index {index}: {panelType}");
+            NotifyServiceReload();
             return 0;
         }
         catch (FileNotFoundException)
@@ -431,6 +436,7 @@ public static class ProfileCommands
         {
             manager.MovePanel(profileName, fromIndex, toIndex);
             Console.WriteLine($"Moved panel from index {fromIndex} to index {toIndex}");
+            NotifyServiceReload();
             return 0;
         }
         catch (FileNotFoundException)
@@ -488,6 +494,7 @@ public static class ProfileCommands
             if (transition != null) Console.WriteLine($"  Default Transition: {transition}");
             if (transitionDuration.HasValue) Console.WriteLine($"  Default Transition Duration: {transitionDuration}ms");
 
+            NotifyServiceReload();
             return 0;
         }
         catch (FileNotFoundException)
@@ -534,6 +541,7 @@ public static class ProfileCommands
                 Console.WriteLine($"Set '{paramName}' = '{paramValue}' for panel at index {index}");
             }
 
+            NotifyServiceReload();
             return 0;
         }
         catch (FileNotFoundException)
@@ -626,6 +634,7 @@ public static class ProfileCommands
         {
             manager.ClearPanelParameters(profileName, index);
             Console.WriteLine($"Cleared all parameters for panel at index {index}");
+            NotifyServiceReload();
             return 0;
         }
         catch (FileNotFoundException)
@@ -688,11 +697,89 @@ public static class ProfileCommands
         return ListPanels(args);
     }
 
+    private static int ReloadProfile(string[] args)
+    {
+        if (!IpcPaths.IsServiceRunning())
+        {
+            Console.Error.WriteLine("Error: LCDPossible service is not running.");
+            Console.Error.WriteLine("Start the service with: lcdpossible serve");
+            return 1;
+        }
+
+        try
+        {
+            var success = NotifyServiceReloadAsync(silent: true).GetAwaiter().GetResult();
+
+            if (success)
+            {
+                Console.WriteLine("Profile reloaded successfully.");
+                return 0;
+            }
+            else
+            {
+                Console.Error.WriteLine("Failed to reload profile. Check service logs for details.");
+                return 1;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error communicating with service: {ex.Message}");
+            return 1;
+        }
+    }
+
     private static int UnknownSubCommand(string subCommand)
     {
         Console.Error.WriteLine($"Unknown profile sub-command: {subCommand}");
         Console.Error.WriteLine("Use 'lcdpossible profile help' for available commands.");
         return 1;
+    }
+
+    /// <summary>
+    /// Notifies the running service to reload the profile.
+    /// Returns true if reload was successful, false otherwise.
+    /// </summary>
+    /// <param name="silent">If true, don't print success message (for automatic reload after changes).</param>
+    private static async Task<bool> NotifyServiceReloadAsync(bool silent = false)
+    {
+        if (!IpcPaths.IsServiceRunning())
+        {
+            return false;
+        }
+
+        try
+        {
+            var response = await IpcClientHelper.SendCommandAsync("reload");
+            if (response.Success)
+            {
+                if (!silent)
+                {
+                    Console.WriteLine("  [OK] Service notified to reload profile.");
+                }
+                return true;
+            }
+            return false;
+        }
+        catch
+        {
+            // Service not running or communication error
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Synchronously notifies the service to reload (helper for non-async methods).
+    /// </summary>
+    private static void NotifyServiceReload()
+    {
+        try
+        {
+            NotifyServiceReloadAsync(silent: false).GetAwaiter().GetResult();
+        }
+        catch
+        {
+            // Ignore any errors
+        }
     }
 
     private static int ShowProfileHelp()
@@ -715,6 +802,7 @@ SUB-COMMANDS:
     list                        List all available profiles
     delete <name>               Delete a profile (use --force for default)
     show [name]                 Show profile details (alias for list-panels)
+    reload                      Force the running service to reload the profile
 
   Panel Operations:
     list-panels [-p <profile>]  List panels in a profile
@@ -813,6 +901,9 @@ EXAMPLES:
 
     # Export profile as YAML
     lcdpossible profile list-panels --format yaml > my-profile.yaml
+
+    # Force reload the profile (e.g., after editing YAML manually)
+    lcdpossible profile reload
 ");
         return 0;
     }

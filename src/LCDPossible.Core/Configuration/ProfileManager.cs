@@ -10,7 +10,7 @@ namespace LCDPossible.Core.Configuration;
 public sealed class ProfileManager
 {
     private const string ProfileExtension = ".yaml";
-    private const string DefaultProfileName = "default";
+    private const string DefaultProfileName = "profile";  // Must match ProfileLoader's default filename
 
     private readonly ISerializer _serializer;
     private readonly IDeserializer _deserializer;

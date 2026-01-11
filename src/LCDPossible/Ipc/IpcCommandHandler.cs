@@ -26,6 +26,7 @@ public sealed class IpcCommandHandler
     private readonly Func<string, SlideshowManager, CancellationToken, Task> _setSlideshowAsync;
     private readonly Func<string, Image<Rgba32>?, Task> _setStaticImageAsync;
     private readonly Func<string, int, Task> _setBrightnessAsync;
+    private readonly Func<CancellationToken, Task> _reloadProfileAsync;
     private readonly ILogger<IpcCommandHandler> _logger;
 
     public IpcCommandHandler(
@@ -38,6 +39,7 @@ public sealed class IpcCommandHandler
         Func<string, SlideshowManager, CancellationToken, Task> setSlideshowAsync,
         Func<string, Image<Rgba32>?, Task> setStaticImageAsync,
         Func<string, int, Task> setBrightnessAsync,
+        Func<CancellationToken, Task> reloadProfileAsync,
         ILogger<IpcCommandHandler> logger)
     {
         _appLifetime = appLifetime;
@@ -49,6 +51,7 @@ public sealed class IpcCommandHandler
         _setSlideshowAsync = setSlideshowAsync;
         _setStaticImageAsync = setStaticImageAsync;
         _setBrightnessAsync = setBrightnessAsync;
+        _reloadProfileAsync = reloadProfileAsync;
         _logger = logger;
     }
 
@@ -69,6 +72,7 @@ public sealed class IpcCommandHandler
                 "test-pattern" => await HandleTestPatternAsync(request, cancellationToken),
                 "set-brightness" => await HandleSetBrightnessAsync(request, cancellationToken),
                 "profile" => await HandleProfileAsync(request, cancellationToken),
+                "reload" or "reload-profile" => await HandleReloadAsync(request, cancellationToken),
                 "next" => HandleNext(request),
                 "previous" => HandlePrevious(request),
                 "stop" => HandleStop(request),
@@ -253,10 +257,33 @@ public sealed class IpcCommandHandler
             return IpcResponse.Fail(request.Id, IpcErrorCodes.FileNotFound, $"Profile not found: {path}");
         }
 
-        // TODO: Implement profile loading
-        // This would require the ProfileLoader to be accessible here
+        // TODO: Implement profile loading from specific path
+        // For now, use reload which loads from the default location
         return IpcResponse.Fail(request.Id, IpcErrorCodes.InternalError,
-            "Profile loading via IPC not yet implemented");
+            "Profile loading via IPC not yet implemented. Use 'reload' to reload the current profile.");
+    }
+
+    private async Task<IpcResponse> HandleReloadAsync(IpcRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _reloadProfileAsync(cancellationToken);
+
+            var profile = _getDisplayProfile();
+            _logger.LogInformation("IPC: Reloaded profile '{ProfileName}'", profile?.Name);
+
+            return IpcResponse.Ok(request.Id, new
+            {
+                message = "Profile reloaded successfully",
+                profileName = profile?.Name,
+                slideCount = profile?.Slides.Count ?? 0
+            });
+        }
+        catch (Exception ex)
+        {
+            return IpcResponse.Fail(request.Id, IpcErrorCodes.InternalError,
+                $"Failed to reload profile: {ex.Message}");
+        }
     }
 
     private IpcResponse HandleNext(IpcRequest request)
