@@ -5,8 +5,47 @@
   "author": "LCDPossible Team",
   "description": "Proxmox VE cluster monitoring panels",
   "assemblyName": "LCDPossible.Plugins.Proxmox.dll",
+  "minimumSdkVersion": "1.0.0",
   "panelTypes": [
-    { "typeId": "proxmox-summary", "prefixPattern": null },
-    { "typeId": "proxmox-vms", "prefixPattern": null }
+    {
+      "typeId": "proxmox-summary",
+      "displayName": "Proxmox Summary",
+      "description": "Proxmox cluster overview with node status and resource usage",
+      "category": "Proxmox",
+      "isLive": true,
+      "helpText": "Displays a summary of your Proxmox VE cluster:\n- Cluster name and status\n- Node count and health\n- Total CPU/RAM usage across cluster\n- Storage usage summary\n- VM/Container counts\n\nRequires Proxmox API configuration in your profile:\n  proxmox:\n    host: https://pve.example.com:8006\n    username: root@pam\n    token_id: monitor\n    token_secret: xxxx-xxxx-xxxx\n\nTip: Create an API token with minimal read-only permissions for security.",
+      "examples": [
+        {
+          "command": "lcdpossible show proxmox-summary",
+          "description": "Display Proxmox cluster summary"
+        },
+        {
+          "command": "lcdpossible show proxmox-summary|@interval=30",
+          "description": "Update cluster status every 30 seconds"
+        },
+        {
+          "command": "lcdpossible show proxmox-summary,proxmox-vms",
+          "description": "Cycle between summary and VM list"
+        }
+      ]
+    },
+    {
+      "typeId": "proxmox-vms",
+      "displayName": "Proxmox VMs",
+      "description": "List of VMs and containers with status and resource usage",
+      "category": "Proxmox",
+      "isLive": true,
+      "helpText": "Displays a list of VMs and containers in your Proxmox cluster:\n- VM/Container name and ID\n- Running status (running, stopped, paused)\n- CPU and RAM usage per VM\n- Node location\n\nRequires Proxmox API configuration in your profile:\n  proxmox:\n    host: https://pve.example.com:8006\n    username: root@pam\n    token_id: monitor\n    token_secret: xxxx-xxxx-xxxx\n\nThe list auto-scrolls if there are more VMs than fit on screen.",
+      "examples": [
+        {
+          "command": "lcdpossible show proxmox-vms",
+          "description": "Display VM/Container list"
+        },
+        {
+          "command": "lcdpossible show proxmox-vms|@interval=15",
+          "description": "Update VM status every 15 seconds"
+        }
+      ]
+    }
   ]
 }

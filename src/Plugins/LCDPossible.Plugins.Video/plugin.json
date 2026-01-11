@@ -10,10 +10,47 @@
     {
       "typeId": "video",
       "displayName": "Video",
-      "description": "Plays video files, URLs, or YouTube links",
+      "description": "Plays video files, streaming URLs, or YouTube links",
       "category": "Media",
       "isLive": true,
-      "prefixPattern": "video:"
+      "isAnimated": true,
+      "prefixPattern": "video:",
+      "dependencies": ["LibVLCSharp", "YoutubeExplode"],
+      "helpText": "Full video playback panel powered by LibVLC.\n\nSupported sources:\n- Local video files (MP4, MKV, AVI, MOV, WebM, etc.)\n- Direct video URLs (HTTP/HTTPS streams)\n- YouTube video links (auto-extracts stream URL)\n\nFeatures:\n- Hardware-accelerated decoding when available\n- Automatic aspect ratio handling\n- Audio is muted by default\n- Loops continuously\n\nYouTube support:\n- Full YouTube URLs: https://www.youtube.com/watch?v=VIDEO_ID\n- Short URLs: https://youtu.be/VIDEO_ID\n- Extracts highest quality stream up to 720p for performance\n\nNote: Video playback requires LibVLC native libraries.",
+      "parameters": [
+        {
+          "name": "source",
+          "description": "Path to video file, stream URL, or YouTube link",
+          "required": true,
+          "exampleValues": [
+            "C:\\videos\\demo.mp4",
+            "https://example.com/stream.mp4",
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+          ]
+        }
+      ],
+      "examples": [
+        {
+          "command": "lcdpossible show video:C:\\videos\\demo.mp4",
+          "description": "Play a local video file"
+        },
+        {
+          "command": "lcdpossible show video:https://archive.org/download/BigBuckBunny_124/Content/big_buck_bunny_720p_surround.mp4",
+          "description": "Stream a video from Archive.org (CC-BY)"
+        },
+        {
+          "command": "lcdpossible show video:https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+          "description": "Play a YouTube video (Big Buck Bunny, CC-BY)"
+        },
+        {
+          "command": "lcdpossible show video:./intro.mp4|@duration=30",
+          "description": "Play video for 30 seconds then advance"
+        },
+        {
+          "command": "lcdpossible show basic-info,video:./background.mp4",
+          "description": "Combine system info with video in a slideshow"
+        }
+      ]
     }
   ]
 }

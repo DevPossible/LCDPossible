@@ -148,6 +148,8 @@ static async Task<int> RunCliAsync(string[] args)
     return command switch
     {
         "list" => ListDevices(),
+        "list-panels" or "panels" => ListPanels(),
+        "help-panel" or "panel-help" => ShowPanelHelp(args),
         "status" => ShowStatus(),
         "test" => await TestPattern(GetDeviceIndex(args)),
         "set-image" => await SetImage(args),
@@ -183,6 +185,8 @@ SERVICE COMMANDS:
 
 CLI COMMANDS:
     list                    List connected LCD devices
+    list-panels, panels     List all available panel types with descriptions
+    help-panel <type>       Show detailed help for a specific panel type
     status                  Show status of connected devices and configuration
     test                    Display a test pattern on the LCD
     set-image               Send an image file to the LCD display
@@ -231,6 +235,8 @@ SHOW COMMAND:
 EXAMPLES:
     lcdpossible serve                         Start service in foreground
     lcdpossible list                          List all connected LCD devices
+    lcdpossible list-panels                   List all available panel types
+    lcdpossible help-panel video              Show help for the video panel
     lcdpossible test                          Send test pattern to first device
     lcdpossible test -d 1                     Send test pattern to second device
     lcdpossible set-image -p wallpaper.jpg    Display an image
@@ -252,61 +258,16 @@ CONFIGURATION:
     macOS:      /Library/Application Support/LCDPossible/display-profile.yaml
 
     If no profile is found, a default profile is used.
-
-AVAILABLE PANELS:
-    System Information:
-        basic-info          Hostname, OS, uptime summary
-        os-info             Detailed OS information
-        os-status           System status indicators
-        os-notifications    System notifications
-
-    CPU Panels:
-        cpu-info            CPU model and specifications
-        cpu-usage-text      CPU usage as text
-        cpu-usage-graphic   CPU usage with visual bars
-
-    GPU Panels:
-        gpu-info            GPU model and specifications
-        gpu-usage-text      GPU usage as text
-        gpu-usage-graphic   GPU usage with visual bars
-
-    Memory Panels:
-        ram-info            RAM specifications
-        ram-usage-text      RAM usage as text
-        ram-usage-graphic   RAM usage with visual bars
-
-    Proxmox (requires API configuration):
-        proxmox-summary     Cluster overview
-        proxmox-vms         VM/Container status list
-
-    Media Panels:
-        animated-gif:<path|url>     Animated GIF file or URL
-        image-sequence:<folder>     Folder of numbered images (e.g., frame001.png)
-        video:<path|url>            Video file, URL, or YouTube link
-        html:<path>                 Local HTML file rendered as web page
-        web:<url>                   Live website rendered from URL
-
-MEDIA PANEL EXAMPLES:
-    # Animated GIF (local file or URL)
-    lcdpossible show animated-gif:C:\gifs\animation.gif
-    lcdpossible show animated-gif:https://upload.wikimedia.org/wikipedia/commons/2/2c/Rotating_earth_%28large%29.gif
-
-    # Image sequence (folder of numbered images at 30fps)
-    lcdpossible show image-sequence:C:\frames\
-
-    # Video (local file, direct URL, or YouTube)
-    lcdpossible show video:C:\videos\demo.mp4
-    lcdpossible show video:https://archive.org/download/BigBuckBunny_124/Content/big_buck_bunny_720p_surround.mp4
-    lcdpossible show video:https://www.youtube.com/watch?v=aqz-KE-bpKQ
-
-    # HTML panel (local HTML file)
-    lcdpossible show html:C:\dashboard\status.html
-
-    # Web panel (live website)
-    lcdpossible show web:https://wttr.in/London
-
-SUPPORTED DEVICES:
 ");
+
+    // Dynamic panel list from plugins
+    ShowAvailablePanelsSummary();
+
+    Console.WriteLine(@"
+    Use 'lcdpossible list-panels' for full descriptions.
+    Use 'lcdpossible help-panel <type>' for detailed help on a panel.
+
+SUPPORTED DEVICES:");
     foreach (var supported in DriverRegistry.SupportedDevices)
     {
         Console.WriteLine($"    {supported.DeviceName,-35} VID:0x{supported.VendorId:X4} PID:0x{supported.ProductId:X4}");
@@ -318,10 +279,265 @@ For more information, visit: https://github.com/DevPossible/LCDPossible
     return 0;
 }
 
+static void ShowAvailablePanelsSummary()
+{
+    Console.WriteLine("AVAILABLE PANELS:");
+
+    try
+    {
+        using var pluginManager = new PluginManager();
+        pluginManager.DiscoverPlugins();
+
+        var panelFactory = new PanelFactory(pluginManager);
+        var panelsByCategory = panelFactory.GetAllPanelMetadataByCategory();
+
+        if (panelsByCategory.Count == 0)
+        {
+            Console.WriteLine("    No panels available. Make sure plugins are installed.");
+            return;
+        }
+
+        // Define category order for consistent display
+        var categoryOrder = new[] { "System", "CPU", "GPU", "Memory", "Network", "Storage", "Proxmox", "Media", "Web", "Other" };
+
+        foreach (var category in categoryOrder)
+        {
+            if (!panelsByCategory.TryGetValue(category, out var panels) || panels.Count == 0)
+                continue;
+
+            Console.WriteLine($"    {category}:");
+            foreach (var panel in panels)
+            {
+                Console.WriteLine($"        {panel.DisplayId}");
+            }
+            Console.WriteLine();
+        }
+
+        // Show any categories not in the predefined order
+        foreach (var (category, panels) in panelsByCategory)
+        {
+            if (categoryOrder.Contains(category, StringComparer.OrdinalIgnoreCase))
+                continue;
+
+            Console.WriteLine($"    {category}:");
+            foreach (var panel in panels)
+            {
+                Console.WriteLine($"        {panel.DisplayId}");
+            }
+            Console.WriteLine();
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"    Error loading panels: {ex.Message}");
+    }
+}
+
 static int ShowVersion()
 {
     var version = GetVersion();
     Console.WriteLine($"LCDPossible version {version}");
+    return 0;
+}
+
+static int ListPanels()
+{
+    Console.WriteLine("Available Panels\n");
+
+    using var pluginManager = new PluginManager();
+    pluginManager.DiscoverPlugins();
+
+    var panelFactory = new PanelFactory(pluginManager);
+    var panelsByCategory = panelFactory.GetAllPanelMetadataByCategory();
+
+    if (panelsByCategory.Count == 0)
+    {
+        Console.WriteLine("No panels available.");
+        Console.WriteLine("Make sure plugins are installed in the plugins directory.");
+        return 0;
+    }
+
+    // Define category order for consistent display
+    var categoryOrder = new[] { "System", "CPU", "GPU", "Memory", "Network", "Storage", "Proxmox", "Media", "Web", "Other" };
+
+    foreach (var category in categoryOrder)
+    {
+        if (!panelsByCategory.TryGetValue(category, out var panels) || panels.Count == 0)
+            continue;
+
+        Console.WriteLine($"{category}:");
+        foreach (var panel in panels)
+        {
+            var typeId = panel.DisplayId;
+            var description = panel.Description ?? "No description available";
+
+            // Truncate description if too long
+            const int maxDescLen = 55;
+            if (description.Length > maxDescLen)
+            {
+                description = description[..(maxDescLen - 3)] + "...";
+            }
+
+            // Format: type ID padded, then description
+            Console.WriteLine($"    {typeId,-28} {description}");
+        }
+        Console.WriteLine();
+    }
+
+    // Show any categories not in the predefined order
+    foreach (var (category, panels) in panelsByCategory)
+    {
+        if (categoryOrder.Contains(category, StringComparer.OrdinalIgnoreCase))
+            continue;
+
+        Console.WriteLine($"{category}:");
+        foreach (var panel in panels)
+        {
+            var typeId = panel.DisplayId;
+            var description = panel.Description ?? "No description available";
+            Console.WriteLine($"    {typeId,-28} {description}");
+        }
+        Console.WriteLine();
+    }
+
+    Console.WriteLine("Use 'lcdpossible help-panel <panel-type>' for detailed help on a specific panel.");
+    return 0;
+}
+
+static int ShowPanelHelp(string[] args)
+{
+    // Find panel type ID from args
+    string? panelTypeId = null;
+    for (var i = 0; i < args.Length; i++)
+    {
+        var arg = args[i].ToLowerInvariant().TrimStart('-', '/');
+        if (arg is "help-panel" or "panel-help")
+        {
+            if (i + 1 < args.Length && !args[i + 1].StartsWith("-"))
+            {
+                panelTypeId = args[i + 1];
+            }
+            break;
+        }
+    }
+
+    if (string.IsNullOrWhiteSpace(panelTypeId))
+    {
+        Console.Error.WriteLine("Usage: lcdpossible help-panel <panel-type>");
+        Console.Error.WriteLine("Example: lcdpossible help-panel video");
+        Console.Error.WriteLine("\nUse 'lcdpossible list-panels' to see all available panels.");
+        return 1;
+    }
+
+    using var pluginManager = new PluginManager();
+    pluginManager.DiscoverPlugins();
+
+    var panelFactory = new PanelFactory(pluginManager);
+    var metadata = panelFactory.GetPanelMetadata(panelTypeId);
+
+    if (metadata == null)
+    {
+        Console.Error.WriteLine($"Error: Unknown panel type '{panelTypeId}'");
+        Console.Error.WriteLine("\nUse 'lcdpossible list-panels' to see all available panels.");
+        return 1;
+    }
+
+    // Display panel header
+    Console.WriteLine($"\n{metadata.DisplayName ?? metadata.DisplayId}");
+    Console.WriteLine(new string('=', (metadata.DisplayName ?? metadata.DisplayId).Length));
+    Console.WriteLine();
+
+    // Category and type info
+    if (metadata.Category != null)
+    {
+        Console.WriteLine($"Category:  {metadata.Category}");
+    }
+    Console.WriteLine($"Type ID:   {metadata.DisplayId}");
+
+    // Flags
+    var flags = new List<string>();
+    if (metadata.IsLive) flags.Add("Live Data");
+    if (metadata.IsAnimated) flags.Add("Animated");
+    if (flags.Count > 0)
+    {
+        Console.WriteLine($"Features:  {string.Join(", ", flags)}");
+    }
+    Console.WriteLine();
+
+    // Description
+    if (!string.IsNullOrWhiteSpace(metadata.Description))
+    {
+        Console.WriteLine("DESCRIPTION:");
+        Console.WriteLine($"    {metadata.Description}");
+        Console.WriteLine();
+    }
+
+    // Detailed help text
+    if (!string.IsNullOrWhiteSpace(metadata.HelpText))
+    {
+        Console.WriteLine("DETAILS:");
+        // Indent each line of help text
+        foreach (var line in metadata.HelpText.Split('\n'))
+        {
+            Console.WriteLine($"    {line.TrimEnd('\r')}");
+        }
+        Console.WriteLine();
+    }
+
+    // Parameters (for parameterized panels)
+    if (metadata.Parameters?.Count > 0)
+    {
+        Console.WriteLine("PARAMETERS:");
+        foreach (var param in metadata.Parameters)
+        {
+            var required = param.Required ? " (required)" : " (optional)";
+            Console.WriteLine($"    {param.Name}{required}");
+            Console.WriteLine($"        {param.Description}");
+
+            if (param.DefaultValue != null)
+            {
+                Console.WriteLine($"        Default: {param.DefaultValue}");
+            }
+
+            if (param.ExampleValues?.Count > 0)
+            {
+                Console.WriteLine($"        Examples: {string.Join(", ", param.ExampleValues)}");
+            }
+            Console.WriteLine();
+        }
+    }
+
+    // Examples
+    if (metadata.Examples?.Count > 0)
+    {
+        Console.WriteLine("EXAMPLES:");
+        foreach (var example in metadata.Examples)
+        {
+            Console.WriteLine($"    {example.Command}");
+            Console.WriteLine($"        {example.Description}");
+            Console.WriteLine();
+        }
+    }
+    else
+    {
+        // Generate basic example if none provided
+        Console.WriteLine("EXAMPLES:");
+        Console.WriteLine($"    lcdpossible show {metadata.DisplayId}");
+        Console.WriteLine($"        Display using the {metadata.DisplayName ?? metadata.DisplayId} panel");
+        Console.WriteLine();
+    }
+
+    // Dependencies
+    if (metadata.Dependencies?.Count > 0)
+    {
+        Console.WriteLine("DEPENDENCIES:");
+        foreach (var dep in metadata.Dependencies)
+        {
+            Console.WriteLine($"    - {dep}");
+        }
+        Console.WriteLine();
+    }
+
     return 0;
 }
 

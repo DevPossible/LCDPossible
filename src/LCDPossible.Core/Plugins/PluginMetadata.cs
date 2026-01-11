@@ -144,4 +144,82 @@ public sealed class PluginPanelTypeMetadata
     /// </summary>
     [JsonPropertyName("dependencies")]
     public List<string>? Dependencies { get; set; }
+
+    /// <summary>
+    /// Detailed help text explaining how to use the panel.
+    /// </summary>
+    [JsonPropertyName("helpText")]
+    public string? HelpText { get; set; }
+
+    /// <summary>
+    /// Example usages of the panel.
+    /// </summary>
+    [JsonPropertyName("examples")]
+    public List<PanelExampleMetadata>? Examples { get; set; }
+
+    /// <summary>
+    /// Parameters accepted by the panel (for parameterized panels).
+    /// </summary>
+    [JsonPropertyName("parameters")]
+    public List<PanelParameterMetadata>? Parameters { get; set; }
+
+    /// <summary>
+    /// Gets the display identifier (prefix pattern or type ID).
+    /// </summary>
+    [JsonIgnore]
+    public string DisplayId => PrefixPattern ?? TypeId;
+}
+
+/// <summary>
+/// Example usage metadata for a panel.
+/// </summary>
+public sealed class PanelExampleMetadata
+{
+    /// <summary>
+    /// The example command or panel string.
+    /// </summary>
+    [JsonPropertyName("command")]
+    public string Command { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Description of what this example does.
+    /// </summary>
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Parameter metadata for parameterized panels.
+/// </summary>
+public sealed class PanelParameterMetadata
+{
+    /// <summary>
+    /// Parameter name.
+    /// </summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Parameter description.
+    /// </summary>
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Whether the parameter is required.
+    /// </summary>
+    [JsonPropertyName("required")]
+    public bool Required { get; set; }
+
+    /// <summary>
+    /// Default value if not specified.
+    /// </summary>
+    [JsonPropertyName("defaultValue")]
+    public string? DefaultValue { get; set; }
+
+    /// <summary>
+    /// Example values.
+    /// </summary>
+    [JsonPropertyName("exampleValues")]
+    public List<string>? ExampleValues { get; set; }
 }

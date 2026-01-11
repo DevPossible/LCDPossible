@@ -91,15 +91,60 @@ private static readonly string[] ScreensaverTypes =
 "my-screensaver" or "myscreensaver" => new MyScreensaverPanel(),
 ```
 
-### 4. plugin.json
+### 4. plugin.json (Full Metadata Required)
 
 ```json
 {
   "typeId": "my-screensaver",
   "displayName": "My Screensaver",
-  "description": "Description here",
+  "description": "Brief one-line description for list-panels output",
   "category": "Screensaver",
-  "isLive": true
+  "isLive": true,
+  "isAnimated": true,
+  "helpText": "Detailed description of the screensaver effect.\n\nFeatures:\n- Feature 1\n- Feature 2\n- Feature 3\n\nInspired by [reference if applicable].",
+  "examples": [
+    {
+      "command": "lcdpossible show my-screensaver",
+      "description": "Display the screensaver effect"
+    }
+  ]
+}
+```
+
+### Required Metadata Fields for Screensavers
+| Field | Value | Notes |
+|-------|-------|-------|
+| `typeId` | lowercase-with-hyphens | Unique panel identifier |
+| `displayName` | Title Case | Shown in help |
+| `description` | Brief text | Shown in `list-panels` output |
+| `category` | `"Screensaver"` | Always use this for screensavers |
+| `isLive` | `true` | Screensavers update continuously |
+| `isAnimated` | `true` | Screensavers manage their own timing |
+| `helpText` | Multi-line | Detailed help for `help-panel` command |
+| `examples` | Array | At least one usage example |
+
+### For Parameterized Screensavers
+If your screensaver accepts arguments (like `falling-blocks:2` for 2 players):
+
+```json
+{
+  "typeId": "my-screensaver",
+  "prefixPattern": "my-screensaver:",
+  "parameters": [
+    {
+      "name": "mode",
+      "description": "Screensaver mode or configuration",
+      "required": false,
+      "defaultValue": "default",
+      "exampleValues": ["option1", "option2"]
+    }
+  ],
+  "examples": [
+    {
+      "command": "lcdpossible show my-screensaver:option1",
+      "description": "Run with option1 mode"
+    }
+  ]
 }
 ```
 

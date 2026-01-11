@@ -204,7 +204,7 @@ DrawTimestamp(ctx, width, height);
 
 > **CRITICAL**: All 4 registration steps must be completed. Missing any step will cause the panel to fail silently!
 
-### 1. Add to plugin.json Manifest (REQUIRED)
+### 1. Add to plugin.json Manifest (REQUIRED with Full Metadata)
 In `{PluginName}/plugin.json`, add to the `panelTypes` array:
 
 ```json
@@ -212,12 +212,66 @@ In `{PluginName}/plugin.json`, add to the `panelTypes` array:
   "typeId": "{panel-id}",
   "displayName": "{Panel Name}",
   "description": "{Brief description}",
-  "category": "System",
-  "isLive": true
+  "category": "System|CPU|GPU|Memory|Network|Storage|Thermal|Proxmox|Media|Web|Screensaver",
+  "isLive": true,
+  "isAnimated": false,
+  "helpText": "Detailed help text explaining:\n- What the panel displays\n- Features and capabilities\n- Any configuration options\n- Platform requirements",
+  "examples": [
+    {
+      "command": "lcdpossible show {panel-id}",
+      "description": "Display the panel"
+    },
+    {
+      "command": "lcdpossible show {panel-id}|@duration=30",
+      "description": "Display for 30 seconds"
+    }
+  ],
+  "parameters": [
+    {
+      "name": "{param-name}",
+      "description": "Description of this parameter",
+      "required": false,
+      "defaultValue": "{default}",
+      "exampleValues": ["value1", "value2"]
+    }
+  ],
+  "dependencies": ["Optional list of NuGet packages or features required"]
 }
 ```
 
-> **Why this is critical**: The plugin manager reads panel types from `plugin.json` to discover available panels. If the panel is not listed here, it will NOT be found at runtime even if the code is correct.
+> **Why this is critical**: The plugin manager reads panel types from `plugin.json` to discover available panels. The help system uses this metadata to display panel information via `lcdpossible list-panels` and `lcdpossible help-panel {id}`.
+
+### Required Metadata Fields
+| Field | Required | Description |
+|-------|----------|-------------|
+| `typeId` | Yes | Panel identifier (lowercase-with-hyphens) |
+| `displayName` | Yes | Human-readable name |
+| `description` | Yes | One-line description (shown in list-panels) |
+| `category` | Yes | Grouping category for organization |
+| `isLive` | Yes | true if panel updates in real-time |
+| `isAnimated` | No | true if panel manages own frame timing (GIF, video) |
+| `helpText` | Yes | Multi-line detailed help (shown in help-panel) |
+| `examples` | Yes | At least one usage example |
+| `parameters` | Conditional | Required for parameterized panels (prefix:value format) |
+| `dependencies` | No | External dependencies for documentation |
+
+### Parameterized Panel Pattern
+For panels that accept arguments (like `video:path`, `web:url`):
+
+```json
+{
+  "typeId": "{panel-id}",
+  "prefixPattern": "{panel-id}:",
+  "parameters": [
+    {
+      "name": "source",
+      "description": "Path to file, URL, or other source",
+      "required": true,
+      "exampleValues": ["C:\\path\\file.ext", "https://example.com/resource"]
+    }
+  ]
+}
+```
 
 ### 2. Add PanelTypeInfo to Plugin Class
 In `{PluginName}Plugin.cs`, add to `PanelTypes` dictionary:

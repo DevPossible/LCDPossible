@@ -59,10 +59,13 @@ Based on answers, create:
    - Add to solution
    - Reference from main project
 
-### Step 4: Update Documentation
+### Step 4: Verify Dynamic Help
 
-Update `CLAUDE.md`:
-- Add panel to "Available Panel Types" table
+The panel metadata in plugin.json automatically appears in:
+- `lcdpossible list-panels` - Shows all panels with descriptions
+- `lcdpossible help-panel {panel-id}` - Shows detailed help
+
+No manual CLAUDE.md update is needed for panels - the help system is dynamic.
 
 ### Step 5: Build and Test
 

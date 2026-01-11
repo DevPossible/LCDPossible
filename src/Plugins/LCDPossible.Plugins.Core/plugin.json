@@ -11,80 +11,162 @@
       "typeId": "cpu-info",
       "displayName": "CPU Info",
       "description": "Detailed CPU information including model, usage, temperature, frequency, and power",
-      "category": "System",
+      "category": "CPU",
       "isLive": true,
-      "dependencies": ["LibreHardwareMonitorLib"]
+      "dependencies": ["LibreHardwareMonitorLib"],
+      "helpText": "Displays comprehensive CPU information in a formatted layout:\n- CPU model name and architecture\n- Current usage percentage\n- Temperature (if sensors available)\n- Clock frequency\n- Power consumption (if available)\n\nRequires LibreHardwareMonitor for Windows sensor data.",
+      "examples": [
+        {
+          "command": "lcdpossible show cpu-info",
+          "description": "Display CPU information panel"
+        },
+        {
+          "command": "lcdpossible show cpu-info|@duration=30",
+          "description": "Display CPU info for 30 seconds"
+        }
+      ]
     },
     {
       "typeId": "cpu-usage-text",
       "displayName": "CPU Usage Text",
       "description": "CPU usage displayed as large text percentage",
-      "category": "System",
+      "category": "CPU",
       "isLive": true,
-      "dependencies": ["LibreHardwareMonitorLib"]
+      "dependencies": ["LibreHardwareMonitorLib"],
+      "helpText": "Shows CPU usage as a large, easy-to-read percentage number.\nIdeal for at-a-glance monitoring when detailed info isn't needed.\n\nThe text scales to fill the display for maximum visibility.",
+      "examples": [
+        {
+          "command": "lcdpossible show cpu-usage-text",
+          "description": "Display CPU usage as large text"
+        }
+      ]
     },
     {
       "typeId": "cpu-usage-graphic",
       "displayName": "CPU Usage Graphic",
       "description": "CPU usage with graphical bars including per-core breakdown",
-      "category": "System",
+      "category": "CPU",
       "isLive": true,
-      "dependencies": ["LibreHardwareMonitorLib"]
+      "dependencies": ["LibreHardwareMonitorLib"],
+      "helpText": "Displays CPU usage with visual progress bars:\n- Overall CPU usage bar at the top\n- Individual bars for each CPU core\n- Percentage labels for each core\n- Color-coded bars (green/yellow/red based on load)\n\nGreat for monitoring multi-core workloads.",
+      "examples": [
+        {
+          "command": "lcdpossible show cpu-usage-graphic",
+          "description": "Display CPU usage with graphical bars"
+        },
+        {
+          "command": "lcdpossible show cpu-usage-graphic|@interval=2",
+          "description": "Update CPU bars every 2 seconds"
+        }
+      ]
     },
     {
       "typeId": "ram-info",
       "displayName": "RAM Info",
       "description": "Memory information including total, used, and available",
-      "category": "System",
+      "category": "Memory",
       "isLive": true,
-      "dependencies": ["LibreHardwareMonitorLib"]
+      "dependencies": ["LibreHardwareMonitorLib"],
+      "helpText": "Shows detailed memory information:\n- Total physical RAM\n- Used memory\n- Available memory\n- Usage percentage\n- Memory type/speed (if available)",
+      "examples": [
+        {
+          "command": "lcdpossible show ram-info",
+          "description": "Display RAM information"
+        }
+      ]
     },
     {
       "typeId": "ram-usage-text",
       "displayName": "RAM Usage Text",
       "description": "RAM usage displayed as large text",
-      "category": "System",
+      "category": "Memory",
       "isLive": true,
-      "dependencies": ["LibreHardwareMonitorLib"]
+      "dependencies": ["LibreHardwareMonitorLib"],
+      "helpText": "Shows memory usage as a large, easy-to-read percentage.\nIdeal for quick visibility of memory pressure.",
+      "examples": [
+        {
+          "command": "lcdpossible show ram-usage-text",
+          "description": "Display RAM usage as large text"
+        }
+      ]
     },
     {
       "typeId": "ram-usage-graphic",
       "displayName": "RAM Usage Graphic",
       "description": "RAM usage with graphical bar",
-      "category": "System",
+      "category": "Memory",
       "isLive": true,
-      "dependencies": ["LibreHardwareMonitorLib"]
+      "dependencies": ["LibreHardwareMonitorLib"],
+      "helpText": "Displays memory usage with a visual progress bar:\n- Large progress bar showing used vs total\n- Percentage label\n- Used/Total values in GB\n- Color changes based on usage level",
+      "examples": [
+        {
+          "command": "lcdpossible show ram-usage-graphic",
+          "description": "Display RAM usage with graphical bar"
+        }
+      ]
     },
     {
       "typeId": "gpu-info",
       "displayName": "GPU Info",
       "description": "GPU information including model, usage, temperature, and VRAM",
-      "category": "System",
+      "category": "GPU",
       "isLive": true,
-      "dependencies": ["LibreHardwareMonitorLib"]
+      "dependencies": ["LibreHardwareMonitorLib"],
+      "helpText": "Displays comprehensive GPU information:\n- GPU model name\n- GPU core usage percentage\n- GPU temperature\n- VRAM usage (used/total)\n- GPU clock speed\n- Power consumption (if available)\n\nSupports NVIDIA, AMD, and Intel GPUs via LibreHardwareMonitor.",
+      "examples": [
+        {
+          "command": "lcdpossible show gpu-info",
+          "description": "Display GPU information"
+        }
+      ]
     },
     {
       "typeId": "gpu-usage-text",
       "displayName": "GPU Usage Text",
       "description": "GPU usage displayed as large text",
-      "category": "System",
+      "category": "GPU",
       "isLive": true,
-      "dependencies": ["LibreHardwareMonitorLib"]
+      "dependencies": ["LibreHardwareMonitorLib"],
+      "helpText": "Shows GPU usage as a large, easy-to-read percentage.\nIdeal for monitoring GPU load during gaming or rendering.",
+      "examples": [
+        {
+          "command": "lcdpossible show gpu-usage-text",
+          "description": "Display GPU usage as large text"
+        }
+      ]
     },
     {
       "typeId": "gpu-usage-graphic",
       "displayName": "GPU Usage Graphic",
       "description": "GPU usage with graphical bars",
-      "category": "System",
+      "category": "GPU",
       "isLive": true,
-      "dependencies": ["LibreHardwareMonitorLib"]
+      "dependencies": ["LibreHardwareMonitorLib"],
+      "helpText": "Displays GPU usage with visual progress bars:\n- GPU core usage bar\n- VRAM usage bar\n- Temperature indicator\n- Percentage labels\n\nColor-coded bars indicate load level.",
+      "examples": [
+        {
+          "command": "lcdpossible show gpu-usage-graphic",
+          "description": "Display GPU usage with graphical bars"
+        }
+      ]
     },
     {
       "typeId": "basic-info",
       "displayName": "Basic Info",
       "description": "Basic system information including hostname, OS, and uptime",
       "category": "System",
-      "isLive": true
+      "isLive": true,
+      "helpText": "Displays basic system identification:\n- Computer hostname\n- Operating system name and version\n- System uptime\n- Current date and time\n\nNo special dependencies required - works on all platforms.",
+      "examples": [
+        {
+          "command": "lcdpossible show basic-info",
+          "description": "Display basic system information"
+        },
+        {
+          "command": "lcdpossible show basic-info,cpu-usage-graphic",
+          "description": "Combine basic info with CPU usage in a slideshow"
+        }
+      ]
     },
     {
       "typeId": "basic-usage-text",
@@ -92,7 +174,14 @@
       "description": "Simple CPU/RAM/GPU usage summary",
       "category": "System",
       "isLive": true,
-      "dependencies": ["LibreHardwareMonitorLib"]
+      "dependencies": ["LibreHardwareMonitorLib"],
+      "helpText": "Shows a compact summary of system resource usage:\n- CPU usage percentage\n- RAM usage percentage\n- GPU usage percentage\n\nAll values displayed on a single panel for quick overview.",
+      "examples": [
+        {
+          "command": "lcdpossible show basic-usage-text",
+          "description": "Display combined CPU/RAM/GPU usage"
+        }
+      ]
     },
     {
       "typeId": "cpu-thermal-graphic",
@@ -100,7 +189,14 @@
       "description": "CPU temperature with graphical gauge display",
       "category": "Thermal",
       "isLive": true,
-      "dependencies": ["LibreHardwareMonitorLib"]
+      "dependencies": ["LibreHardwareMonitorLib"],
+      "helpText": "Displays CPU temperature as a visual gauge:\n- Thermometer-style visualization\n- Current temperature value\n- Color-coded (green/yellow/red) based on temperature\n- Min/Max indicators if available",
+      "examples": [
+        {
+          "command": "lcdpossible show cpu-thermal-graphic",
+          "description": "Display CPU temperature gauge"
+        }
+      ]
     },
     {
       "typeId": "gpu-thermal-graphic",
@@ -108,7 +204,14 @@
       "description": "GPU temperature with graphical gauge display",
       "category": "Thermal",
       "isLive": true,
-      "dependencies": ["LibreHardwareMonitorLib"]
+      "dependencies": ["LibreHardwareMonitorLib"],
+      "helpText": "Displays GPU temperature as a visual gauge:\n- Thermometer-style visualization\n- Current temperature value\n- Color-coded based on temperature\n- Useful for monitoring during gaming/rendering",
+      "examples": [
+        {
+          "command": "lcdpossible show gpu-thermal-graphic",
+          "description": "Display GPU temperature gauge"
+        }
+      ]
     },
     {
       "typeId": "system-thermal-graphic",
@@ -116,14 +219,28 @@
       "description": "Combined CPU and GPU temperature display with vertical thermometers",
       "category": "Thermal",
       "isLive": true,
-      "dependencies": ["LibreHardwareMonitorLib"]
+      "dependencies": ["LibreHardwareMonitorLib"],
+      "helpText": "Shows both CPU and GPU temperatures side-by-side:\n- Two vertical thermometer displays\n- CPU temperature on left\n- GPU temperature on right\n- Color-coded based on temperature levels\n\nIdeal for monitoring thermal performance during intensive tasks.",
+      "examples": [
+        {
+          "command": "lcdpossible show system-thermal-graphic",
+          "description": "Display CPU and GPU temperatures together"
+        }
+      ]
     },
     {
       "typeId": "network-info",
       "displayName": "Network Info",
       "description": "Network configuration including hostname, IP addresses, gateway, and DNS",
-      "category": "System",
-      "isLive": true
+      "category": "Network",
+      "isLive": true,
+      "helpText": "Displays network configuration details:\n- Hostname\n- Primary IP address(es)\n- Default gateway\n- DNS servers\n- Active network adapter name\n\nWorks on all platforms without additional dependencies.",
+      "examples": [
+        {
+          "command": "lcdpossible show network-info",
+          "description": "Display network configuration"
+        }
+      ]
     }
   ]
 }

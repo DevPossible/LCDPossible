@@ -41,6 +41,83 @@ public sealed class PanelFactory
     public string[] AvailablePanels => _pluginManager.GetAvailablePanelTypeIds();
 
     /// <summary>
+    /// Gets all available panel metadata grouped by category.
+    /// </summary>
+    /// <returns>Dictionary of category name to list of panel metadata.</returns>
+    public Dictionary<string, List<PluginPanelTypeMetadata>> GetAllPanelMetadataByCategory()
+    {
+        var result = new Dictionary<string, List<PluginPanelTypeMetadata>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (_, panelType) in _pluginManager.GetAvailablePanelTypes())
+        {
+            var category = panelType.Category ?? "Other";
+            if (!result.ContainsKey(category))
+            {
+                result[category] = [];
+            }
+            result[category].Add(panelType);
+        }
+
+        // Sort panels within each category by display name
+        foreach (var panels in result.Values)
+        {
+            panels.Sort((a, b) =>
+                string.Compare(a.DisplayName ?? a.DisplayId, b.DisplayName ?? b.DisplayId, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Gets all available panel metadata as a flat list.
+    /// </summary>
+    public IEnumerable<PluginPanelTypeMetadata> GetAllPanelMetadata()
+    {
+        return _pluginManager.GetAvailablePanelTypes().Select(t => t.PanelType);
+    }
+
+    /// <summary>
+    /// Gets metadata for a specific panel type.
+    /// </summary>
+    /// <param name="panelTypeId">The panel type ID or prefix pattern (e.g., "cpu-info" or "video:").</param>
+    /// <returns>Panel metadata if found, null otherwise.</returns>
+    public PluginPanelTypeMetadata? GetPanelMetadata(string panelTypeId)
+    {
+        if (string.IsNullOrWhiteSpace(panelTypeId))
+            return null;
+
+        var normalizedId = panelTypeId.Trim().ToLowerInvariant();
+
+        // First try exact match
+        foreach (var (_, panelType) in _pluginManager.GetAvailablePanelTypes())
+        {
+            if (panelType.TypeId.Equals(normalizedId, StringComparison.OrdinalIgnoreCase))
+                return panelType;
+
+            // Check prefix pattern (with or without colon)
+            if (panelType.PrefixPattern != null)
+            {
+                var prefixWithoutColon = panelType.PrefixPattern.TrimEnd(':');
+                if (prefixWithoutColon.Equals(normalizedId, StringComparison.OrdinalIgnoreCase) ||
+                    panelType.PrefixPattern.Equals(normalizedId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return panelType;
+                }
+            }
+        }
+
+        // Try matching by base type (for "video:path" -> look up "video")
+        var colonIndex = normalizedId.IndexOf(':');
+        if (colonIndex > 0)
+        {
+            var baseType = normalizedId[..colonIndex];
+            return GetPanelMetadata(baseType);
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Sets the color scheme used for all created panels.
     /// </summary>
     public void SetColorScheme(ResolvedColorScheme colorScheme)

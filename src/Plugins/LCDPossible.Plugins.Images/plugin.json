@@ -10,18 +10,74 @@
     {
       "typeId": "animated-gif",
       "displayName": "Animated GIF",
-      "description": "Plays animated GIF files or URLs",
+      "description": "Plays animated GIF files or URLs with full animation support",
       "category": "Media",
       "isLive": true,
-      "prefixPattern": "animated-gif:"
+      "isAnimated": true,
+      "prefixPattern": "animated-gif:",
+      "helpText": "Displays animated GIF files with automatic frame timing.\n\nSupported sources:\n- Local file paths (absolute or relative)\n- HTTP/HTTPS URLs\n- Network shares (Windows UNC paths)\n\nThe GIF is automatically scaled to fit the display while maintaining aspect ratio.\nFrame timing is preserved from the original GIF.\n\nTip: Use high-quality GIFs at or near your LCD resolution for best results.",
+      "parameters": [
+        {
+          "name": "path",
+          "description": "Path to the GIF file or URL",
+          "required": true,
+          "exampleValues": [
+            "C:\\gifs\\animation.gif",
+            "https://example.com/animation.gif",
+            "./assets/logo.gif"
+          ]
+        }
+      ],
+      "examples": [
+        {
+          "command": "lcdpossible show animated-gif:C:\\gifs\\animation.gif",
+          "description": "Play a local GIF file"
+        },
+        {
+          "command": "lcdpossible show animated-gif:https://upload.wikimedia.org/wikipedia/commons/2/2c/Rotating_earth_%28large%29.gif",
+          "description": "Play a GIF from a URL"
+        },
+        {
+          "command": "lcdpossible show animated-gif:./logo.gif|@duration=60",
+          "description": "Play a GIF for 60 seconds then advance to next panel"
+        }
+      ]
     },
     {
       "typeId": "image-sequence",
       "displayName": "Image Sequence",
-      "description": "Plays a sequence of numbered images from a folder",
+      "description": "Plays a sequence of numbered images from a folder at 30fps",
       "category": "Media",
       "isLive": true,
-      "prefixPattern": "image-sequence:"
+      "isAnimated": true,
+      "prefixPattern": "image-sequence:",
+      "helpText": "Plays a folder of numbered images as an animation.\n\nFile naming conventions supported:\n- frame001.png, frame002.png, ...\n- image_0001.jpg, image_0002.jpg, ...\n- 001.png, 002.png, ...\n\nSupported image formats: PNG, JPG, JPEG, BMP, GIF (static)\n\nImages are sorted alphanumerically and played at 30fps.\nThe sequence loops continuously.\n\nTip: Export animations from video editing software as image sequences for smooth playback.",
+      "parameters": [
+        {
+          "name": "folder",
+          "description": "Path to folder containing numbered image files",
+          "required": true,
+          "exampleValues": [
+            "C:\\frames\\",
+            "./animation_frames/",
+            "\\\\server\\share\\images\\"
+          ]
+        }
+      ],
+      "examples": [
+        {
+          "command": "lcdpossible show image-sequence:C:\\frames\\",
+          "description": "Play images from a folder as animation"
+        },
+        {
+          "command": "lcdpossible show image-sequence:./export/frames/",
+          "description": "Play a relative folder path"
+        },
+        {
+          "command": "lcdpossible show image-sequence:C:\\animation\\|@duration=120",
+          "description": "Play for 2 minutes then move to next panel"
+        }
+      ]
     }
   ]
 }

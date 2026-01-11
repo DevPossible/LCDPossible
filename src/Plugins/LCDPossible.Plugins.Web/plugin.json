@@ -10,10 +10,38 @@
     {
       "typeId": "html",
       "displayName": "HTML File",
-      "description": "Renders a local HTML file",
+      "description": "Renders a local HTML file using headless browser",
       "category": "Web",
       "isLive": true,
-      "prefixPattern": "html:"
+      "prefixPattern": "html:",
+      "dependencies": ["PuppeteerSharp"],
+      "helpText": "Renders local HTML files using a headless Chromium browser.\n\nFeatures:\n- Full CSS and JavaScript support\n- Custom dashboards with real-time updates\n- Local assets (images, fonts, CSS) supported\n- Automatic page refresh at configured interval\n\nThe HTML file is rendered at your LCD's resolution.\nJavaScript can update content dynamically.\n\nTip: Create custom dashboards with HTML/CSS/JS and render them on your LCD.\n\nNote: First render may take a few seconds while browser initializes.",
+      "parameters": [
+        {
+          "name": "path",
+          "description": "Path to local HTML file",
+          "required": true,
+          "exampleValues": [
+            "C:\\dashboards\\status.html",
+            "./web/dashboard.html",
+            "index.html"
+          ]
+        }
+      ],
+      "examples": [
+        {
+          "command": "lcdpossible show html:C:\\dashboards\\status.html",
+          "description": "Render a local HTML dashboard"
+        },
+        {
+          "command": "lcdpossible show html:./web/system-monitor.html|@interval=10",
+          "description": "Render HTML file, refresh every 10 seconds"
+        },
+        {
+          "command": "lcdpossible show html:./custom-clock.html|@duration=60",
+          "description": "Display HTML page for 60 seconds"
+        }
+      ]
     },
     {
       "typeId": "web",
@@ -21,7 +49,39 @@
       "description": "Renders a live website from URL",
       "category": "Web",
       "isLive": true,
-      "prefixPattern": "web:"
+      "prefixPattern": "web:",
+      "dependencies": ["PuppeteerSharp"],
+      "helpText": "Renders live websites using a headless Chromium browser.\n\nFeatures:\n- Full web page rendering with CSS/JavaScript\n- Auto-refresh at configured interval\n- Renders at your LCD's resolution\n- Cookie/session state persisted during session\n\nGreat for:\n- Weather displays (wttr.in, Weather Underground)\n- Stock tickers and financial data\n- Server monitoring dashboards\n- Custom web dashboards\n\nNote: Some sites may block headless browsers. The first render may take a few seconds while the browser initializes.",
+      "parameters": [
+        {
+          "name": "url",
+          "description": "URL of the website to render",
+          "required": true,
+          "exampleValues": [
+            "https://wttr.in/London",
+            "https://status.github.com",
+            "http://192.168.1.1/status"
+          ]
+        }
+      ],
+      "examples": [
+        {
+          "command": "lcdpossible show web:https://wttr.in/London",
+          "description": "Display weather for London using wttr.in"
+        },
+        {
+          "command": "lcdpossible show web:https://wttr.in/London?format=3",
+          "description": "Display compact weather format"
+        },
+        {
+          "command": "lcdpossible show web:http://192.168.1.1/status|@interval=30",
+          "description": "Monitor router status, refresh every 30 seconds"
+        },
+        {
+          "command": "lcdpossible show web:https://status.github.com|@duration=60",
+          "description": "Show GitHub status for 60 seconds"
+        }
+      ]
     }
   ]
 }
