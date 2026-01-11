@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Output to plugins folder for easy deployment -->
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Reference SDK for plugin development -->
+    <ProjectReference Include="..\..\LCDPossible.Sdk\LCDPossible.Sdk.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Hardware monitoring - Windows only -->
+    <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.5" />
+    <!-- WMI for fallback temperature reading -->
+    <PackageReference Include="System.Management" Version="10.0.1" />
+  </ItemGroup>
+
+  <!-- Copy plugin.json to output -->
+  <ItemGroup>
+    <None Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

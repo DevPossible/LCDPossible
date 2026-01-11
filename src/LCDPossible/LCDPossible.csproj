@@ -8,16 +8,113 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.5" />
+    <!-- Core dependencies for the main app -->
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.1" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.1" />
     <PackageReference Include="Serilog.Extensions.Hosting" Version="10.0.0" />
     <PackageReference Include="Serilog.Settings.Configuration" Version="10.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
     <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.7" />
+    <!-- For sensor diagnostics CLI command -->
+    <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.4" />
+    <PackageReference Include="System.Management" Version="10.0.1" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\LCDPossible.Core\LCDPossible.Core.csproj" />
+    <!-- SDK must be copied to output so plugins can load it from the host context -->
+    <ProjectReference Include="..\LCDPossible.Sdk\LCDPossible.Sdk.csproj" />
+
+    <!-- Plugin projects - built but not referenced at runtime (loaded dynamically) -->
+    <ProjectReference Include="..\Plugins\LCDPossible.Plugins.Core\LCDPossible.Plugins.Core.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <OutputItemType>PluginOutput</OutputItemType>
+    </ProjectReference>
+    <ProjectReference Include="..\Plugins\LCDPossible.Plugins.Images\LCDPossible.Plugins.Images.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <OutputItemType>PluginOutput</OutputItemType>
+    </ProjectReference>
+    <ProjectReference Include="..\Plugins\LCDPossible.Plugins.Video\LCDPossible.Plugins.Video.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <OutputItemType>PluginOutput</OutputItemType>
+    </ProjectReference>
+    <ProjectReference Include="..\Plugins\LCDPossible.Plugins.Web\LCDPossible.Plugins.Web.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <OutputItemType>PluginOutput</OutputItemType>
+    </ProjectReference>
+    <ProjectReference Include="..\Plugins\LCDPossible.Plugins.Proxmox\LCDPossible.Plugins.Proxmox.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <OutputItemType>PluginOutput</OutputItemType>
+    </ProjectReference>
+    <ProjectReference Include="..\Plugins\LCDPossible.Plugins.Screensavers\LCDPossible.Plugins.Screensavers.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <OutputItemType>PluginOutput</OutputItemType>
+    </ProjectReference>
   </ItemGroup>
+
+  <!-- Copy plugins to output/plugins/{pluginname}/ after build -->
+  <Target Name="CopyPlugins" AfterTargets="Build">
+    <PropertyGroup>
+      <!-- Use TargetDir which includes the TargetFramework folder -->
+      <PluginsOutputDir>$(TargetDir)plugins\</PluginsOutputDir>
+      <!-- From src/LCDPossible/, go up 2 levels to reach .build/ -->
+      <BuildOutputRoot>$(MSBuildThisFileDirectory)..\..\.build\</BuildOutputRoot>
+    </PropertyGroup>
+
+    <!-- Core plugin (outputs directly to bin/Configuration/ without framework folder) -->
+    <ItemGroup>
+      <CorePluginFiles Include="$(BuildOutputRoot)LCDPossible.Plugins.Core\bin\$(Configuration)\**\*.*"
+                       Exclude="$(BuildOutputRoot)LCDPossible.Plugins.Core\bin\$(Configuration)\runtimes\**\*.*" />
+      <CorePluginRuntimeFiles Include="$(BuildOutputRoot)LCDPossible.Plugins.Core\bin\$(Configuration)\runtimes\**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(CorePluginFiles)"
+          DestinationFolder="$(PluginsOutputDir)core\%(RecursiveDir)"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(CorePluginRuntimeFiles)"
+          DestinationFolder="$(PluginsOutputDir)core\runtimes\%(RecursiveDir)"
+          SkipUnchangedFiles="true" />
+
+    <!-- Images plugin -->
+    <ItemGroup>
+      <ImagesPluginFiles Include="$(BuildOutputRoot)LCDPossible.Plugins.Images\bin\$(Configuration)\$(TargetFramework)\**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ImagesPluginFiles)"
+          DestinationFolder="$(PluginsOutputDir)images\%(RecursiveDir)"
+          SkipUnchangedFiles="true" />
+
+    <!-- Video plugin -->
+    <ItemGroup>
+      <VideoPluginFiles Include="$(BuildOutputRoot)LCDPossible.Plugins.Video\bin\$(Configuration)\$(TargetFramework)\**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(VideoPluginFiles)"
+          DestinationFolder="$(PluginsOutputDir)video\%(RecursiveDir)"
+          SkipUnchangedFiles="true" />
+
+    <!-- Web plugin -->
+    <ItemGroup>
+      <WebPluginFiles Include="$(BuildOutputRoot)LCDPossible.Plugins.Web\bin\$(Configuration)\$(TargetFramework)\**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(WebPluginFiles)"
+          DestinationFolder="$(PluginsOutputDir)web\%(RecursiveDir)"
+          SkipUnchangedFiles="true" />
+
+    <!-- Proxmox plugin -->
+    <ItemGroup>
+      <ProxmoxPluginFiles Include="$(BuildOutputRoot)LCDPossible.Plugins.Proxmox\bin\$(Configuration)\$(TargetFramework)\**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ProxmoxPluginFiles)"
+          DestinationFolder="$(PluginsOutputDir)proxmox\%(RecursiveDir)"
+          SkipUnchangedFiles="true" />
+
+    <!-- Screensavers plugin -->
+    <ItemGroup>
+      <ScreensaversPluginFiles Include="$(BuildOutputRoot)LCDPossible.Plugins.Screensavers\bin\$(Configuration)\$(TargetFramework)\**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ScreensaversPluginFiles)"
+          DestinationFolder="$(PluginsOutputDir)screensavers\%(RecursiveDir)"
+          SkipUnchangedFiles="true" />
+
+    <Message Text="Copied plugins to $(PluginsOutputDir)" Importance="high" />
+  </Target>
+
 </Project>

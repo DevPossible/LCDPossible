@@ -1,0 +1,405 @@
+{
+  "id": "lcdpossible.screensavers",
+  "name": "Screensaver Panels",
+  "version": "1.0.0",
+  "author": "LCDPossible Team",
+  "description": "Animated screensaver effects including starfield, matrix rain, bouncing logo, pac-man, and more.",
+  "minimumSdkVersion": "1.0.0",
+  "assemblyName": "LCDPossible.Plugins.Screensavers.dll",
+  "panelTypes": [
+    {
+      "typeId": "screensaver",
+      "displayName": "Random Screensaver",
+      "description": "Plays a random screensaver effect or cycles through all",
+      "category": "Screensaver",
+      "isLive": true,
+      "isAnimated": true,
+      "prefixPattern": "screensaver:",
+      "helpText": "Meta-panel that plays screensaver effects.\n\nModes:\n- screensaver:random - Pick a random screensaver\n- screensaver:cycle - Cycle through all screensavers\n- screensaver:<name> - Play a specific screensaver\n\nAvailable screensavers: starfield, matrix-rain, bouncing-logo, mystify, plasma, fire, game-of-life, bubbles, rain, spiral, clock, noise, warp-tunnel, pipes, asteroids, missile-command, falling-blocks",
+      "parameters": [
+        {
+          "name": "mode",
+          "description": "Screensaver mode or specific effect name",
+          "required": false,
+          "defaultValue": "random",
+          "exampleValues": ["random", "cycle", "starfield", "matrix-rain"]
+        }
+      ],
+      "examples": [
+        {
+          "command": "lcdpossible show screensaver:random",
+          "description": "Play a random screensaver"
+        },
+        {
+          "command": "lcdpossible show screensaver:cycle|@duration=30",
+          "description": "Cycle screensavers every 30 seconds"
+        }
+      ]
+    },
+    {
+      "typeId": "starfield",
+      "displayName": "Starfield",
+      "description": "Classic starfield warp effect with stars streaming from center",
+      "category": "Screensaver",
+      "isLive": true,
+      "isAnimated": true,
+      "helpText": "Classic space starfield warp effect.\n\nFeatures:\n- Stars stream outward from center\n- Multiple star layers for depth\n- Speed increases as stars move outward\n- Smooth 60fps animation\n\nInspired by the classic Windows starfield screensaver.",
+      "examples": [
+        {
+          "command": "lcdpossible show starfield",
+          "description": "Display starfield effect"
+        }
+      ]
+    },
+    {
+      "typeId": "matrix-rain",
+      "displayName": "Matrix Rain",
+      "description": "Digital rain effect inspired by The Matrix",
+      "category": "Screensaver",
+      "isLive": true,
+      "isAnimated": true,
+      "helpText": "Green digital rain cascading down the screen.\n\nFeatures:\n- Random katakana and ASCII characters\n- Glowing lead characters\n- Fading trails\n- Variable speed columns\n\nInspired by the iconic visual from The Matrix films.",
+      "examples": [
+        {
+          "command": "lcdpossible show matrix-rain",
+          "description": "Display Matrix rain effect"
+        }
+      ]
+    },
+    {
+      "typeId": "bouncing-logo",
+      "displayName": "Bouncing Logo",
+      "description": "Customizable text bouncing off screen edges (DVD screensaver style) with color, size, 3D, and rotation options",
+      "category": "Screensaver",
+      "isLive": true,
+      "isAnimated": true,
+      "prefixPattern": "bouncing-logo:",
+      "helpText": "The classic DVD logo bouncing around the screen, now fully customizable!\n\nFeatures:\n- Custom text to bounce\n- Multiple color modes: fixed, random, cycling, or rainbow\n- Three size presets: small, medium, large\n- 3D depth effect with shadows and perspective\n- Rotation with random tumbling in 3D mode\n- Color changes on each bounce (cycle/random modes)\n- Occasional corner hits!\n\nColor Options:\n- cycle: Cycles through predefined colors on bounce (default)\n- random: Random bright color on each bounce\n- rainbow: Smooth continuous rainbow transition\n- Named colors: red, green, blue, yellow, cyan, magenta, orange, pink, purple, gold, etc.\n- HTML codes: #FF0000, #00FF00, #0088FF, etc.\n\nRelive the eternal wait for the logo to hit the corner perfectly!",
+      "parameters": [
+        {
+          "name": "text",
+          "description": "Custom text to bounce around the screen. Can be set via colon syntax (bouncing-logo:MyText) or settings.",
+          "required": false,
+          "defaultValue": "LCD",
+          "exampleValues": ["LCD", "DVD", "Hello", "GAMING"]
+        },
+        {
+          "name": "color",
+          "description": "Text color mode or specific color. Supports 'cycle' (changes on bounce), 'random' (random on bounce), 'rainbow' (smooth transition), HTML hex codes (#FF0000), or named colors (red, blue, green, etc.).",
+          "required": false,
+          "defaultValue": "cycle",
+          "exampleValues": ["cycle", "random", "rainbow", "#FF0000", "#00FF88", "red", "cyan", "gold", "hotpink"]
+        },
+        {
+          "name": "size",
+          "description": "Text size preset: 'small' (32pt), 'medium' (64pt), or 'large' (96pt). Aliases: s, m, l, big.",
+          "required": false,
+          "defaultValue": "medium",
+          "exampleValues": ["small", "medium", "large", "s", "m", "l"]
+        },
+        {
+          "name": "3d",
+          "description": "Enable 3D depth effect with shadows and perspective transformation. When combined with rotate, creates a tumbling 3D effect.",
+          "required": false,
+          "defaultValue": "false",
+          "exampleValues": ["true", "false", "yes", "no", "1", "0"]
+        },
+        {
+          "name": "rotate",
+          "description": "Enable rotation animation. In 2D mode, rotates around the center. In 3D mode, tumbles in all directions with random speed changes every 2-6 seconds.",
+          "required": false,
+          "defaultValue": "false",
+          "exampleValues": ["true", "false", "yes", "no", "1", "0"]
+        },
+        {
+          "name": "thickness",
+          "description": "Text thickness/boldness (1-10). Affects stroke outline width and 3D depth shadow layers. If not specified, a random value (1-7) is chosen. Use 'random' to explicitly request random thickness.",
+          "required": false,
+          "defaultValue": "random",
+          "exampleValues": ["1", "3", "5", "7", "10", "random"]
+        },
+        {
+          "name": "speed",
+          "description": "Movement speed (1-10). 1 = crawling (0.05x), 5 = normal speed (1.0x), 10 = very fast (2.0x). Controls how quickly the logo bounces around the screen.",
+          "required": false,
+          "defaultValue": "5",
+          "exampleValues": ["1", "3", "5", "7", "10"]
+        }
+      ],
+      "examples": [
+        {
+          "command": "lcdpossible show bouncing-logo",
+          "description": "Classic bouncing 'LCD' with cycling colors"
+        },
+        {
+          "command": "lcdpossible show bouncing-logo:DVD",
+          "description": "Bouncing 'DVD' text (nostalgia mode)"
+        },
+        {
+          "command": "lcdpossible show bouncing-logo|text=GAMING|color=rainbow|size=large",
+          "description": "Large 'GAMING' text with smooth rainbow colors"
+        },
+        {
+          "command": "lcdpossible show bouncing-logo|color=#FF0000|size=small",
+          "description": "Small red bouncing logo"
+        },
+        {
+          "command": "lcdpossible show bouncing-logo|text=3D|3d=true|rotate=true",
+          "description": "3D tumbling text effect"
+        },
+        {
+          "command": "lcdpossible show bouncing-logo|color=cyan|rotate=true",
+          "description": "Cyan rotating logo"
+        },
+        {
+          "command": "lcdpossible show bouncing-logo|text=HELLO|color=random|size=large|3d=true|rotate=true",
+          "description": "Full featured: large 3D rotating 'HELLO' with random colors"
+        },
+        {
+          "command": "lcdpossible show bouncing-logo|text=BOLD|thickness=8|color=gold|size=large",
+          "description": "Thick bold text with gold color"
+        },
+        {
+          "command": "lcdpossible show bouncing-logo|text=THIN|thickness=1|color=cyan",
+          "description": "Thin text with minimal stroke"
+        },
+        {
+          "command": "lcdpossible show bouncing-logo|text=SLOW|speed=1|color=blue",
+          "description": "Slow-moving blue text"
+        },
+        {
+          "command": "lcdpossible show bouncing-logo|text=FAST|speed=10|color=red|size=small",
+          "description": "Fast-moving small red text"
+        }
+      ]
+    },
+    {
+      "typeId": "mystify",
+      "displayName": "Mystify",
+      "description": "Bouncing connected polygons with color trails",
+      "category": "Screensaver",
+      "isLive": true,
+      "isAnimated": true,
+      "helpText": "Classic Windows Mystify screensaver recreation.\n\nFeatures:\n- Two connected polygon shapes\n- Vertices bounce independently\n- Rainbow color cycling\n- Smooth trailing effect\n\nA faithful recreation of the classic Windows 3.1/95 screensaver.",
+      "examples": [
+        {
+          "command": "lcdpossible show mystify",
+          "description": "Display Mystify effect"
+        }
+      ]
+    },
+    {
+      "typeId": "plasma",
+      "displayName": "Plasma",
+      "description": "Classic demoscene plasma effect",
+      "category": "Screensaver",
+      "isLive": true,
+      "isAnimated": true,
+      "helpText": "Psychedelic plasma effect from the demoscene era.\n\nFeatures:\n- Smooth color gradients\n- Multiple overlapping sine waves\n- Palette cycling animation\n- Hypnotic visual patterns\n\nA tribute to the classic demoscene visual effects of the 90s.",
+      "examples": [
+        {
+          "command": "lcdpossible show plasma",
+          "description": "Display plasma effect"
+        }
+      ]
+    },
+    {
+      "typeId": "fire",
+      "displayName": "Fire",
+      "description": "Classic demoscene fire effect with palette animation",
+      "category": "Screensaver",
+      "isLive": true,
+      "isAnimated": true,
+      "helpText": "Classic fire effect with realistic flames.\n\nFeatures:\n- Procedural flame generation\n- Heat-based color palette\n- Rising flames with cooling\n- Flickering base heat source\n\nAnother classic demoscene effect, popular in the 90s demo scene.",
+      "examples": [
+        {
+          "command": "lcdpossible show fire",
+          "description": "Display fire effect"
+        }
+      ]
+    },
+    {
+      "typeId": "game-of-life",
+      "displayName": "Game of Life",
+      "description": "Conway's cellular automaton with colorful patterns",
+      "category": "Screensaver",
+      "isLive": true,
+      "isAnimated": true,
+      "helpText": "Conway's Game of Life cellular automaton.\n\nFeatures:\n- Classic B3/S23 rules\n- Color-coded cell age\n- Auto-reset when stable/empty\n- Random pattern initialization\n\nWatch cells live, die, and create emergent patterns.",
+      "examples": [
+        {
+          "command": "lcdpossible show game-of-life",
+          "description": "Display Game of Life simulation"
+        }
+      ]
+    },
+    {
+      "typeId": "bubbles",
+      "displayName": "Bubbles",
+      "description": "Floating, bouncing translucent bubbles",
+      "category": "Screensaver",
+      "isLive": true,
+      "isAnimated": true,
+      "helpText": "Colorful translucent bubbles floating around.\n\nFeatures:\n- Various bubble sizes\n- Soft reflections and highlights\n- Gentle floating motion\n- Translucent overlapping\n\nA relaxing, calming visual effect.",
+      "examples": [
+        {
+          "command": "lcdpossible show bubbles",
+          "description": "Display floating bubbles"
+        }
+      ]
+    },
+    {
+      "typeId": "rain",
+      "displayName": "Rain",
+      "description": "Falling raindrops with splash effects",
+      "category": "Screensaver",
+      "isLive": true,
+      "isAnimated": true,
+      "helpText": "Realistic rain falling on a window.\n\nFeatures:\n- Varying raindrop sizes\n- Splash effects at bottom\n- Streaking water trails\n- Atmospheric blue tint\n\nA calming rain visualization.",
+      "examples": [
+        {
+          "command": "lcdpossible show rain",
+          "description": "Display rain effect"
+        }
+      ]
+    },
+    {
+      "typeId": "spiral",
+      "displayName": "Spiral",
+      "description": "Hypnotic rotating spiral pattern",
+      "category": "Screensaver",
+      "isLive": true,
+      "isAnimated": true,
+      "helpText": "Hypnotic rotating spiral pattern.\n\nFeatures:\n- Smooth rotation animation\n- Alternating color bands\n- Creates optical illusion\n- Adjustable speed\n\nWarning: May be hypnotic. Not recommended for extended viewing.",
+      "examples": [
+        {
+          "command": "lcdpossible show spiral",
+          "description": "Display spiral effect"
+        }
+      ]
+    },
+    {
+      "typeId": "clock",
+      "displayName": "Analog Clock",
+      "description": "Analog clock with smooth second hand",
+      "category": "Screensaver",
+      "isLive": true,
+      "isAnimated": true,
+      "helpText": "Classic analog clock display.\n\nFeatures:\n- Hour, minute, and second hands\n- Smooth second hand animation\n- Clean, minimal design\n- Accurate system time\n\nA functional and elegant screensaver.",
+      "examples": [
+        {
+          "command": "lcdpossible show clock",
+          "description": "Display analog clock"
+        }
+      ]
+    },
+    {
+      "typeId": "noise",
+      "displayName": "Static",
+      "description": "TV static / white noise effect",
+      "category": "Screensaver",
+      "isLive": true,
+      "isAnimated": true,
+      "helpText": "Classic TV static / snow effect.\n\nFeatures:\n- Random pixel noise\n- Authentic analog TV look\n- Subtle scan line effect\n- Full-screen coverage\n\nReminiscent of analog TV static when no signal was present.",
+      "examples": [
+        {
+          "command": "lcdpossible show noise",
+          "description": "Display TV static"
+        }
+      ]
+    },
+    {
+      "typeId": "warp-tunnel",
+      "displayName": "Warp Tunnel",
+      "description": "Flying through a colorful warp tunnel",
+      "category": "Screensaver",
+      "isLive": true,
+      "isAnimated": true,
+      "helpText": "Flying through a colorful warp tunnel.\n\nFeatures:\n- 3D tunnel perspective\n- Rainbow color cycling\n- Speed variation effects\n- Smooth animation\n\nLike traveling through a hyperspace tunnel.",
+      "examples": [
+        {
+          "command": "lcdpossible show warp-tunnel",
+          "description": "Display warp tunnel effect"
+        }
+      ]
+    },
+    {
+      "typeId": "pipes",
+      "displayName": "Pipes",
+      "description": "3D pipes growing in random directions (classic Windows)",
+      "category": "Screensaver",
+      "isLive": true,
+      "isAnimated": true,
+      "helpText": "Classic Windows 3D Pipes screensaver.\n\nFeatures:\n- Pipes grow in random directions\n- Multiple pipe colors\n- Joint connections at turns\n- Fills screen then resets\n\nA faithful recreation of the beloved Windows screensaver.",
+      "examples": [
+        {
+          "command": "lcdpossible show pipes",
+          "description": "Display 3D pipes"
+        }
+      ]
+    },
+    {
+      "typeId": "asteroids",
+      "displayName": "Asteroids",
+      "description": "Asteroids game simulation with vector graphics",
+      "category": "Screensaver",
+      "isLive": true,
+      "isAnimated": true,
+      "helpText": "Classic Asteroids arcade game simulation.\n\nFeatures:\n- AI-controlled ship\n- Vector-style graphics\n- Asteroid splitting physics\n- Auto-play demonstration\n\nWatch an AI pilot play the classic arcade game.",
+      "examples": [
+        {
+          "command": "lcdpossible show asteroids",
+          "description": "Display Asteroids simulation"
+        }
+      ]
+    },
+    {
+      "typeId": "missile-command",
+      "displayName": "Missile Command",
+      "description": "Defend cities from incoming missiles",
+      "category": "Screensaver",
+      "isLive": true,
+      "isAnimated": true,
+      "helpText": "Classic Missile Command arcade game simulation.\n\nFeatures:\n- AI-controlled defense\n- Incoming missiles and MIRVs\n- Explosion effects\n- City defense gameplay\n\nWatch an AI defend the cities from nuclear attack.",
+      "examples": [
+        {
+          "command": "lcdpossible show missile-command",
+          "description": "Display Missile Command simulation"
+        }
+      ]
+    },
+    {
+      "typeId": "falling-blocks",
+      "displayName": "Falling Blocks",
+      "description": "Tetris-style falling blocks simulator with AI gameplay",
+      "category": "Screensaver",
+      "isLive": true,
+      "isAnimated": true,
+      "prefixPattern": "falling-blocks:",
+      "helpText": "Tetris-style falling blocks with AI players.\n\nModes:\n- falling-blocks:1 - Single player AI\n- falling-blocks:2 - Two player split-screen AI\n- falling-blocks:3 - Three player AI\n\nFeatures:\n- Classic tetromino pieces\n- AI players with varying skill\n- Score tracking\n- Line clear animations\n\nWatch AI players compete in the classic puzzle game.",
+      "parameters": [
+        {
+          "name": "players",
+          "description": "Number of AI players (1-3)",
+          "required": false,
+          "defaultValue": "1",
+          "exampleValues": ["1", "2", "3"]
+        }
+      ],
+      "examples": [
+        {
+          "command": "lcdpossible show falling-blocks:1",
+          "description": "Single player Tetris AI"
+        },
+        {
+          "command": "lcdpossible show falling-blocks:2",
+          "description": "Two player split-screen AI battle"
+        },
+        {
+          "command": "lcdpossible show falling-blocks:3",
+          "description": "Three player AI competition"
+        }
+      ]
+    }
+  ]
+}

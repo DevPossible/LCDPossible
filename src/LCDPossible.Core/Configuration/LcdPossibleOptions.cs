@@ -1,3 +1,5 @@
+using LCDPossible.Core.Transitions;
+
 namespace LCDPossible.Core.Configuration;
 
 /// <summary>
@@ -187,6 +189,21 @@ public sealed class SlideshowItem
     /// Optional background image path (for panel type only).
     /// </summary>
     public string? BackgroundImage { get; set; }
+
+    /// <summary>
+    /// Transition effect when entering this slide.
+    /// </summary>
+    public TransitionType Transition { get; set; } = TransitionType.Random;
+
+    /// <summary>
+    /// Transition duration in milliseconds.
+    /// </summary>
+    public int TransitionDurationMs { get; set; } = TransitionEngine.DefaultDurationMs;
+
+    /// <summary>
+    /// Custom panel-specific settings (e.g., text=HELLO, color=red, size=large).
+    /// </summary>
+    public Dictionary<string, string>? Settings { get; set; }
 }
 
 /// <summary>

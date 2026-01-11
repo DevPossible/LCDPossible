@@ -24,6 +24,12 @@ public interface IDisplayPanel : IDisposable
     bool IsLive { get; }
 
     /// <summary>
+    /// Indicates whether this panel manages its own frame timing (e.g., animated GIF, video).
+    /// Animated panels should not have their frames cached by the slideshow manager.
+    /// </summary>
+    bool IsAnimated => false;
+
+    /// <summary>
     /// Initializes the panel. Called once before rendering begins.
     /// </summary>
     Task InitializeAsync(CancellationToken cancellationToken = default);

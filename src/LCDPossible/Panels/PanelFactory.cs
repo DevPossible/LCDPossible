@@ -1,5 +1,6 @@
 using LCDPossible.Core.Configuration;
 using LCDPossible.Core.Monitoring;
+using LCDPossible.Core.Plugins;
 using LCDPossible.Core.Rendering;
 using Microsoft.Extensions.Logging;
 
@@ -7,42 +8,113 @@ namespace LCDPossible.Panels;
 
 /// <summary>
 /// Factory for creating display panels by type ID.
+/// Delegates panel creation to the appropriate plugin via PluginManager.
 /// </summary>
 public sealed class PanelFactory
 {
-    private readonly ISystemInfoProvider _systemProvider;
+    private readonly PluginManager _pluginManager;
+    private readonly ISystemInfoProvider? _systemProvider;
     private readonly IProxmoxProvider? _proxmoxProvider;
+    private readonly ILoggerFactory? _loggerFactory;
     private readonly ILogger<PanelFactory>? _logger;
+    private readonly bool _debug;
     private ResolvedColorScheme _colorScheme = ResolvedColorScheme.CreateDefault();
 
-    /// <summary>
-    /// List of all available panel type IDs.
-    /// </summary>
-    public static readonly string[] AvailablePanels =
-    [
-        "cpu-info",
-        "cpu-usage-text",
-        "cpu-usage-graphic",
-        "ram-info",
-        "ram-usage-text",
-        "ram-usage-graphic",
-        "gpu-info",
-        "gpu-usage-text",
-        "gpu-usage-graphic",
-        "basic-info",
-        "basic-usage-text",
-        "proxmox-summary",
-        "proxmox-vms"
-    ];
-
     public PanelFactory(
-        ISystemInfoProvider systemProvider,
+        PluginManager pluginManager,
+        ISystemInfoProvider? systemProvider = null,
         IProxmoxProvider? proxmoxProvider = null,
-        ILogger<PanelFactory>? logger = null)
+        ILoggerFactory? loggerFactory = null,
+        bool debug = false)
     {
-        _systemProvider = systemProvider ?? throw new ArgumentNullException(nameof(systemProvider));
+        _pluginManager = pluginManager ?? throw new ArgumentNullException(nameof(pluginManager));
+        _systemProvider = systemProvider;
         _proxmoxProvider = proxmoxProvider;
-        _logger = logger;
+        _loggerFactory = loggerFactory;
+        _logger = loggerFactory?.CreateLogger<PanelFactory>();
+        _debug = debug;
+    }
+
+    /// <summary>
+    /// Gets a list of all available panel type IDs from discovered plugins.
+    /// </summary>
+    public string[] AvailablePanels => _pluginManager.GetAvailablePanelTypeIds();
+
+    /// <summary>
+    /// Gets all available panel metadata grouped by category.
+    /// </summary>
+    /// <returns>Dictionary of category name to list of panel metadata.</returns>
+    public Dictionary<string, List<PluginPanelTypeMetadata>> GetAllPanelMetadataByCategory()
+    {
+        var result = new Dictionary<string, List<PluginPanelTypeMetadata>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (_, panelType) in _pluginManager.GetAvailablePanelTypes())
+        {
+            var category = panelType.Category ?? "Other";
+            if (!result.ContainsKey(category))
+            {
+                result[category] = [];
+            }
+            result[category].Add(panelType);
+        }
+
+        // Sort panels within each category by display name
+        foreach (var panels in result.Values)
+        {
+            panels.Sort((a, b) =>
+                string.Compare(a.DisplayName ?? a.DisplayId, b.DisplayName ?? b.DisplayId, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Gets all available panel metadata as a flat list.
+    /// </summary>
+    public IEnumerable<PluginPanelTypeMetadata> GetAllPanelMetadata()
+    {
+        return _pluginManager.GetAvailablePanelTypes().Select(t => t.PanelType);
+    }
+
+    /// <summary>
+    /// Gets metadata for a specific panel type.
+    /// </summary>
+    /// <param name="panelTypeId">The panel type ID or prefix pattern (e.g., "cpu-info" or "video:").</param>
+    /// <returns>Panel metadata if found, null otherwise.</returns>
+    public PluginPanelTypeMetadata? GetPanelMetadata(string panelTypeId)
+    {
+        if (string.IsNullOrWhiteSpace(panelTypeId))
+            return null;
+
+        var normalizedId = panelTypeId.Trim().ToLowerInvariant();
+
+        // First try exact match
+        foreach (var (_, panelType) in _pluginManager.GetAvailablePanelTypes())
+        {
+            if (panelType.TypeId.Equals(normalizedId, StringComparison.OrdinalIgnoreCase))
+                return panelType;
+
+            // Check prefix pattern (with or without colon)
+            if (panelType.PrefixPattern != null)
+            {
+                var prefixWithoutColon = panelType.PrefixPattern.TrimEnd(':');
+                if (prefixWithoutColon.Equals(normalizedId, StringComparison.OrdinalIgnoreCase) ||
+                    panelType.PrefixPattern.Equals(normalizedId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return panelType;
+                }
+            }
+        }
+
+        // Try matching by base type (for "video:path" -> look up "video")
+        var colonIndex = normalizedId.IndexOf(':');
+        if (colonIndex > 0)
+        {
+            var baseType = normalizedId[..colonIndex];
+            return GetPanelMetadata(baseType);
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -64,53 +136,117 @@ public sealed class PanelFactory
     /// <summary>
     /// Creates a panel instance by type ID.
     /// </summary>
-    /// <param name="panelTypeId">The panel type identifier.</param>
-    /// <returns>The panel instance, or null if type is unknown.</returns>
-    public IDisplayPanel? CreatePanel(string panelTypeId)
+    /// <param name="panelTypeId">The panel type identifier. For panels with paths/URLs, use format "type:argument" (e.g., "video:path/to/video.mp4").</param>
+    /// <param name="settings">Optional settings dictionary for panel configuration.</param>
+    /// <returns>The panel instance, or null if type is unknown or plugin fails to load.</returns>
+    public async Task<IDisplayPanel?> CreatePanelAsync(string panelTypeId, Dictionary<string, string>? settings = null, CancellationToken cancellationToken = default)
     {
-        var normalizedId = panelTypeId.ToLowerInvariant().Trim();
+        if (_debug) Console.WriteLine($"[DEBUG] PanelFactory.CreatePanelAsync: Creating panel '{panelTypeId}'");
 
-        BaseLivePanel? panel = normalizedId switch
+        if (string.IsNullOrWhiteSpace(panelTypeId))
         {
-            "cpu-info" => new CpuInfoPanel(_systemProvider),
-            "cpu-usage-text" => new CpuUsageTextPanel(_systemProvider),
-            "cpu-usage-graphic" => new CpuUsageGraphicPanel(_systemProvider),
+            _logger?.LogWarning("Cannot create panel: panel type ID is empty");
+            if (_debug) Console.WriteLine("[DEBUG] PanelFactory.CreatePanelAsync: Panel type ID is empty!");
+            return null;
+        }
 
-            "ram-info" => new RamInfoPanel(_systemProvider),
-            "ram-usage-text" => new RamUsageTextPanel(_systemProvider),
-            "ram-usage-graphic" => new RamUsageGraphicPanel(_systemProvider),
+        var normalizedId = panelTypeId.Trim();
 
-            "gpu-info" => new GpuInfoPanel(_systemProvider),
-            "gpu-usage-text" => new GpuUsageTextPanel(_systemProvider),
-            "gpu-usage-graphic" => new GpuUsageGraphicPanel(_systemProvider),
+        // Parse panel type and argument (e.g., "video:path/to/file.mp4" -> type="video", arg="path/to/file.mp4")
+        var (baseType, argument) = ParsePanelTypeId(normalizedId);
+        if (_debug) Console.WriteLine($"[DEBUG] PanelFactory.CreatePanelAsync: Parsed as baseType='{baseType}', argument='{argument}'");
 
-            "basic-info" => new BasicInfoPanel(_systemProvider),
-            "basic-usage-text" => new BasicUsageTextPanel(_systemProvider),
-
-            "proxmox-summary" when _proxmoxProvider != null => new ProxmoxSummaryPanel(_proxmoxProvider),
-            "proxmox-vms" when _proxmoxProvider != null => new ProxmoxVmsPanel(_proxmoxProvider),
-
-            _ => null
-        };
-
-        if (panel != null)
+        // Find which plugin provides this panel type
+        var pluginId = _pluginManager.FindPluginForPanelType(baseType);
+        if (pluginId == null)
         {
-            panel.SetColorScheme(_colorScheme);
+            _logger?.LogWarning("No plugin found for panel type: {PanelType}", baseType);
+            if (_debug) Console.WriteLine($"[DEBUG] PanelFactory.CreatePanelAsync: No plugin found for panel type '{baseType}'!");
+            return null;
+        }
+        if (_debug) Console.WriteLine($"[DEBUG] PanelFactory.CreatePanelAsync: Found plugin '{pluginId}' for type '{baseType}'");
+
+        try
+        {
+            // Load the plugin (if not already loaded)
+            if (_debug) Console.WriteLine($"[DEBUG] PanelFactory.CreatePanelAsync: Loading plugin '{pluginId}'...");
+            var plugin = await _pluginManager.LoadPluginAsync(pluginId, cancellationToken);
+            if (plugin == null)
+            {
+                _logger?.LogWarning("Failed to load plugin {PluginId} for panel type {PanelType}", pluginId, baseType);
+                if (_debug) Console.WriteLine($"[DEBUG] PanelFactory.CreatePanelAsync: Failed to load plugin '{pluginId}'!");
+                return null;
+            }
+            if (_debug) Console.WriteLine($"[DEBUG] PanelFactory.CreatePanelAsync: Plugin loaded: {plugin.DisplayName} v{plugin.Version}");
+
+            // Create panel context
+            if (_debug) Console.WriteLine($"[DEBUG] PanelFactory.CreatePanelAsync: Creating context with SystemProvider={(_systemProvider != null ? _systemProvider.Name : "null")}");
+            var context = new PanelCreationContext
+            {
+                PanelTypeId = normalizedId,
+                Argument = argument,
+                Settings = settings,
+                SystemProvider = _systemProvider,
+                ProxmoxProvider = _proxmoxProvider,
+                ColorScheme = _colorScheme,
+                LoggerFactory = _loggerFactory
+            };
+
+            // Create panel via plugin
+            if (_debug) Console.WriteLine($"[DEBUG] PanelFactory.CreatePanelAsync: Calling plugin.CreatePanel...");
+            var panel = plugin.CreatePanel(normalizedId, context);
+
+            if (panel == null)
+            {
+                _logger?.LogWarning("Plugin {PluginId} returned null for panel type {PanelType}", pluginId, normalizedId);
+                if (_debug) Console.WriteLine($"[DEBUG] PanelFactory.CreatePanelAsync: Plugin returned null for panel type '{normalizedId}'!");
+                return null;
+            }
+            if (_debug) Console.WriteLine($"[DEBUG] PanelFactory.CreatePanelAsync: Panel created successfully: {panel.PanelId}");
+
+            // Apply color scheme if it's a BaseLivePanel
+            if (panel is BaseLivePanel livePanel)
+            {
+                livePanel.SetColorScheme(_colorScheme);
+            }
+
             return panel;
         }
-
-        return HandleUnknownPanel(normalizedId);
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error creating panel {PanelType} via plugin {PluginId}", normalizedId, pluginId);
+            if (_debug) Console.WriteLine($"[DEBUG] PanelFactory.CreatePanelAsync: Exception - {ex.GetType().Name}: {ex.Message}");
+            return null;
+        }
     }
 
-    private IDisplayPanel? HandleUnknownPanel(string panelTypeId)
+    /// <summary>
+    /// Synchronous wrapper for CreatePanelAsync for backward compatibility.
+    /// </summary>
+    public IDisplayPanel? CreatePanel(string panelTypeId, Dictionary<string, string>? settings = null)
     {
-        _logger?.LogWarning("Unknown panel type: {PanelType}", panelTypeId);
+        return CreatePanelAsync(panelTypeId, settings).GetAwaiter().GetResult();
+    }
 
-        if (panelTypeId.StartsWith("proxmox") && _proxmoxProvider == null)
+    /// <summary>
+    /// Parses a panel type ID into its base type and optional argument.
+    /// </summary>
+    /// <example>
+    /// "cpu-info" -> ("cpu-info", null)
+    /// "video:path/to/file.mp4" -> ("video", "path/to/file.mp4")
+    /// "animated-gif:https://example.com/image.gif" -> ("animated-gif", "https://example.com/image.gif")
+    /// </example>
+    private static (string baseType, string? argument) ParsePanelTypeId(string panelTypeId)
+    {
+        var colonIndex = panelTypeId.IndexOf(':');
+        if (colonIndex <= 0)
         {
-            _logger?.LogWarning("Proxmox panel requested but Proxmox provider is not available");
+            return (panelTypeId.ToLowerInvariant(), null);
         }
 
-        return null;
+        var baseType = panelTypeId[..colonIndex].ToLowerInvariant();
+        var argument = panelTypeId[(colonIndex + 1)..].Trim();
+
+        return (baseType, string.IsNullOrEmpty(argument) ? null : argument);
     }
 }

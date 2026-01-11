@@ -1,11 +1,16 @@
 using LCDPossible.Core.Configuration;
 using LCDPossible.Core.Devices;
+using LCDPossible.Core.Ipc;
 using LCDPossible.Core.Monitoring;
+using LCDPossible.Core.Plugins;
 using LCDPossible.Core.Rendering;
+using LCDPossible.Ipc;
 using LCDPossible.Monitoring;
 using LCDPossible.Panels;
 using Microsoft.Extensions.Options;
+using SixLabors.Fonts;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
@@ -16,8 +21,10 @@ namespace LCDPossible;
 /// </summary>
 public sealed class LcdWorker : BackgroundService
 {
+    private readonly IHostApplicationLifetime _appLifetime;
     private readonly DeviceManager _deviceManager;
     private readonly ProfileLoader _profileLoader;
+    private readonly PluginManager _pluginManager;
     private readonly ILogger<LcdWorker> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly LcdPossibleOptions _options;
@@ -26,21 +33,30 @@ public sealed class LcdWorker : BackgroundService
     private readonly Dictionary<string, Image<Rgba32>?> _staticImages = [];
     private readonly Dictionary<string, SlideshowManager> _slideshows = [];
     private readonly Dictionary<string, IDisplayPanel> _singlePanels = [];
+    private readonly Dictionary<string, float> _brightnessLevels = []; // 0.0 to 1.0
+    private readonly Dictionary<string, (Image<Rgba32> ErrorFrame, string ErrorMessage)> _panelErrorCache = [];
+    private readonly HashSet<string> _failedPanels = [];
 
     private ISystemInfoProvider? _systemProvider;
     private IProxmoxProvider? _proxmoxProvider;
     private PanelFactory? _panelFactory;
     private DisplayProfile? _displayProfile;
+    private IpcServer? _ipcServer;
+    private IpcCommandHandler? _ipcCommandHandler;
 
     public LcdWorker(
+        IHostApplicationLifetime appLifetime,
         DeviceManager deviceManager,
         ProfileLoader profileLoader,
+        PluginManager pluginManager,
         IOptions<LcdPossibleOptions> options,
         ILogger<LcdWorker> logger,
         ILoggerFactory loggerFactory)
     {
+        _appLifetime = appLifetime ?? throw new ArgumentNullException(nameof(appLifetime));
         _deviceManager = deviceManager ?? throw new ArgumentNullException(nameof(deviceManager));
         _profileLoader = profileLoader ?? throw new ArgumentNullException(nameof(profileLoader));
+        _pluginManager = pluginManager ?? throw new ArgumentNullException(nameof(pluginManager));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
@@ -73,6 +89,9 @@ public sealed class LcdWorker : BackgroundService
             // Initialize slideshows and panels for each device
             await InitializeDisplayModesAsync(stoppingToken);
 
+            // Start IPC server for CLI communication
+            await StartIpcServerAsync(stoppingToken);
+
             // Main render loop
             var frameDelay = TimeSpan.FromMilliseconds(1000.0 / _options.General.TargetFrameRate);
 
@@ -101,6 +120,9 @@ public sealed class LcdWorker : BackgroundService
         }
         finally
         {
+            // Stop IPC server
+            await StopIpcServerAsync();
+
             _deviceManager.StopMonitoring();
             _deviceManager.DeviceDiscovered -= OnDeviceDiscovered;
             _deviceManager.DeviceDisconnected -= OnDeviceDisconnected;
@@ -124,6 +146,14 @@ public sealed class LcdWorker : BackgroundService
             }
             _staticImages.Clear();
 
+            // Cleanup error caches
+            foreach (var cached in _panelErrorCache.Values)
+            {
+                cached.ErrorFrame.Dispose();
+            }
+            _panelErrorCache.Clear();
+            _failedPanels.Clear();
+
             _systemProvider?.Dispose();
             _proxmoxProvider?.Dispose();
 
@@ -140,17 +170,10 @@ public sealed class LcdWorker : BackgroundService
 
     private async Task InitializeProvidersAsync(CancellationToken cancellationToken)
     {
-        // Initialize local hardware monitoring
-        try
-        {
-            _systemProvider = new LocalHardwareProvider(_loggerFactory.CreateLogger<LocalHardwareProvider>());
-            await _systemProvider.InitializeAsync(cancellationToken);
-            _logger.LogInformation("Local hardware monitoring initialized");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to initialize local hardware monitoring");
-        }
+        // Use stub system provider - actual hardware monitoring is done by the Core plugin
+        _systemProvider = new StubSystemInfoProvider();
+        await _systemProvider.InitializeAsync(cancellationToken);
+        _logger.LogInformation("System info provider initialized (stub - plugins provide real data)");
 
         // Initialize Proxmox if configured
         if (_options.Proxmox.Enabled)
@@ -169,11 +192,16 @@ public sealed class LcdWorker : BackgroundService
             }
         }
 
+        // Discover available plugins
+        _pluginManager.DiscoverPlugins();
+        _logger.LogInformation("Discovered {Count} plugins", _pluginManager.DiscoveredPlugins.Count);
+
         // Create panel factory with color scheme from profile
         _panelFactory = new PanelFactory(
-            _systemProvider ?? new LocalHardwareProvider(),
+            _pluginManager,
+            _systemProvider,
             _proxmoxProvider,
-            _loggerFactory.CreateLogger<PanelFactory>());
+            _loggerFactory);
 
         if (_displayProfile != null)
         {
@@ -425,6 +453,10 @@ public sealed class LcdWorker : BackgroundService
                         disposeFrame = true;
                     }
 
+                    // Apply software brightness adjustment
+                    var brightness = GetBrightnessLevel(configKey);
+                    ApplyBrightness(frame, brightness);
+
                     var encoded = _encoder.Encode(frame, device.Capabilities);
                     await device.SendFrameAsync(encoded, ColorFormat.Jpeg, cancellationToken);
 
@@ -453,15 +485,53 @@ public sealed class LcdWorker : BackgroundService
 
     private async Task<Image<Rgba32>?> GetPanelFrameAsync(string configKey, LcdCapabilities capabilities, CancellationToken cancellationToken)
     {
-        if (_singlePanels.TryGetValue(configKey, out var panel))
+        IDisplayPanel? panel = null;
+        var panelKey = configKey;
+
+        if (_singlePanels.TryGetValue(configKey, out panel))
+        {
+            panelKey = configKey;
+        }
+        else if (_singlePanels.TryGetValue("default", out panel))
+        {
+            panelKey = "default";
+        }
+
+        if (panel == null)
+        {
+            return GenerateSolidColor(capabilities, new Rgba32(30, 30, 40));
+        }
+
+        // If this panel has previously failed, return the cached error frame
+        if (_failedPanels.Contains(panelKey))
+        {
+            if (_panelErrorCache.TryGetValue(panelKey, out var errorCached))
+            {
+                return errorCached.ErrorFrame.Clone();
+            }
+        }
+
+        try
         {
             return await panel.RenderFrameAsync(capabilities.Width, capabilities.Height, cancellationToken);
         }
-        if (_singlePanels.TryGetValue("default", out panel))
+        catch (OperationCanceledException)
         {
-            return await panel.RenderFrameAsync(capabilities.Width, capabilities.Height, cancellationToken);
+            throw;
         }
-        return GenerateSolidColor(capabilities, new Rgba32(30, 30, 40));
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Panel '{PanelId}' failed to render: {Message}", panel.PanelId, ex.Message);
+
+            // Mark as failed and cache error page
+            _failedPanels.Add(panelKey);
+            var errorFrame = GenerateErrorPage(capabilities.Width, capabilities.Height, panel.PanelId, ex.Message);
+            _panelErrorCache[panelKey] = (errorFrame, ex.Message);
+
+            _logger.LogWarning("Panel '{PanelId}' marked as failed - displaying error page", panel.PanelId);
+
+            return errorFrame.Clone();
+        }
     }
 
     private async Task<Image<Rgba32>?> GetSlideshowFrameAsync(string configKey, LcdCapabilities capabilities, CancellationToken cancellationToken)
@@ -568,6 +638,107 @@ public sealed class LcdWorker : BackgroundService
         return p;
     }
 
+    /// <summary>
+    /// Generates an error page image for display when a panel fails.
+    /// </summary>
+    private static Image<Rgba32> GenerateErrorPage(int width, int height, string panelName, string errorMessage)
+    {
+        var image = new Image<Rgba32>(width, height);
+
+        // Dark red gradient background
+        image.Mutate(ctx =>
+        {
+            ctx.BackgroundColor(new Rgba32(40, 10, 10));
+        });
+
+        // Try to load system font for error text
+        Font? titleFont = null;
+        Font? messageFont = null;
+        Font? hintFont = null;
+
+        try
+        {
+            if (SystemFonts.TryGet("Segoe UI", out var family) ||
+                SystemFonts.TryGet("Arial", out family) ||
+                SystemFonts.TryGet("DejaVu Sans", out family))
+            {
+                titleFont = family.CreateFont(28, FontStyle.Bold);
+                messageFont = family.CreateFont(18, FontStyle.Regular);
+                hintFont = family.CreateFont(14, FontStyle.Italic);
+            }
+        }
+        catch
+        {
+            // Font loading failed, we'll render without text
+        }
+
+        if (titleFont != null && messageFont != null && hintFont != null)
+        {
+            var errorColor = new Rgba32(255, 100, 100);
+            var textColor = new Rgba32(220, 220, 220);
+            var hintColor = new Rgba32(150, 150, 150);
+
+            image.Mutate(ctx =>
+            {
+                var y = height * 0.25f;
+
+                // Error icon (simple X)
+                var centerX = width / 2f;
+                ctx.DrawLine(errorColor, 4f, new PointF(centerX - 30, y - 30), new PointF(centerX + 30, y + 30));
+                ctx.DrawLine(errorColor, 4f, new PointF(centerX + 30, y - 30), new PointF(centerX - 30, y + 30));
+
+                y += 60;
+
+                // Title
+                var title = "Panel Error";
+                var titleOptions = new RichTextOptions(titleFont)
+                {
+                    Origin = new PointF(centerX, y),
+                    HorizontalAlignment = HorizontalAlignment.Center
+                };
+                ctx.DrawText(titleOptions, title, errorColor);
+
+                y += 50;
+
+                // Panel name
+                var panelText = $"Panel: {panelName}";
+                var panelOptions = new RichTextOptions(messageFont)
+                {
+                    Origin = new PointF(centerX, y),
+                    HorizontalAlignment = HorizontalAlignment.Center
+                };
+                ctx.DrawText(panelOptions, panelText, textColor);
+
+                y += 35;
+
+                // Error message (truncate if too long)
+                var displayError = errorMessage.Length > 80
+                    ? errorMessage[..77] + "..."
+                    : errorMessage;
+                var errorOptions = new RichTextOptions(messageFont)
+                {
+                    Origin = new PointF(centerX, y),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    WrappingLength = width - 40
+                };
+                ctx.DrawText(errorOptions, displayError, textColor);
+
+                y += 60;
+
+                // Hint
+                var hint = "Panel disabled until restart";
+                var hintOptions = new RichTextOptions(hintFont)
+                {
+                    Origin = new PointF(centerX, y),
+                    HorizontalAlignment = HorizontalAlignment.Center
+                };
+                ctx.DrawText(hintOptions, hint, hintColor);
+            });
+        }
+
+        return image;
+    }
+
     private void OnDeviceDiscovered(object? sender, LcdDeviceEventArgs e)
     {
         _logger.LogInformation("New device discovered: {Device}", e.Device.Info);
@@ -592,4 +763,169 @@ public sealed class LcdWorker : BackgroundService
         _logger.LogInformation("Device disconnected: {Device}", e.Device.Info);
         _connectedDevices.Remove(e.Device.Info.UniqueId);
     }
+
+    #region IPC Server
+
+    private async Task StartIpcServerAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            _ipcServer = new IpcServer(_loggerFactory.CreateLogger<IpcServer>());
+            _ipcCommandHandler = new IpcCommandHandler(
+                _appLifetime,
+                _deviceManager,
+                _panelFactory,
+                () => _connectedDevices,
+                () => _slideshows,
+                () => _displayProfile,
+                SetSlideshowAsync,
+                SetStaticImageAsync,
+                SetBrightnessAsync,
+                _loggerFactory.CreateLogger<IpcCommandHandler>());
+
+            _ipcServer.RequestReceived += OnIpcRequest;
+            await _ipcServer.StartAsync(cancellationToken);
+
+            _logger.LogInformation("IPC server started at {Path}", IpcPaths.GetFullPipePath());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to start IPC server. CLI commands will not work while service is running.");
+        }
+    }
+
+    private async Task StopIpcServerAsync()
+    {
+        if (_ipcServer is null)
+            return;
+
+        try
+        {
+            _ipcServer.RequestReceived -= OnIpcRequest;
+            await _ipcServer.StopAsync(CancellationToken.None);
+            _ipcServer.Dispose();
+            _ipcServer = null;
+            _ipcCommandHandler = null;
+            _logger.LogInformation("IPC server stopped");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error stopping IPC server");
+        }
+    }
+
+    private async void OnIpcRequest(object? sender, IpcRequestEventArgs e)
+    {
+        if (_ipcCommandHandler is null)
+        {
+            await e.SendResponseAsync(
+                IpcResponse.Fail(e.Request.Id, IpcErrorCodes.InternalError, "Command handler not initialized"),
+                CancellationToken.None);
+            return;
+        }
+
+        try
+        {
+            var response = await _ipcCommandHandler.HandleAsync(e.Request, CancellationToken.None);
+            await e.SendResponseAsync(response, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling IPC request");
+            await e.SendResponseAsync(
+                IpcResponse.Fail(e.Request.Id, ex),
+                CancellationToken.None);
+        }
+    }
+
+    /// <summary>
+    /// Sets or replaces the slideshow for a device/config key.
+    /// </summary>
+    internal Task SetSlideshowAsync(string configKey, SlideshowManager slideshow, CancellationToken cancellationToken)
+    {
+        // Dispose old slideshow if exists
+        if (_slideshows.TryGetValue(configKey, out var oldSlideshow))
+        {
+            oldSlideshow.Dispose();
+        }
+
+        _slideshows[configKey] = slideshow;
+        _logger.LogInformation("Slideshow updated for {ConfigKey}", configKey);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Sets a static image for a device/config key.
+    /// </summary>
+    internal Task SetStaticImageAsync(string configKey, Image<Rgba32>? image)
+    {
+        // Dispose old image if exists
+        if (_staticImages.TryGetValue(configKey, out var oldImage))
+        {
+            oldImage?.Dispose();
+        }
+
+        _staticImages[configKey] = image;
+
+        // When setting a static image, we should also update the device mode to "static"
+        // For now, the image will be used when the device mode is already "static"
+        // or we can override by temporarily replacing the slideshow
+
+        _logger.LogInformation("Static image set for {ConfigKey}", configKey);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Sets the software brightness level for a device/config key.
+    /// Note: This is software brightness (image adjustment), not hardware brightness.
+    /// The Trofeo Vision LCD does not support hardware brightness control.
+    /// </summary>
+    /// <param name="configKey">Device config key or "default".</param>
+    /// <param name="level">Brightness level 0-100 (50 = normal, 0 = black, 100 = max brightness).</param>
+    internal Task SetBrightnessAsync(string configKey, int level)
+    {
+        // Convert 0-100 to 0.0-1.0 range for ImageSharp
+        // 50 = 0.5 = normal brightness
+        // 0 = 0.0 = black
+        // 100 = 1.0 = maximum brightness
+        var normalizedLevel = Math.Clamp(level / 100f, 0f, 1f);
+        _brightnessLevels[configKey] = normalizedLevel;
+
+        _logger.LogInformation("Software brightness set to {Level}% for {ConfigKey}", level, configKey);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Gets the current brightness level for a device/config key.
+    /// </summary>
+    internal float GetBrightnessLevel(string configKey)
+    {
+        if (_brightnessLevels.TryGetValue(configKey, out var level))
+        {
+            return level;
+        }
+        if (_brightnessLevels.TryGetValue("default", out level))
+        {
+            return level;
+        }
+        return 0.5f; // Default: 50% (normal brightness)
+    }
+
+    /// <summary>
+    /// Applies software brightness adjustment to an image.
+    /// </summary>
+    private void ApplyBrightness(Image<Rgba32> image, float brightness)
+    {
+        // brightness is 0.0 to 1.0, where 0.5 is normal
+        // ImageSharp Brightness uses -1 to 1 where 0 is unchanged
+        // Convert: 0.0 -> -1.0, 0.5 -> 0.0, 1.0 -> 1.0
+        var adjustment = (brightness - 0.5f) * 2f;
+
+        if (Math.Abs(adjustment) > 0.01f)
+        {
+            image.Mutate(ctx => ctx.Brightness(1f + adjustment));
+        }
+    }
+
+    #endregion
 }

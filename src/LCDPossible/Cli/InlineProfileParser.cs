@@ -4,16 +4,51 @@ namespace LCDPossible.Cli;
 
 /// <summary>
 /// Parses inline profile format for quick CLI usage.
-/// Format: {panel}|@{param}={value}@{param}={value},{panel},...
-/// Examples:
-///   basic-info
-///   basic-info|@duration=10
-///   basic-info|@duration=10@interval=5
-///   basic-info|@duration=10,cpu-usage-graphic|@duration=15
-///   image|@path=C:\pic.jpg@duration=5
+///
+/// Formats supported:
+///   Panel only:
+///     basic-info
+///     bouncing-logo
+///
+///   With system parameters (@ prefix):
+///     basic-info|@duration=10
+///     basic-info|@duration=10@interval=5
+///
+///   With custom panel settings (pipe-separated key=value):
+///     bouncing-logo|text=HELLO|color=red|size=large
+///     bouncing-logo|text=DVD|color=#FF0000|3d=true|rotate=true
+///
+///   Mixed system and custom parameters:
+///     bouncing-logo|@duration=30|text=HELLO|color=rainbow
+///     bouncing-logo|text=TEST|@duration=15|size=large|3d=true
+///
+///   Multiple panels (comma-separated):
+///     basic-info|@duration=10,cpu-usage-graphic|@duration=15
+///     bouncing-logo|text=DVD|color=cycle,starfield|@duration=20
+///
+/// System parameters (@ prefix, apply to slideshow behavior):
+///   @duration=N  - Display duration in seconds
+///   @interval=N  - Update interval in seconds
+///   @background=path - Background image path
+///   @path=path   - Image source path (for type=image)
+///
+/// Custom parameters (no @ prefix, passed to panel plugin):
+///   Any key=value pair without @ is treated as a custom panel setting.
+///   These are passed to the panel plugin via Settings dictionary.
 /// </summary>
 public static class InlineProfileParser
 {
+    // System parameters that affect slideshow behavior (not passed to panel)
+    private static readonly HashSet<string> SystemParameters = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "duration",
+        "interval",
+        "background",
+        "path",
+        "transition",
+        "transition_duration"
+    };
+
     /// <summary>
     /// Parses an inline profile string into slideshow items.
     /// </summary>
@@ -51,12 +86,11 @@ public static class InlineProfileParser
         }
 
         // Split by | to separate panel name from parameters
-        var parts = spec.Split('|', 2);
+        var parts = spec.Split('|');
         var panelOrType = parts[0].Trim();
-        var paramsString = parts.Length > 1 ? parts[1] : string.Empty;
 
-        // Parse parameters (format: @param=value@param=value)
-        var parameters = ParseParameters(paramsString);
+        // Parse all parameters from remaining parts
+        var (systemParams, customSettings) = ParseAllParameters(parts.Skip(1));
 
         // Create the slideshow item
         var item = new SlideshowItem();
@@ -65,7 +99,7 @@ public static class InlineProfileParser
         if (panelOrType.Equals("image", StringComparison.OrdinalIgnoreCase))
         {
             item.Type = "image";
-            item.Source = parameters.GetValueOrDefault("path", string.Empty);
+            item.Source = systemParams.GetValueOrDefault("path", string.Empty);
         }
         else
         {
@@ -73,39 +107,97 @@ public static class InlineProfileParser
             item.Source = panelOrType;
         }
 
-        // Apply parameters
-        if (parameters.TryGetValue("duration", out var durationStr) && int.TryParse(durationStr, out var duration))
+        // Apply system parameters
+        if (systemParams.TryGetValue("duration", out var durationStr) && int.TryParse(durationStr, out var duration))
         {
             item.DurationSeconds = duration;
         }
 
-        if (parameters.TryGetValue("interval", out var intervalStr) && int.TryParse(intervalStr, out var interval))
+        if (systemParams.TryGetValue("interval", out var intervalStr) && int.TryParse(intervalStr, out var interval))
         {
             item.UpdateIntervalSeconds = interval;
         }
 
-        if (parameters.TryGetValue("background", out var background))
+        if (systemParams.TryGetValue("background", out var background))
         {
             item.BackgroundImage = background;
         }
 
         // For image type, also check "path" as source
-        if (item.Type == "image" && parameters.TryGetValue("path", out var path))
+        if (item.Type == "image" && systemParams.TryGetValue("path", out var path))
         {
             item.Source = path;
+        }
+
+        // Set custom panel settings if any exist
+        if (customSettings.Count > 0)
+        {
+            item.Settings = customSettings;
         }
 
         return item;
     }
 
-    private static Dictionary<string, string> ParseParameters(string paramsString)
+    /// <summary>
+    /// Parses parameters from pipe-separated segments.
+    /// Supports both @ prefix format and plain key=value format.
+    /// </summary>
+    /// <returns>Tuple of (system parameters, custom panel settings)</returns>
+    private static (Dictionary<string, string> system, Dictionary<string, string> custom) ParseAllParameters(IEnumerable<string> segments)
+    {
+        var systemParams = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var customSettings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var segment in segments)
+        {
+            if (string.IsNullOrWhiteSpace(segment))
+            {
+                continue;
+            }
+
+            var trimmed = segment.Trim();
+
+            // Check if this segment uses @ format (can contain multiple @key=value pairs)
+            if (trimmed.StartsWith('@') || trimmed.Contains('@'))
+            {
+                // Parse @ format: @key=value@key=value
+                var atParams = ParseAtFormatParameters(trimmed);
+                foreach (var (key, value) in atParams)
+                {
+                    // All @ prefixed params are system params
+                    systemParams[key] = value;
+                }
+            }
+            else if (trimmed.Contains('='))
+            {
+                // Plain key=value format
+                var eqIndex = trimmed.IndexOf('=');
+                if (eqIndex > 0)
+                {
+                    var key = trimmed[..eqIndex].Trim();
+                    var value = trimmed[(eqIndex + 1)..].Trim();
+
+                    if (SystemParameters.Contains(key))
+                    {
+                        systemParams[key] = value;
+                    }
+                    else
+                    {
+                        customSettings[key] = value;
+                    }
+                }
+            }
+        }
+
+        return (systemParams, customSettings);
+    }
+
+    /// <summary>
+    /// Parses the @ format: @key=value@key=value...
+    /// </summary>
+    private static Dictionary<string, string> ParseAtFormatParameters(string paramsString)
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-        if (string.IsNullOrWhiteSpace(paramsString))
-        {
-            return result;
-        }
 
         // Remove leading @ if present
         paramsString = paramsString.TrimStart('@');
@@ -153,8 +245,7 @@ public static class InlineProfileParser
                     return (false, "Panel type specified but no panel name provided");
                 }
 
-                if (!Panels.PanelFactory.AvailablePanels.Contains(item.Source, StringComparer.OrdinalIgnoreCase) &&
-                    !item.Source.StartsWith("proxmox", StringComparison.OrdinalIgnoreCase))
+                if (!IsValidPanelType(item.Source))
                 {
                     return (false, $"Unknown panel type: {item.Source}");
                 }
@@ -169,5 +260,53 @@ public static class InlineProfileParser
         }
 
         return (true, null);
+    }
+
+    /// <summary>
+    /// Checks if a panel type string is valid.
+    /// Handles both exact matches (cpu-info) and prefix-based panels (animated-gif:path, video:url).
+    /// Note: Since plugins are loaded on-demand, we can only validate known patterns here.
+    /// The actual panel loading will fail later if the panel type doesn't exist.
+    /// </summary>
+    private static bool IsValidPanelType(string panelType)
+    {
+        var lowerType = panelType.ToLowerInvariant();
+
+        // Check for prefix-based media panels
+        string[] mediaPrefixes = ["animated-gif:", "image-sequence:", "video:", "html:", "web:"];
+        foreach (var prefix in mediaPrefixes)
+        {
+            if (lowerType.StartsWith(prefix))
+            {
+                return true;
+            }
+        }
+
+        // Check for proxmox panels
+        if (lowerType.StartsWith("proxmox"))
+        {
+            return true;
+        }
+
+        // Known built-in panel types (core plugin)
+        string[] coreTypes =
+        [
+            "basic-info", "basic-usage-text", "os-info", "os-status", "os-notifications",
+            "cpu-info", "cpu-usage-text", "cpu-usage-graphic",
+            "gpu-info", "gpu-usage-text", "gpu-usage-graphic",
+            "ram-info", "ram-usage-text", "ram-usage-graphic"
+        ];
+
+        foreach (var coreType in coreTypes)
+        {
+            if (coreType.Equals(lowerType, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        // Allow any panel type that looks valid (will be validated at load time)
+        // This allows user plugins without requiring plugin loading for validation
+        return !string.IsNullOrWhiteSpace(panelType) && !panelType.Contains(' ');
     }
 }

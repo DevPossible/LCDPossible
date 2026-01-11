@@ -207,6 +207,19 @@ public abstract class BaseLivePanel : IDisplayPanel
         DrawText(ctx, timestamp, width - 100, height - 30, SmallFont, Colors.TextMuted, 90);
     }
 
+    /// <summary>
+    /// Truncates text to the specified maximum length, adding ellipsis if needed.
+    /// </summary>
+    protected static string TruncateText(string text, int maxLength)
+    {
+        if (string.IsNullOrEmpty(text) || text.Length <= maxLength)
+        {
+            return text ?? string.Empty;
+        }
+
+        return text[..(maxLength - 3)] + "...";
+    }
+
     public virtual void Dispose()
     {
         _disposed = true;

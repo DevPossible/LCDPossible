@@ -3,8 +3,11 @@ $ErrorActionPreference = 'Stop'
 
 Push-Location $PSScriptRoot
 try {
-    # Run unit tests (all tests in the solution, excluding integration tests in /tests/)
-    dotnet test src/LCDPossible.sln --configuration Release --no-build
+    # Run only unit tests (fast) - excludes functional tests which are slow
+    dotnet test src/LCDPossible.sln `
+        --configuration Release `
+        --no-build `
+        --filter "FullyQualifiedName!~FunctionalTests"
 }
 finally {
     Pop-Location
