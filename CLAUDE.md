@@ -159,6 +159,7 @@ The `LCDPossible` executable handles both service and CLI modes:
 | `gpu-usage-graphic` | GPU usage with visual bars |
 | `basic-info` | Hostname, OS, uptime summary |
 | `basic-usage-text` | Basic system usage as text |
+| `network-info` | Network interfaces (smart layout, 1-4 widgets) |
 | `proxmox-summary` | Proxmox cluster overview |
 | `proxmox-vms` | Proxmox VM/Container list |
 | `animated-gif:<path\|url>` | Animated GIF from file or URL |
@@ -213,6 +214,105 @@ public interface IDisplayPanel : IDisposable
     Task InitializeAsync(CancellationToken ct);
     Task<Image<Rgba32>> RenderFrameAsync(int width, int height, CancellationToken ct);
 }
+```
+
+## Creating New Panels
+
+When implementing new display panels, choose the appropriate base class based on the panel's content type.
+
+### Panel Base Class Decision
+
+| Content Type | Base Class | Examples |
+|--------------|------------|----------|
+| Single fixed layout | `BaseLivePanel` | cpu-info, ram-usage-text, gpu-usage-graphic |
+| Variable item count (0-N items) | `SmartLayoutPanel<T>` | network-info, storage-info, sensors-info |
+| Media/animation | Plugin via `IPanelPlugin` | animated-gif, video, web |
+| Screensaver/effects | Plugin via `IPanelPlugin` | plasma, matrix, starfield |
+
+### SmartLayoutPanel (Variable Items)
+
+Use `SmartLayoutPanel<T>` when the panel displays **0 or more items** that should adapt to available space. The layout system automatically:
+- Determines optimal widget count (1-4) based on item count
+- Scales fonts proportionally based on widget size
+- Handles empty state (0 items) with customizable message
+- Shows overflow indicator when items exceed 4
+
+**Key features:**
+- **Resolution-agnostic**: All calculations use percentages, not hardcoded pixels
+- **Font scaling**: Based on widget height relative to 480px reference
+- **Empty state**: Override `GetEmptyStateMessage()` to customize
+
+```csharp
+public sealed class NetworkInfoPanel : SmartLayoutPanel<NetworkInterfaceInfo>
+{
+    public override string PanelId => "network-info";
+    public override string DisplayName => "Network Interfaces";
+
+    // Return items to display (0 or more)
+    protected override Task<IReadOnlyList<NetworkInterfaceInfo>> GetItemsAsync(CancellationToken ct)
+        => _provider.GetNetworkInterfacesAsync(ct);
+
+    // Render single item into widget area (fonts/bounds are pre-scaled)
+    protected override void RenderWidget(
+        IImageProcessingContext ctx,
+        WidgetRenderContext widget,
+        NetworkInterfaceInfo item)
+    {
+        DrawText(ctx, item.Name, widget.ContentX, widget.ContentY,
+                 widget.Fonts.Title, widget.Colors.Accent);
+        // ... render item details using widget.Fonts and widget.Bounds
+    }
+
+    // Optional: customize empty state message
+    protected override string GetEmptyStateMessage() => "No network interfaces detected";
+}
+```
+
+**Widget layout patterns:**
+
+| Items | Layout | Font Scale |
+|-------|--------|------------|
+| 0 | Empty state message | N/A |
+| 1 | Full panel (100%) | 1.0× |
+| 2 | Side-by-side (50% each) | 0.85× |
+| 3 | Left large + right stack | 0.85× / 0.7× |
+| 4 | 2×2 grid (25% each) | 0.7× |
+| 5+ | 3 widgets + "+N more" | 0.7× |
+
+See `docs/Smart-Widget-Layout-Plan.md` for detailed implementation specifications.
+
+### BaseLivePanel (Fixed Layout)
+
+Use `BaseLivePanel` for panels with a **single fixed layout** that always displays the same structure regardless of content.
+
+```csharp
+public sealed class CpuInfoPanel : BaseLivePanel
+{
+    public override string PanelId => "cpu-info";
+    public override string DisplayName => "CPU Info";
+
+    public override async Task<Image<Rgba32>> RenderFrameAsync(int width, int height, CancellationToken ct)
+    {
+        var image = CreateBaseImage(width, height);
+        var metrics = await _provider.GetMetricsAsync(ct);
+
+        image.Mutate(ctx =>
+        {
+            // Fixed layout using TitleFont, ValueFont, LabelFont, SmallFont
+            DrawText(ctx, "CPU", 20, 20, TitleFont!, AccentColor, width - 40);
+            // ...
+        });
+
+        return image;
+    }
+}
+```
+
+### Panel Registration
+
+Register new panels in `PanelFactory.cs`:
+```csharp
+{ "network-info", new PanelMetadata("Network Interfaces", "System", true, false) },
 ```
 
 ## Platform-Specific Notes

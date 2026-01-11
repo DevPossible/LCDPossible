@@ -211,6 +211,36 @@ public sealed class NetworkMetrics
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
+    /// Network interface description (adapter model).
+    /// </summary>
+    public string Description { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Interface type (Ethernet, WiFi, etc.).
+    /// </summary>
+    public string InterfaceType { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Operational status (Up, Down, etc.).
+    /// </summary>
+    public string Status { get; set; } = string.Empty;
+
+    /// <summary>
+    /// IPv4 address (primary).
+    /// </summary>
+    public string IpAddress { get; set; } = string.Empty;
+
+    /// <summary>
+    /// MAC address.
+    /// </summary>
+    public string MacAddress { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Link speed in Mbps (e.g., 1000 for Gigabit).
+    /// </summary>
+    public long LinkSpeedMbps { get; set; }
+
+    /// <summary>
     /// Download speed in MB/s.
     /// </summary>
     public float DownloadSpeedMbps { get; set; }
@@ -229,4 +259,9 @@ public sealed class NetworkMetrics
     /// Total bytes sent.
     /// </summary>
     public long TotalBytesSent { get; set; }
+
+    /// <summary>
+    /// Returns true if the interface is operational (status is "Up").
+    /// </summary>
+    public bool IsUp => Status.Equals("Up", StringComparison.OrdinalIgnoreCase);
 }
