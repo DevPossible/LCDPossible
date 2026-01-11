@@ -46,17 +46,23 @@
   <!-- Copy plugins to output/plugins/{pluginname}/ after build -->
   <Target Name="CopyPlugins" AfterTargets="Build">
     <PropertyGroup>
-      <PluginsOutputDir>$(OutputPath)plugins\</PluginsOutputDir>
-      <PluginsBuildRoot>$(MSBuildThisFileDirectory)..\Plugins\</PluginsBuildRoot>
-      <BuildOutputRoot>$(MSBuildThisFileDirectory)..\..\..\.build\</BuildOutputRoot>
+      <!-- Use TargetDir which includes the TargetFramework folder -->
+      <PluginsOutputDir>$(TargetDir)plugins\</PluginsOutputDir>
+      <!-- From src/LCDPossible/, go up 2 levels to reach .build/ -->
+      <BuildOutputRoot>$(MSBuildThisFileDirectory)..\..\.build\</BuildOutputRoot>
     </PropertyGroup>
 
-    <!-- Core plugin -->
+    <!-- Core plugin (outputs directly to bin/Configuration/ without framework folder) -->
     <ItemGroup>
-      <CorePluginFiles Include="$(BuildOutputRoot)LCDPossible.Plugins.Core\bin\$(Configuration)\**\*.*" />
+      <CorePluginFiles Include="$(BuildOutputRoot)LCDPossible.Plugins.Core\bin\$(Configuration)\**\*.*"
+                       Exclude="$(BuildOutputRoot)LCDPossible.Plugins.Core\bin\$(Configuration)\runtimes\**\*.*" />
+      <CorePluginRuntimeFiles Include="$(BuildOutputRoot)LCDPossible.Plugins.Core\bin\$(Configuration)\runtimes\**\*.*" />
     </ItemGroup>
     <Copy SourceFiles="@(CorePluginFiles)"
           DestinationFolder="$(PluginsOutputDir)core\%(RecursiveDir)"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(CorePluginRuntimeFiles)"
+          DestinationFolder="$(PluginsOutputDir)core\runtimes\%(RecursiveDir)"
           SkipUnchangedFiles="true" />
 
     <!-- Images plugin -->
@@ -90,6 +96,8 @@
     <Copy SourceFiles="@(ProxmoxPluginFiles)"
           DestinationFolder="$(PluginsOutputDir)proxmox\%(RecursiveDir)"
           SkipUnchangedFiles="true" />
+
+    <Message Text="Copied plugins to $(PluginsOutputDir)" Importance="high" />
   </Target>
 
 </Project>
