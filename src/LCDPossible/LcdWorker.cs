@@ -1,3 +1,4 @@
+using LCDPossible.Core.Caching;
 using LCDPossible.Core.Configuration;
 using LCDPossible.Core.Devices;
 using LCDPossible.Core.Ipc;
@@ -846,6 +847,10 @@ public sealed class LcdWorker : BackgroundService
     internal async Task ReloadProfileAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Reloading display profile...");
+
+        // Clear the asset cache to force re-download of URL-based content
+        AssetCache.Clear();
+        _logger.LogDebug("Cleared asset cache");
 
         // Reload profile from disk
         var newProfile = _profileLoader.LoadProfile();

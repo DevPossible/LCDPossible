@@ -15,7 +15,8 @@ public sealed class ProfileCommandTests : IDisposable
         _cli = new CliRunner();
 
         // Ensure clean state - delete any existing default profile
-        _cli.DeleteProfile("default");
+        // Note: Default profile name is "profile" (matches ProfileLoader)
+        _cli.DeleteProfile("profile");
     }
 
     public void Dispose()
@@ -226,16 +227,17 @@ public sealed class ProfileCommandTests : IDisposable
     public void Profile_AppendPanel_ToDefaultProfile_CreatesDefault()
     {
         // Arrange - ensure no default profile exists
-        _cli.DeleteProfile("default");
+        // Note: Default profile name is "profile" (matches ProfileLoader)
+        _cli.DeleteProfile("profile");
 
         // Act - append to default (should auto-create)
         var result = _cli.Run("profile", "append-panel", "basic-info");
 
         // Assert
         result.ShouldSucceed();
-        _cli.ProfileExists("default").ShouldBeTrue();
+        _cli.ProfileExists("profile").ShouldBeTrue();
 
-        var profile = ProfileHelper.ReadProfile(_cli.GetProfilePath("default"));
+        var profile = ProfileHelper.ReadProfile(_cli.GetProfilePath("profile"));
         profile.Slides.Count.ShouldBeGreaterThanOrEqualTo(1);
     }
 
