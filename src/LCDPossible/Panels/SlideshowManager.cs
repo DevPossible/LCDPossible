@@ -2,7 +2,9 @@ using LCDPossible.Core.Configuration;
 using LCDPossible.Core.Rendering;
 using LCDPossible.Core.Transitions;
 using Microsoft.Extensions.Logging;
+using SixLabors.Fonts;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
@@ -19,6 +21,8 @@ public sealed class SlideshowManager : IDisposable
     private readonly List<IDisplayPanel> _panels = [];
     private readonly Dictionary<string, Image<Rgba32>> _imageCache = [];
     private readonly Dictionary<string, (Image<Rgba32> Frame, DateTime LastUpdate)> _panelFrameCache = [];
+    private readonly HashSet<int> _failedPanelIndices = [];
+    private readonly Dictionary<int, (Image<Rgba32> ErrorFrame, string ErrorMessage)> _errorFrameCache = [];
 
     private int _currentIndex;
     private DateTime _slideStartTime;
@@ -245,6 +249,10 @@ public sealed class SlideshowManager : IDisposable
         if (elapsed.TotalSeconds >= currentItem.DurationSeconds)
         {
             var previousIndex = _currentIndex;
+
+            // Clear error state for the panel we're leaving
+            ClearPanelErrorState(previousIndex);
+
             _currentIndex = (_currentIndex + 1) % _items.Count;
             _slideStartTime = DateTime.UtcNow;
 
@@ -306,6 +314,7 @@ public sealed class SlideshowManager : IDisposable
         // For media panels (animated-gif:path, video:url, etc.), we need to match by index since
         // the PanelId is simplified but the Source contains the full path/URL
         var itemIndex = _items.Where(i => i.Type == "panel").ToList().IndexOf(item);
+        var panelIndex = _items.IndexOf(item);
         var panel = itemIndex >= 0 && itemIndex < _panels.Count ? _panels[itemIndex] : null;
 
         // Fallback: try exact match for standard panels
@@ -320,44 +329,78 @@ public sealed class SlideshowManager : IDisposable
             return null;
         }
 
-        // For animated panels (GIF, video, image sequence), don't cache - they manage their own timing
-        if (panel.IsAnimated)
+        // If this panel has previously failed, return the cached error frame
+        // This prevents continuous retry attempts until the slide changes
+        if (_failedPanelIndices.Contains(panelIndex))
         {
-            return await panel.RenderFrameAsync(width, height, cancellationToken);
-        }
-
-        var cacheKey = $"{item.Source}_{width}x{height}";
-        var now = DateTime.UtcNow;
-        var updateInterval = TimeSpan.FromSeconds(item.UpdateIntervalSeconds);
-
-        // Check if we have a cached frame that's still valid
-        if (_panelFrameCache.TryGetValue(cacheKey, out var cached))
-        {
-            var elapsed = now - cached.LastUpdate;
-            if (elapsed < updateInterval)
+            if (_errorFrameCache.TryGetValue(panelIndex, out var errorCached))
             {
-                // Return a clone of the cached frame
-                return cached.Frame.Clone();
+                return errorCached.ErrorFrame.Clone();
             }
         }
 
-        // Render a new frame
-        var frame = await panel.RenderFrameAsync(width, height, cancellationToken);
-
-        // Apply background image if specified
-        if (!string.IsNullOrEmpty(item.BackgroundImage) && File.Exists(item.BackgroundImage))
+        try
         {
-            frame = ApplyBackground(frame, item.BackgroundImage, width, height);
-        }
+            // For animated panels (GIF, video, image sequence), don't cache - they manage their own timing
+            if (panel.IsAnimated)
+            {
+                return await panel.RenderFrameAsync(width, height, cancellationToken);
+            }
 
-        // Dispose old cached frame and cache the new one
-        if (_panelFrameCache.TryGetValue(cacheKey, out var oldCached))
+            var cacheKey = $"{item.Source}_{width}x{height}";
+            var now = DateTime.UtcNow;
+            var updateInterval = TimeSpan.FromSeconds(item.UpdateIntervalSeconds);
+
+            // Check if we have a cached frame that's still valid
+            if (_panelFrameCache.TryGetValue(cacheKey, out var cached))
+            {
+                var elapsed = now - cached.LastUpdate;
+                if (elapsed < updateInterval)
+                {
+                    // Return a clone of the cached frame
+                    return cached.Frame.Clone();
+                }
+            }
+
+            // Render a new frame
+            var frame = await panel.RenderFrameAsync(width, height, cancellationToken);
+
+            // Apply background image if specified
+            if (!string.IsNullOrEmpty(item.BackgroundImage) && File.Exists(item.BackgroundImage))
+            {
+                frame = ApplyBackground(frame, item.BackgroundImage, width, height);
+            }
+
+            // Dispose old cached frame and cache the new one
+            if (_panelFrameCache.TryGetValue(cacheKey, out var oldCached))
+            {
+                oldCached.Frame.Dispose();
+            }
+            _panelFrameCache[cacheKey] = (frame.Clone(), now);
+
+            return frame;
+        }
+        catch (OperationCanceledException)
         {
-            oldCached.Frame.Dispose();
+            // Don't treat cancellation as an error
+            throw;
         }
-        _panelFrameCache[cacheKey] = (frame.Clone(), now);
+        catch (Exception ex)
+        {
+            // Log the error
+            _logger?.LogError(ex, "Panel '{PanelId}' failed to render: {Message}", panel.PanelId, ex.Message);
 
-        return frame;
+            // Mark this panel as failed to stop further update attempts
+            _failedPanelIndices.Add(panelIndex);
+
+            // Generate and cache the error page
+            var errorFrame = GenerateErrorPage(width, height, panel.PanelId, ex.Message);
+            _errorFrameCache[panelIndex] = (errorFrame, ex.Message);
+
+            _logger?.LogWarning("Panel '{PanelId}' marked as failed - displaying error page until next slide", panel.PanelId);
+
+            return errorFrame.Clone();
+        }
     }
 
     private Image<Rgba32> ApplyBackground(Image<Rgba32> frame, string backgroundPath, int width, int height)
@@ -387,6 +430,123 @@ public sealed class SlideshowManager : IDisposable
         {
             // Return original frame if background fails
             return frame;
+        }
+    }
+
+    /// <summary>
+    /// Generates an error page image for display when a panel fails.
+    /// </summary>
+    private Image<Rgba32> GenerateErrorPage(int width, int height, string panelName, string errorMessage)
+    {
+        var image = new Image<Rgba32>(width, height);
+
+        // Dark red gradient background
+        image.Mutate(ctx =>
+        {
+            ctx.BackgroundColor(new Rgba32(40, 10, 10));
+        });
+
+        // Try to load system font for error text
+        Font? titleFont = null;
+        Font? messageFont = null;
+        Font? hintFont = null;
+
+        try
+        {
+            if (SystemFonts.TryGet("Segoe UI", out var family) ||
+                SystemFonts.TryGet("Arial", out family) ||
+                SystemFonts.TryGet("DejaVu Sans", out family))
+            {
+                titleFont = family.CreateFont(28, FontStyle.Bold);
+                messageFont = family.CreateFont(18, FontStyle.Regular);
+                hintFont = family.CreateFont(14, FontStyle.Italic);
+            }
+        }
+        catch
+        {
+            // Font loading failed, we'll render without text
+        }
+
+        if (titleFont != null && messageFont != null && hintFont != null)
+        {
+            var errorColor = new Rgba32(255, 100, 100);
+            var textColor = new Rgba32(220, 220, 220);
+            var hintColor = new Rgba32(150, 150, 150);
+
+            image.Mutate(ctx =>
+            {
+                var y = height * 0.25f;
+
+                // Error icon (simple X)
+                var centerX = width / 2f;
+                ctx.DrawLine(errorColor, 4f, new PointF(centerX - 30, y - 30), new PointF(centerX + 30, y + 30));
+                ctx.DrawLine(errorColor, 4f, new PointF(centerX + 30, y - 30), new PointF(centerX - 30, y + 30));
+
+                y += 60;
+
+                // Title
+                var title = "Panel Error";
+                var titleOptions = new RichTextOptions(titleFont)
+                {
+                    Origin = new PointF(centerX, y),
+                    HorizontalAlignment = HorizontalAlignment.Center
+                };
+                ctx.DrawText(titleOptions, title, errorColor);
+
+                y += 50;
+
+                // Panel name
+                var panelText = $"Panel: {panelName}";
+                var panelOptions = new RichTextOptions(messageFont)
+                {
+                    Origin = new PointF(centerX, y),
+                    HorizontalAlignment = HorizontalAlignment.Center
+                };
+                ctx.DrawText(panelOptions, panelText, textColor);
+
+                y += 35;
+
+                // Error message (truncate if too long)
+                var displayError = errorMessage.Length > 80
+                    ? errorMessage[..77] + "..."
+                    : errorMessage;
+                var errorOptions = new RichTextOptions(messageFont)
+                {
+                    Origin = new PointF(centerX, y),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    WrappingLength = width - 40
+                };
+                ctx.DrawText(errorOptions, displayError, textColor);
+
+                y += 60;
+
+                // Hint
+                var hint = "Waiting for next panel...";
+                var hintOptions = new RichTextOptions(hintFont)
+                {
+                    Origin = new PointF(centerX, y),
+                    HorizontalAlignment = HorizontalAlignment.Center
+                };
+                ctx.DrawText(hintOptions, hint, hintColor);
+            });
+        }
+
+        return image;
+    }
+
+    /// <summary>
+    /// Clears the error state for a panel index when transitioning away.
+    /// </summary>
+    private void ClearPanelErrorState(int panelIndex)
+    {
+        if (_failedPanelIndices.Remove(panelIndex))
+        {
+            if (_errorFrameCache.TryGetValue(panelIndex, out var cached))
+            {
+                cached.ErrorFrame.Dispose();
+                _errorFrameCache.Remove(panelIndex);
+            }
+            _logger?.LogDebug("Cleared error state for panel index {Index}", panelIndex);
         }
     }
 
@@ -470,5 +630,12 @@ public sealed class SlideshowManager : IDisposable
             cached.Frame.Dispose();
         }
         _panelFrameCache.Clear();
+
+        foreach (var cached in _errorFrameCache.Values)
+        {
+            cached.ErrorFrame.Dispose();
+        }
+        _errorFrameCache.Clear();
+        _failedPanelIndices.Clear();
     }
 }

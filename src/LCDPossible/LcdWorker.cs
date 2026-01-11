@@ -8,7 +8,9 @@ using LCDPossible.Ipc;
 using LCDPossible.Monitoring;
 using LCDPossible.Panels;
 using Microsoft.Extensions.Options;
+using SixLabors.Fonts;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
@@ -32,6 +34,8 @@ public sealed class LcdWorker : BackgroundService
     private readonly Dictionary<string, SlideshowManager> _slideshows = [];
     private readonly Dictionary<string, IDisplayPanel> _singlePanels = [];
     private readonly Dictionary<string, float> _brightnessLevels = []; // 0.0 to 1.0
+    private readonly Dictionary<string, (Image<Rgba32> ErrorFrame, string ErrorMessage)> _panelErrorCache = [];
+    private readonly HashSet<string> _failedPanels = [];
 
     private ISystemInfoProvider? _systemProvider;
     private IProxmoxProvider? _proxmoxProvider;
@@ -141,6 +145,14 @@ public sealed class LcdWorker : BackgroundService
                 image?.Dispose();
             }
             _staticImages.Clear();
+
+            // Cleanup error caches
+            foreach (var cached in _panelErrorCache.Values)
+            {
+                cached.ErrorFrame.Dispose();
+            }
+            _panelErrorCache.Clear();
+            _failedPanels.Clear();
 
             _systemProvider?.Dispose();
             _proxmoxProvider?.Dispose();
@@ -473,15 +485,53 @@ public sealed class LcdWorker : BackgroundService
 
     private async Task<Image<Rgba32>?> GetPanelFrameAsync(string configKey, LcdCapabilities capabilities, CancellationToken cancellationToken)
     {
-        if (_singlePanels.TryGetValue(configKey, out var panel))
+        IDisplayPanel? panel = null;
+        var panelKey = configKey;
+
+        if (_singlePanels.TryGetValue(configKey, out panel))
+        {
+            panelKey = configKey;
+        }
+        else if (_singlePanels.TryGetValue("default", out panel))
+        {
+            panelKey = "default";
+        }
+
+        if (panel == null)
+        {
+            return GenerateSolidColor(capabilities, new Rgba32(30, 30, 40));
+        }
+
+        // If this panel has previously failed, return the cached error frame
+        if (_failedPanels.Contains(panelKey))
+        {
+            if (_panelErrorCache.TryGetValue(panelKey, out var errorCached))
+            {
+                return errorCached.ErrorFrame.Clone();
+            }
+        }
+
+        try
         {
             return await panel.RenderFrameAsync(capabilities.Width, capabilities.Height, cancellationToken);
         }
-        if (_singlePanels.TryGetValue("default", out panel))
+        catch (OperationCanceledException)
         {
-            return await panel.RenderFrameAsync(capabilities.Width, capabilities.Height, cancellationToken);
+            throw;
         }
-        return GenerateSolidColor(capabilities, new Rgba32(30, 30, 40));
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Panel '{PanelId}' failed to render: {Message}", panel.PanelId, ex.Message);
+
+            // Mark as failed and cache error page
+            _failedPanels.Add(panelKey);
+            var errorFrame = GenerateErrorPage(capabilities.Width, capabilities.Height, panel.PanelId, ex.Message);
+            _panelErrorCache[panelKey] = (errorFrame, ex.Message);
+
+            _logger.LogWarning("Panel '{PanelId}' marked as failed - displaying error page", panel.PanelId);
+
+            return errorFrame.Clone();
+        }
     }
 
     private async Task<Image<Rgba32>?> GetSlideshowFrameAsync(string configKey, LcdCapabilities capabilities, CancellationToken cancellationToken)
@@ -586,6 +636,107 @@ public sealed class LcdWorker : BackgroundService
         if (t < 1f / 2f) return q;
         if (t < 2f / 3f) return p + (q - p) * (2f / 3f - t) * 6;
         return p;
+    }
+
+    /// <summary>
+    /// Generates an error page image for display when a panel fails.
+    /// </summary>
+    private static Image<Rgba32> GenerateErrorPage(int width, int height, string panelName, string errorMessage)
+    {
+        var image = new Image<Rgba32>(width, height);
+
+        // Dark red gradient background
+        image.Mutate(ctx =>
+        {
+            ctx.BackgroundColor(new Rgba32(40, 10, 10));
+        });
+
+        // Try to load system font for error text
+        Font? titleFont = null;
+        Font? messageFont = null;
+        Font? hintFont = null;
+
+        try
+        {
+            if (SystemFonts.TryGet("Segoe UI", out var family) ||
+                SystemFonts.TryGet("Arial", out family) ||
+                SystemFonts.TryGet("DejaVu Sans", out family))
+            {
+                titleFont = family.CreateFont(28, FontStyle.Bold);
+                messageFont = family.CreateFont(18, FontStyle.Regular);
+                hintFont = family.CreateFont(14, FontStyle.Italic);
+            }
+        }
+        catch
+        {
+            // Font loading failed, we'll render without text
+        }
+
+        if (titleFont != null && messageFont != null && hintFont != null)
+        {
+            var errorColor = new Rgba32(255, 100, 100);
+            var textColor = new Rgba32(220, 220, 220);
+            var hintColor = new Rgba32(150, 150, 150);
+
+            image.Mutate(ctx =>
+            {
+                var y = height * 0.25f;
+
+                // Error icon (simple X)
+                var centerX = width / 2f;
+                ctx.DrawLine(errorColor, 4f, new PointF(centerX - 30, y - 30), new PointF(centerX + 30, y + 30));
+                ctx.DrawLine(errorColor, 4f, new PointF(centerX + 30, y - 30), new PointF(centerX - 30, y + 30));
+
+                y += 60;
+
+                // Title
+                var title = "Panel Error";
+                var titleOptions = new RichTextOptions(titleFont)
+                {
+                    Origin = new PointF(centerX, y),
+                    HorizontalAlignment = HorizontalAlignment.Center
+                };
+                ctx.DrawText(titleOptions, title, errorColor);
+
+                y += 50;
+
+                // Panel name
+                var panelText = $"Panel: {panelName}";
+                var panelOptions = new RichTextOptions(messageFont)
+                {
+                    Origin = new PointF(centerX, y),
+                    HorizontalAlignment = HorizontalAlignment.Center
+                };
+                ctx.DrawText(panelOptions, panelText, textColor);
+
+                y += 35;
+
+                // Error message (truncate if too long)
+                var displayError = errorMessage.Length > 80
+                    ? errorMessage[..77] + "..."
+                    : errorMessage;
+                var errorOptions = new RichTextOptions(messageFont)
+                {
+                    Origin = new PointF(centerX, y),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    WrappingLength = width - 40
+                };
+                ctx.DrawText(errorOptions, displayError, textColor);
+
+                y += 60;
+
+                // Hint
+                var hint = "Panel disabled until restart";
+                var hintOptions = new RichTextOptions(hintFont)
+                {
+                    Origin = new PointF(centerX, y),
+                    HorizontalAlignment = HorizontalAlignment.Center
+                };
+                ctx.DrawText(hintOptions, hint, hintColor);
+            });
+        }
+
+        return image;
     }
 
     private void OnDeviceDiscovered(object? sender, LcdDeviceEventArgs e)
