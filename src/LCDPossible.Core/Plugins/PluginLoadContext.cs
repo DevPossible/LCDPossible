@@ -12,6 +12,7 @@ public sealed class PluginLoadContext : AssemblyLoadContext
 {
     private readonly AssemblyDependencyResolver _resolver;
     private readonly HashSet<string> _sharedAssemblies;
+    private readonly string _hostDirectory;
 
     /// <summary>
     /// Creates a new plugin load context.
@@ -20,6 +21,9 @@ public sealed class PluginLoadContext : AssemblyLoadContext
     public PluginLoadContext(string pluginPath) : base(name: Path.GetFileNameWithoutExtension(pluginPath), isCollectible: true)
     {
         _resolver = new AssemblyDependencyResolver(pluginPath);
+
+        // Get the host application's directory for resolving shared assemblies
+        _hostDirectory = AppContext.BaseDirectory;
 
         // Assemblies that should always come from the host (shared between host and plugins)
         _sharedAssemblies = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -56,10 +60,27 @@ public sealed class PluginLoadContext : AssemblyLoadContext
     /// </summary>
     protected override Assembly? Load(AssemblyName assemblyName)
     {
-        // Shared assemblies always come from the host (default context)
+        // Shared assemblies should come from the host application
         if (_sharedAssemblies.Contains(assemblyName.Name!))
         {
-            return null; // Fallback to default context
+            // First check if already loaded in the default context
+            var loaded = Default.Assemblies.FirstOrDefault(a =>
+                string.Equals(a.GetName().Name, assemblyName.Name, StringComparison.OrdinalIgnoreCase));
+            if (loaded != null)
+            {
+                return loaded;
+            }
+
+            // Try to load from the host application directory
+            var hostAssemblyPath = Path.Combine(_hostDirectory, $"{assemblyName.Name}.dll");
+            if (File.Exists(hostAssemblyPath))
+            {
+                // Load into the default context so all plugins share the same instance
+                return Default.LoadFromAssemblyPath(hostAssemblyPath);
+            }
+
+            // Fall back to default context resolution
+            return null;
         }
 
         // Try to resolve from plugin directory
