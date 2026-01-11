@@ -47,18 +47,69 @@ public sealed class WebPlugin : IPanelPlugin
         return Task.CompletedTask;
     }
 
+    // Test defaults for panels that require parameters
+    private static class TestDefaults
+    {
+        // Simple test URL for web panel
+        public const string Web = "https://wttr.in/London?format=3";
+
+        // Test HTML content
+        public const string HtmlContent = """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body {
+                        margin: 0;
+                        padding: 40px;
+                        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                        color: #eee;
+                        font-family: 'Segoe UI', Arial, sans-serif;
+                        height: 100vh;
+                        box-sizing: border-box;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: center;
+                        align-items: center;
+                    }
+                    h1 { font-size: 48px; margin: 0 0 20px; color: #0f9d58; }
+                    p { font-size: 24px; opacity: 0.8; }
+                </style>
+            </head>
+            <body>
+                <h1>HTML Panel Test</h1>
+                <p>This is a test HTML panel rendered by LCDPossible.</p>
+            </body>
+            </html>
+            """;
+    }
+
+    private string? _testHtmlPath;
+
     public IDisplayPanel? CreatePanel(string panelTypeId, PanelCreationContext context)
     {
         // Extract path/URL from the panel type (e.g., "html:/path/to/file.html" or "web:https://example.com")
         var path = ExtractPath(panelTypeId);
+        var typePrefix = panelTypeId.ToLowerInvariant().Split(':')[0];
 
+        // Use test defaults when no path is specified
         if (string.IsNullOrEmpty(path))
         {
-            _logger?.LogWarning("Cannot create {PanelType}: no path specified", panelTypeId);
-            return null;
-        }
+            path = typePrefix switch
+            {
+                "web" => TestDefaults.Web,
+                "html" => GetOrCreateTestHtmlFile(),
+                _ => null
+            };
 
-        var typePrefix = panelTypeId.ToLowerInvariant().Split(':')[0];
+            if (string.IsNullOrEmpty(path))
+            {
+                _logger?.LogWarning("Cannot create {PanelType}: no path specified and no test default available", panelTypeId);
+                return null;
+            }
+
+            _logger?.LogInformation("Using test default for {PanelType}: {Path}", panelTypeId, path);
+        }
 
         return typePrefix switch
         {
@@ -66,6 +117,20 @@ public sealed class WebPlugin : IPanelPlugin
             "web" => CreateWebPanel(path),
             _ => null
         };
+    }
+
+    private string GetOrCreateTestHtmlFile()
+    {
+        if (_testHtmlPath != null && File.Exists(_testHtmlPath))
+        {
+            return _testHtmlPath;
+        }
+
+        var tempDir = Path.Combine(Path.GetTempPath(), "LCDPossible");
+        Directory.CreateDirectory(tempDir);
+        _testHtmlPath = Path.Combine(tempDir, "test-panel.html");
+        File.WriteAllText(_testHtmlPath, TestDefaults.HtmlContent);
+        return _testHtmlPath;
     }
 
     private static string? ExtractPath(string panelTypeId)

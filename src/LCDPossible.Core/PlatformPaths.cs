@@ -10,13 +10,27 @@ public static class PlatformPaths
     private const string AppName = "LCDPossible";
 
     /// <summary>
+    /// Environment variable name for overriding the data directory.
+    /// Useful for testing and portable installations.
+    /// </summary>
+    public const string DataDirectoryEnvVar = "LCDPOSSIBLE_DATA_DIR";
+
+    /// <summary>
     /// Gets the user-specific application data directory.
+    /// Checks LCDPOSSIBLE_DATA_DIR environment variable first for override.
     /// Windows: %APPDATA%\LCDPossible (C:\Users\{user}\AppData\Roaming\LCDPossible)
     /// Linux:   ~/.config/LCDPossible (respects XDG_CONFIG_HOME)
     /// macOS:   ~/Library/Application Support/LCDPossible
     /// </summary>
     public static string GetUserDataDirectory()
     {
+        // Check for environment variable override (useful for testing and portable mode)
+        var envOverride = Environment.GetEnvironmentVariable(DataDirectoryEnvVar);
+        if (!string.IsNullOrEmpty(envOverride))
+        {
+            return envOverride;
+        }
+
         string basePath;
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))

@@ -60,7 +60,8 @@ public sealed class ScreensaversPlugin : IPanelPlugin
         {
             var specificType = typeId == "screensaver" ? "random" : typeId[12..];
 
-            if (specificType == "random")
+            // Empty parameter means random (e.g., "screensaver:")
+            if (string.IsNullOrEmpty(specificType) || specificType == "random")
             {
                 // Pick a random screensaver
                 var random = new Random();
@@ -75,11 +76,18 @@ public sealed class ScreensaversPlugin : IPanelPlugin
 
     private static IDisplayPanel? CreateScreensaverPanel(string typeId, PanelCreationContext context)
     {
+        // Normalize: strip trailing colon if no parameter provided (e.g., "falling-blocks:" -> "falling-blocks")
+        var colonIndex = typeId.IndexOf(':');
+        if (colonIndex >= 0 && colonIndex == typeId.Length - 1)
+        {
+            typeId = typeId[..colonIndex];
+        }
+
         // Handle falling-blocks with player count parameter (e.g., "falling-blocks:2")
         if (typeId.StartsWith("falling-blocks:") || typeId.StartsWith("fallingblocks:") ||
             typeId.StartsWith("tetris:") || typeId.StartsWith("blocks:"))
         {
-            var colonIndex = typeId.IndexOf(':');
+            colonIndex = typeId.IndexOf(':');
             var param = typeId[(colonIndex + 1)..];
             if (int.TryParse(param, out var playerCount))
             {

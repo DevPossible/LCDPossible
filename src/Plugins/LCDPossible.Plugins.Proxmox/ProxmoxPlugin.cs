@@ -91,10 +91,16 @@ public sealed class ProxmoxPlugin : IPanelPlugin
 
     public IDisplayPanel? CreatePanel(string panelTypeId, PanelCreationContext context)
     {
+        // When not configured, return demo panels for testing
         if (_client == null || !_options.Enabled)
         {
-            _logger?.LogWarning("Cannot create Proxmox panel: plugin not properly configured");
-            return null;
+            _logger?.LogInformation("Creating Proxmox demo panel (not configured)");
+            return panelTypeId.ToLowerInvariant() switch
+            {
+                "proxmox-summary" => new ProxmoxSummaryDemoPanel(),
+                "proxmox-vms" => new ProxmoxVmsDemoPanel(),
+                _ => null
+            };
         }
 
         return panelTypeId.ToLowerInvariant() switch

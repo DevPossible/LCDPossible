@@ -66,7 +66,7 @@ public sealed class IpcCommandHandler
                 "status" => HandleStatus(request),
                 "show" => await HandleShowAsync(request, cancellationToken),
                 "set-image" => await HandleSetImageAsync(request, cancellationToken),
-                "test" => await HandleTestAsync(request, cancellationToken),
+                "test-pattern" => await HandleTestPatternAsync(request, cancellationToken),
                 "set-brightness" => await HandleSetBrightnessAsync(request, cancellationToken),
                 "profile" => await HandleProfileAsync(request, cancellationToken),
                 "next" => HandleNext(request),
@@ -195,7 +195,7 @@ public sealed class IpcCommandHandler
         }
     }
 
-    private async Task<IpcResponse> HandleTestAsync(IpcRequest request, CancellationToken cancellationToken)
+    private async Task<IpcResponse> HandleTestPatternAsync(IpcRequest request, CancellationToken cancellationToken)
     {
         var deviceIndex = request.GetInt("device");
         var devices = _getConnectedDevices();

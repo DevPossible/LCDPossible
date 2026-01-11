@@ -137,7 +137,7 @@ static async Task<int> RunCliAsync(string[] args)
     command = command.ToLowerInvariant();
 
     // Commands that should be routed through IPC when service is running
-    var ipcCommands = new[] { "show", "set-image", "test", "status", "set-brightness", "next", "previous", "stop" };
+    var ipcCommands = new[] { "show", "set-image", "test-pattern", "status", "set-brightness", "next", "previous", "stop" };
 
     // Check if service is running and this is an IPC-capable command
     if (ipcCommands.Contains(command) && IpcPaths.IsServiceRunning())
@@ -151,7 +151,8 @@ static async Task<int> RunCliAsync(string[] args)
         "list-panels" or "panels" => ListPanels(),
         "help-panel" or "panel-help" => ShowPanelHelp(args),
         "status" => ShowStatus(),
-        "test" => await TestPattern(GetDeviceIndex(args)),
+        "test" => await RenderPanelsToFiles(args),
+        "test-pattern" => await TestPattern(GetDeviceIndex(args)),
         "set-image" => await SetImage(args),
         "show" => await ShowPanels(args),
         "debug" => await DebugTest.RunAsync(),
@@ -188,7 +189,8 @@ CLI COMMANDS:
     list-panels, panels     List all available panel types with descriptions
     help-panel <type>       Show detailed help for a specific panel type
     status                  Show status of connected devices and configuration
-    test                    Display a test pattern on the LCD
+    test                    Render panels to JPEG files (supports wildcards: *, ?)
+    test-pattern            Display a test pattern on the LCD
     set-image               Send an image file to the LCD display
     show                    Quick display panels (uses default profile if no panels specified)
     profile <sub-command>   Manage display profiles (use 'profile help' for details)
@@ -197,7 +199,7 @@ RUNTIME COMMANDS (when service is running):
     status                  Get service status and current slideshow info
     show <panels>           Change the current slideshow panels
     set-image -p <file>     Display a static image
-    test                    Display a test pattern
+    test-pattern            Display a test pattern
     set-brightness <0-100>  Set display brightness
     next                    Advance to next slide
     previous                Go to previous slide
@@ -237,8 +239,13 @@ EXAMPLES:
     lcdpossible list                          List all connected LCD devices
     lcdpossible list-panels                   List all available panel types
     lcdpossible help-panel video              Show help for the video panel
-    lcdpossible test                          Send test pattern to first device
-    lcdpossible test -d 1                     Send test pattern to second device
+    lcdpossible test                          Render default panels to ~/panel.jpg files
+    lcdpossible test cpu-info,gpu-info        Render specific panels to files
+    lcdpossible test cpu-*                    Render all CPU panels (wildcard)
+    lcdpossible test *-graphic                Render all graphic panels (wildcard)
+    lcdpossible test *                        Render ALL available panels
+    lcdpossible test-pattern                  Send test pattern to first device
+    lcdpossible test-pattern -d 1             Send test pattern to second device
     lcdpossible set-image -p wallpaper.jpg    Display an image
     lcdpossible show                          Show default panels (basic, CPU, GPU, RAM)
     lcdpossible show basic-info               Show basic info panel
@@ -586,9 +593,9 @@ static string? GetImagePath(string[] args)
 
 static string? GetShowProfile(string[] args)
 {
-    // For "show" command, the profile can be passed as:
+    // For "show" or "test" command, the profile can be passed as:
     // 1. lcdpossible show basic-info (second arg is the profile)
-    // 2. lcdpossible -show basic-info (first arg is -show, second is profile)
+    // 2. lcdpossible test cpu-* (second arg is the profile/pattern)
     // 3. lcdpossible show -p basic-info (using -p flag)
 
     // Check for explicit -p or --profile flag first
@@ -600,11 +607,11 @@ static string? GetShowProfile(string[] args)
         }
     }
 
-    // Otherwise, take the argument after "show"
+    // Otherwise, take the argument after "show" or "test"
     for (var i = 0; i < args.Length - 1; i++)
     {
         var arg = args[i].ToLowerInvariant().TrimStart('-', '/');
-        if (arg == "show")
+        if (arg is "show" or "test")
         {
             var nextArg = args[i + 1];
             // Make sure it's not another flag
@@ -826,6 +833,185 @@ static async Task<int> ShowPanels(string[] args)
     {
         await device.DisconnectAsync();
     }
+}
+
+static async Task<int> RenderPanelsToFiles(string[] args)
+{
+    var profile = GetShowProfile(args);
+    var debug = IsDebugMode(args);
+
+    if (debug)
+    {
+        Console.WriteLine("[DEBUG] Debug mode enabled");
+        Console.WriteLine($"[DEBUG] Arguments: {string.Join(" ", args)}");
+    }
+
+    // If no profile specified, use the default profile panels
+    if (string.IsNullOrEmpty(profile))
+    {
+        profile = "basic-info,cpu-usage-graphic,gpu-usage-graphic,ram-usage-graphic";
+        Console.WriteLine("No panels specified, using default profile");
+    }
+
+    // Determine output directory (user's home folder)
+    var outputDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+    // Default dimensions (same as Trofeo Vision)
+    const int width = 1280;
+    const int height = 480;
+
+    // Create stub system info provider - plugins provide actual hardware data
+    using var systemProvider = new StubSystemInfoProvider();
+    await systemProvider.InitializeAsync();
+
+    // Create plugin manager and discover plugins
+    using var pluginManager = new PluginManager(debug: debug);
+    pluginManager.DiscoverPlugins();
+
+    // Create panel factory
+    var panelFactory = new PanelFactory(pluginManager, systemProvider, debug: debug);
+
+    // Get available panels for wildcard expansion
+    var availablePanels = panelFactory.AvailablePanels;
+    if (debug)
+    {
+        Console.WriteLine($"[DEBUG] Available panels: {string.Join(", ", availablePanels)}");
+    }
+
+    // Expand wildcards in the profile
+    var expandedProfile = ExpandWildcards(profile, availablePanels, debug);
+    if (string.IsNullOrEmpty(expandedProfile))
+    {
+        Console.Error.WriteLine("Error: No panels matched the specified pattern(s)");
+        return 1;
+    }
+
+    if (debug)
+    {
+        Console.WriteLine($"[DEBUG] Expanded profile: {expandedProfile}");
+    }
+
+    // Validate the expanded profile
+    var (isValid, error) = InlineProfileParser.Validate(expandedProfile);
+    if (!isValid)
+    {
+        Console.Error.WriteLine($"Error: {error}");
+        return 1;
+    }
+
+    // Parse the profile
+    var items = InlineProfileParser.Parse(expandedProfile);
+    Console.WriteLine($"Rendering {items.Count} panel(s) to files...\n");
+
+    var filesWritten = new List<string>();
+
+    foreach (var item in items)
+    {
+        try
+        {
+            // Create the panel (Source contains the panel type ID)
+            var panel = panelFactory.CreatePanel(item.Source, item.Settings);
+            if (panel == null)
+            {
+                Console.Error.WriteLine($"Error: Could not create panel '{item.Source}'");
+                return 1;
+            }
+
+            // Initialize the panel
+            await panel.InitializeAsync(CancellationToken.None);
+
+            // Render first frame
+            using var frame = await panel.RenderFrameAsync(width, height, CancellationToken.None);
+            if (frame == null)
+            {
+                Console.Error.WriteLine($"Error: Panel '{item.Source}' returned null frame");
+                panel.Dispose();
+                return 1;
+            }
+
+            // Generate safe filename from panel ID
+            var safeFileName = GetSafeFileName(panel.PanelId);
+            var outputPath = Path.Combine(outputDir, $"{safeFileName}.jpg");
+
+            // Save as JPEG
+            await frame.SaveAsJpegAsync(outputPath);
+            filesWritten.Add(outputPath);
+            Console.WriteLine(outputPath);
+
+            panel.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error: Failed to render panel '{item.Source}': {ex.Message}");
+            if (debug)
+            {
+                Console.Error.WriteLine($"[DEBUG] {ex}");
+            }
+            return 1;
+        }
+    }
+
+    Console.WriteLine($"\nRendered {filesWritten.Count} panel(s) to files.");
+    return 0;
+}
+
+static string GetSafeFileName(string panelId)
+{
+    // Replace invalid filename characters with underscores
+    var invalidChars = Path.GetInvalidFileNameChars();
+    var safeName = new string(panelId.Select(c => invalidChars.Contains(c) ? '_' : c).ToArray());
+
+    // Also replace colons (used in parameterized panels like video:path)
+    safeName = safeName.Replace(':', '_');
+
+    return safeName;
+}
+
+static string ExpandWildcards(string profile, string[] availablePanels, bool debug)
+{
+    // Split profile by comma to get individual panel specs
+    var parts = profile.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    var expandedParts = new List<string>();
+
+    foreach (var part in parts)
+    {
+        // Extract the panel type (before any | for settings)
+        var pipeIndex = part.IndexOf('|');
+        var panelPattern = pipeIndex >= 0 ? part[..pipeIndex] : part;
+        var settings = pipeIndex >= 0 ? part[pipeIndex..] : "";
+
+        // Check if pattern contains wildcards
+        if (panelPattern.Contains('*') || panelPattern.Contains('?'))
+        {
+            // Convert wildcard pattern to regex
+            var regexPattern = "^" + System.Text.RegularExpressions.Regex.Escape(panelPattern)
+                .Replace("\\*", ".*")
+                .Replace("\\?", ".") + "$";
+
+            var regex = new System.Text.RegularExpressions.Regex(regexPattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            // Find matching panels
+            var matches = availablePanels.Where(p => regex.IsMatch(p)).OrderBy(p => p).ToList();
+
+            if (debug)
+            {
+                Console.WriteLine($"[DEBUG] Pattern '{panelPattern}' matched {matches.Count} panel(s): {string.Join(", ", matches)}");
+            }
+
+            // Add each match with any settings
+            foreach (var match in matches)
+            {
+                expandedParts.Add(match + settings);
+            }
+        }
+        else
+        {
+            // No wildcard, keep as-is
+            expandedParts.Add(part);
+        }
+    }
+
+    return string.Join(",", expandedParts);
 }
 
 static int ListDevices()
@@ -1086,7 +1272,7 @@ static IpcRequest BuildIpcRequest(string command, string[] args)
             }
             break;
 
-        case "test":
+        case "test-pattern":
             var testDeviceIndex = GetDeviceIndex(args);
             if (testDeviceIndex > 0)
             {

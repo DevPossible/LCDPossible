@@ -2,6 +2,9 @@ using LCDPossible.Core.Plugins;
 using LCDPossible.Core.Rendering;
 using LCDPossible.Plugins.Images.Panels;
 using Microsoft.Extensions.Logging;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 
 namespace LCDPossible.Plugins.Images;
 
@@ -47,18 +50,83 @@ public sealed class ImagesPlugin : IPanelPlugin
         return Task.CompletedTask;
     }
 
+    // Test defaults for panels that require parameters
+    private static class TestDefaults
+    {
+        // CC-BY-SA rotating Earth from Wikimedia Commons
+        public const string AnimatedGif = "https://upload.wikimedia.org/wikipedia/commons/2/2c/Rotating_earth_%28large%29.gif";
+
+        // Placeholder for image sequence test folder (created on demand)
+        public static string? ImageSequence => GetOrCreateTestImageSequenceFolder();
+
+        private static string? _testImageSequenceFolder;
+
+        private static string? GetOrCreateTestImageSequenceFolder()
+        {
+            if (_testImageSequenceFolder != null && Directory.Exists(_testImageSequenceFolder))
+            {
+                return _testImageSequenceFolder;
+            }
+
+            try
+            {
+                var tempDir = Path.Combine(Path.GetTempPath(), "LCDPossible", "test-sequence");
+                Directory.CreateDirectory(tempDir);
+
+                // Generate a few simple test frames with different colors
+                var testColors = new[]
+                {
+                    new Rgba32(255, 0, 0),     // Red
+                    new Rgba32(0, 255, 0),     // Green
+                    new Rgba32(0, 0, 255),     // Blue
+                    new Rgba32(255, 255, 0),   // Yellow
+                    new Rgba32(255, 0, 255)    // Magenta
+                };
+
+                for (var i = 0; i < testColors.Length; i++)
+                {
+                    var imagePath = Path.Combine(tempDir, $"frame_{i:D4}.png");
+                    if (!File.Exists(imagePath))
+                    {
+                        using var image = new Image<Rgba32>(320, 240, testColors[i]);
+                        image.SaveAsPng(imagePath);
+                    }
+                }
+
+                _testImageSequenceFolder = tempDir;
+                return _testImageSequenceFolder;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+    }
+
     public IDisplayPanel? CreatePanel(string panelTypeId, PanelCreationContext context)
     {
         // Extract path/URL from the panel type (e.g., "animated-gif:/path/to/file.gif")
         var path = ExtractPath(panelTypeId);
+        var typePrefix = panelTypeId.ToLowerInvariant().Split(':')[0];
 
+        // Use test defaults when no path is specified
         if (string.IsNullOrEmpty(path))
         {
-            _logger?.LogWarning("Cannot create {PanelType}: no path specified", panelTypeId);
-            return null;
-        }
+            path = typePrefix switch
+            {
+                "animated-gif" => TestDefaults.AnimatedGif,
+                "image-sequence" => TestDefaults.ImageSequence,
+                _ => null
+            };
 
-        var typePrefix = panelTypeId.ToLowerInvariant().Split(':')[0];
+            if (string.IsNullOrEmpty(path))
+            {
+                _logger?.LogWarning("Cannot create {PanelType}: no path specified and no test default available", panelTypeId);
+                return null;
+            }
+
+            _logger?.LogInformation("Using test default for {PanelType}: {Path}", panelTypeId, path);
+        }
 
         return typePrefix switch
         {

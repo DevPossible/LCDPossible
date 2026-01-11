@@ -38,15 +38,23 @@ public sealed class VideoPlugin : IPanelPlugin
         return Task.CompletedTask;
     }
 
+    // Test defaults for panels that require parameters
+    private static class TestDefaults
+    {
+        // Big Buck Bunny (CC-BY) from Archive.org
+        public const string Video = "https://archive.org/download/BigBuckBunny_124/Content/big_buck_bunny_720p_surround.mp4";
+    }
+
     public IDisplayPanel? CreatePanel(string panelTypeId, PanelCreationContext context)
     {
         // Extract path/URL from the panel type (e.g., "video:/path/to/file.mp4")
         var path = ExtractPath(panelTypeId);
 
+        // Use test default when no path is specified
         if (string.IsNullOrEmpty(path))
         {
-            _logger?.LogWarning("Cannot create {PanelType}: no path specified", panelTypeId);
-            return null;
+            path = TestDefaults.Video;
+            _logger?.LogInformation("Using test default for video: {Path}", path);
         }
 
         return CreateVideoPanel(path);
