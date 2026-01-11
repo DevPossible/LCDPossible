@@ -6,6 +6,7 @@
 .DESCRIPTION
     Downloads and installs LCDPossible with all dependencies.
     This script is idempotent - safe to run multiple times.
+    Re-running will verify all components and upgrade if a new version is available.
 
 .EXAMPLE
     # One-liner install:
@@ -29,12 +30,17 @@ function Write-Step {
 
 function Write-Success {
     param([string]$Message)
-    Write-Host "    $Message" -ForegroundColor Green
+    Write-Host "    [OK] $Message" -ForegroundColor Green
 }
 
 function Write-Info {
     param([string]$Message)
     Write-Host "    $Message" -ForegroundColor Gray
+}
+
+function Write-Skip {
+    param([string]$Message)
+    Write-Host "    [SKIP] $Message" -ForegroundColor Yellow
 }
 
 function Test-Admin {
@@ -71,7 +77,7 @@ $Arch = Get-Architecture
 Write-Info "Architecture: $Arch"
 
 # Step 1: Fetch latest release
-Write-Step "1/5" "Fetching latest release..."
+Write-Step "1/6" "Fetching latest release..."
 
 try {
     $ReleaseInfo = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" -UseBasicParsing
@@ -91,26 +97,35 @@ if (-not $Version -or -not $DownloadUrl) {
 }
 
 Write-Info "Latest version: $Version"
-Write-Info "Download URL: $DownloadUrl"
 
 # Check if already installed with same version
 $VersionFile = Join-Path $InstallDir "version.json"
 $SkipDownload = $false
+$IsUpgrade = $false
+$InstalledVersion = $null
+
 if (Test-Path $VersionFile) {
     $InstalledVersion = (Get-Content $VersionFile | ConvertFrom-Json).Version
+    Write-Info "Installed version: v$InstalledVersion"
+
     if ($InstalledVersion -eq $Version.TrimStart('v')) {
         Write-Host ""
         Write-Host "  Version $Version is already installed." -ForegroundColor Yellow
-        $response = Read-Host "  Reinstall? [y/N]"
+        $response = Read-Host "  Reinstall anyway? [y/N]"
         if ($response -notmatch '^[Yy]$') {
-            Write-Info "Skipping download."
             $SkipDownload = $true
+            Write-Info "Skipping download, will verify configuration..."
         }
+    }
+    else {
+        $IsUpgrade = $true
+        Write-Host ""
+        Write-Host "  ** Upgrading from v$InstalledVersion to $Version **" -ForegroundColor Cyan
     }
 }
 
 # Step 2: Download and extract
-Write-Step "2/5" "Downloading and extracting..."
+Write-Step "2/6" "Downloading and extracting..."
 
 if (-not $SkipDownload) {
     $TempDir = Join-Path $env:TEMP "lcdpossible-install"
@@ -122,7 +137,7 @@ if (-not $SkipDownload) {
     }
     New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
 
-    Write-Info "Downloading..."
+    Write-Info "Downloading from: $DownloadUrl"
     Invoke-WebRequest -Uri $DownloadUrl -OutFile $ZipFile -UseBasicParsing
 
     # Stop service if running
@@ -140,10 +155,14 @@ if (-not $SkipDownload) {
 
     # Clean up
     Remove-Item $TempDir -Recurse -Force
+    Write-Success "Extracted and configured."
+}
+else {
+    Write-Skip "Using existing installation."
 }
 
 # Step 3: Setup configuration
-Write-Step "3/5" "Setting up configuration..."
+Write-Step "3/6" "Verifying configuration..."
 
 if (-not (Test-Path $ConfigDir)) {
     New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null
@@ -154,11 +173,18 @@ if (-not (Test-Path $ConfigDir)) {
     }
 }
 else {
-    Write-Info "Configuration already exists at $ConfigDir"
+    Write-Success "Configuration exists at $ConfigDir"
+    # Check if config file exists
+    $ConfigFile = Join-Path $ConfigDir "appsettings.json"
+    $SourceConfig = Join-Path $InstallDir "appsettings.json"
+    if (-not (Test-Path $ConfigFile) -and (Test-Path $SourceConfig)) {
+        Copy-Item $SourceConfig -Destination $ConfigFile
+        Write-Success "Restored missing appsettings.json"
+    }
 }
 
 # Step 4: Add to PATH
-Write-Step "4/5" "Updating PATH..."
+Write-Step "4/6" "Updating PATH..."
 
 $CurrentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
 if ($CurrentPath -notlike "*$InstallDir*") {
@@ -166,11 +192,11 @@ if ($CurrentPath -notlike "*$InstallDir*") {
     Write-Success "Added $InstallDir to PATH"
 }
 else {
-    Write-Info "PATH already configured"
+    Write-Success "PATH already configured"
 }
 
 # Step 5: Install Windows Service
-Write-Step "5/5" "Installing Windows Service..."
+Write-Step "5/6" "Updating Windows Service..."
 
 $ExePath = Join-Path $InstallDir "LCDPossible.exe"
 
@@ -197,17 +223,37 @@ New-Service @ServiceParams | Out-Null
 # Set service recovery options (restart on failure)
 sc.exe failure $ServiceName reset= 86400 actions= restart/5000/restart/10000/restart/30000 | Out-Null
 
-Write-Success "Service installed"
+Write-Success "Service configured and enabled."
+
+# Step 6: Start service
+Write-Step "6/6" "Starting service..."
+
+Start-Service -Name $ServiceName -ErrorAction SilentlyContinue
+$svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+if ($svc -and $svc.Status -eq 'Running') {
+    Write-Success "Service is running."
+}
+else {
+    Write-Host "    [WARN] Service may have failed to start. Check Event Viewer." -ForegroundColor Yellow
+}
 
 # Done!
 Write-Host ""
 Write-Host "==============================================" -ForegroundColor Green
-Write-Host "  Installation Complete!" -ForegroundColor Green
+if ($IsUpgrade) {
+    Write-Host "  Upgrade Complete! (v$InstalledVersion -> $Version)" -ForegroundColor Green
+}
+elseif ($SkipDownload) {
+    Write-Host "  Verification Complete! (v$InstalledVersion)" -ForegroundColor Green
+}
+else {
+    Write-Host "  Installation Complete! ($Version)" -ForegroundColor Green
+}
 Write-Host "==============================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "Installed:" -ForegroundColor White
-Write-Host "  [✓] LCDPossible $Version" -ForegroundColor Green
-Write-Host "  [✓] Windows Service (auto-start)" -ForegroundColor Green
+Write-Host "Verified:" -ForegroundColor White
+Write-Host "  [+] LCDPossible $Version" -ForegroundColor Green
+Write-Host "  [+] Windows Service (auto-start)" -ForegroundColor Green
 Write-Host ""
 Write-Host "Locations:" -ForegroundColor White
 Write-Host "  Binary:  $InstallDir\LCDPossible.exe" -ForegroundColor Gray
@@ -222,11 +268,3 @@ Write-Host "  Run manually:    LCDPossible serve" -ForegroundColor Gray
 Write-Host ""
 Write-Host "Edit $ConfigDir\appsettings.json to configure your display." -ForegroundColor Yellow
 Write-Host ""
-
-# Ask to start service
-$startNow = Read-Host "Start the service now? [Y/n]"
-if ($startNow -notmatch '^[Nn]$') {
-    Start-Service -Name $ServiceName
-    Write-Host ""
-    Write-Host "Service started!" -ForegroundColor Green
-}

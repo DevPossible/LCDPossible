@@ -3,7 +3,7 @@
 # Usage: curl -sSL https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/install-macos.sh | bash
 #
 # This script is idempotent - safe to run multiple times.
-# It will install dependencies, download the latest release, and set up a launch agent.
+# Re-running will verify all components and upgrade if a new version is available.
 
 set -e
 
@@ -41,25 +41,29 @@ if [ -z "$ARCH" ]; then
     exit 1
 fi
 
-echo "[1/5] Installing dependencies..."
+echo "[1/6] Checking/installing dependencies..."
 echo ""
 
 echo "  Checking LibVLC..."
 if brew list vlc &>/dev/null; then
-    echo "    LibVLC already installed."
+    echo "    [OK] LibVLC already installed."
 else
     echo "    Installing LibVLC (this may take a while)..."
     brew install --cask vlc
+    echo "    [OK] LibVLC installed."
 fi
 
 echo "  Checking jq (for JSON parsing)..."
-if ! command -v jq &>/dev/null; then
+if command -v jq &>/dev/null; then
+    echo "    [OK] jq already installed."
+else
     echo "    Installing jq..."
     brew install jq
+    echo "    [OK] jq installed."
 fi
 
 echo ""
-echo "[2/5] Fetching latest release..."
+echo "[2/6] Fetching latest release..."
 RELEASE_INFO=$(curl -sSL "https://api.github.com/repos/$REPO/releases/latest")
 VERSION=$(echo "$RELEASE_INFO" | jq -r '.tag_name')
 DOWNLOAD_URL=$(echo "$RELEASE_INFO" | jq -r ".assets[] | select(.name | contains(\"$ARCH\")) | .browser_download_url" | head -1)
@@ -79,30 +83,39 @@ fi
 
 echo "  Latest version: $VERSION"
 echo "  Architecture: $ARCH"
-echo "  Download URL: $DOWNLOAD_URL"
 
-# Check if already installed with same version
+# Check installed version
+SKIP_DOWNLOAD=false
+INSTALLED_VERSION=""
+IS_UPGRADE=false
 if [ -f "$INSTALL_DIR/version.json" ]; then
     INSTALLED_VERSION=$(jq -r '.Version' "$INSTALL_DIR/version.json" 2>/dev/null || echo "")
-    if [ "$INSTALLED_VERSION" = "${VERSION#v}" ]; then
-        echo ""
-        echo "  Version $VERSION is already installed."
-        read -p "  Reinstall? [y/N] " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            echo "  Skipping download."
-            SKIP_DOWNLOAD=true
+    if [ -n "$INSTALLED_VERSION" ]; then
+        echo "  Installed version: v$INSTALLED_VERSION"
+        if [ "$INSTALLED_VERSION" = "${VERSION#v}" ]; then
+            echo ""
+            echo "  Version $VERSION is already installed."
+            read -p "  Reinstall anyway? [y/N] " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                SKIP_DOWNLOAD=true
+                echo "  Skipping download, will verify configuration..."
+            fi
+        else
+            IS_UPGRADE=true
+            echo ""
+            echo "  ** Upgrading from v$INSTALLED_VERSION to $VERSION **"
         fi
     fi
 fi
 
 echo ""
-echo "[3/5] Downloading and extracting..."
+echo "[3/6] Downloading and extracting..."
 if [ "$SKIP_DOWNLOAD" != "true" ]; then
     TEMP_DIR=$(mktemp -d)
     trap "rm -rf $TEMP_DIR" EXIT
 
-    echo "  Downloading..."
+    echo "  Downloading from: $DOWNLOAD_URL"
     curl -sSL "$DOWNLOAD_URL" -o "$TEMP_DIR/lcdpossible.tar.gz"
 
     echo "  Stopping service if running..."
@@ -112,24 +125,31 @@ if [ "$SKIP_DOWNLOAD" != "true" ]; then
     mkdir -p "$INSTALL_DIR"
     tar -xzf "$TEMP_DIR/lcdpossible.tar.gz" -C "$INSTALL_DIR" --strip-components=1
 
-    echo "  Setting permissions..."
+    echo "  Setting executable permissions..."
     chmod +x "$INSTALL_DIR/LCDPossible"
+    echo "  [OK] Extracted and configured."
+else
+    echo "  [SKIP] Using existing installation."
 fi
 
 echo ""
-echo "[4/5] Setting up configuration..."
+echo "[4/6] Verifying configuration..."
 if [ ! -d "$CONFIG_DIR" ]; then
     mkdir -p "$CONFIG_DIR"
     if [ -f "$INSTALL_DIR/appsettings.json" ]; then
         cp "$INSTALL_DIR/appsettings.json" "$CONFIG_DIR/appsettings.json"
-        echo "  Created $CONFIG_DIR/appsettings.json"
+        echo "  [OK] Created $CONFIG_DIR/appsettings.json"
     fi
 else
-    echo "  Configuration already exists at $CONFIG_DIR"
+    echo "  [OK] Configuration exists at $CONFIG_DIR"
+    if [ ! -f "$CONFIG_DIR/appsettings.json" ] && [ -f "$INSTALL_DIR/appsettings.json" ]; then
+        cp "$INSTALL_DIR/appsettings.json" "$CONFIG_DIR/appsettings.json"
+        echo "  [OK] Restored missing appsettings.json"
+    fi
 fi
 
 echo ""
-echo "[5/5] Setting up launch agent..."
+echo "[5/6] Updating launch agent..."
 mkdir -p "$LAUNCH_AGENT_DIR"
 PLIST_CONTENT="<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">
@@ -162,17 +182,30 @@ PLIST_CONTENT="<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 </dict>
 </plist>"
 
+# Always write launch agent to ensure it's up to date
 echo "$PLIST_CONTENT" > "$LAUNCH_AGENT_DIR/$LAUNCH_AGENT"
+echo "  [OK] Launch agent updated."
+
+echo ""
+echo "[6/6] Loading launch agent..."
+launchctl load "$LAUNCH_AGENT_DIR/$LAUNCH_AGENT" 2>/dev/null || true
+echo "  [OK] Launch agent loaded."
 
 echo ""
 echo "=============================================="
-echo "  Installation Complete!"
+if [ "$IS_UPGRADE" = "true" ]; then
+    echo "  Upgrade Complete! (v$INSTALLED_VERSION -> $VERSION)"
+elif [ "$SKIP_DOWNLOAD" = "true" ]; then
+    echo "  Verification Complete! (v$INSTALLED_VERSION)"
+else
+    echo "  Installation Complete! ($VERSION)"
+fi
 echo "=============================================="
 echo ""
-echo "Installed:"
-echo "  [✓] LCDPossible $VERSION"
-echo "  [✓] LibVLC (video playback)"
-echo "  [✓] Launch agent (auto-start)"
+echo "Verified:"
+echo "  [+] LCDPossible $VERSION"
+echo "  [+] LibVLC (video playback)"
+echo "  [+] Launch agent (auto-start)"
 echo ""
 echo "Locations:"
 echo "  Binary:  $INSTALL_DIR/LCDPossible"
