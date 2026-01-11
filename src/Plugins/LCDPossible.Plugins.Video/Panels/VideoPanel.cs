@@ -74,8 +74,23 @@ public sealed class VideoPanel : IDisplayPanel
         // Resolve the video source (handles local files, URLs, and YouTube)
         var resolvedSource = await VideoHelper.ResolveVideoSourceAsync(_videoPath, cancellationToken);
 
-        // Initialize LibVLC
-        LibVLCSharp.Shared.Core.Initialize();
+        // Initialize LibVLC - check for native library availability
+        try
+        {
+            LibVLCSharp.Shared.Core.Initialize();
+        }
+        catch (VLCException ex) when (ex.Message.Contains("not found") || ex.Message.Contains("Could not load"))
+        {
+            throw new InvalidOperationException(GetLibVlcInstallMessage(), ex);
+        }
+        catch (DllNotFoundException ex)
+        {
+            throw new InvalidOperationException(GetLibVlcInstallMessage(), ex);
+        }
+        catch (TypeInitializationException ex) when (ex.InnerException is DllNotFoundException)
+        {
+            throw new InvalidOperationException(GetLibVlcInstallMessage(), ex);
+        }
 
         // Create LibVLC with options for headless rendering
         _libVLC = new LibVLC(
@@ -292,5 +307,28 @@ public sealed class VideoPanel : IDisplayPanel
         _libVLC?.Dispose();
 
         _frameBuffer = null;
+    }
+
+    private static string GetLibVlcInstallMessage()
+    {
+        var os = Environment.OSVersion.Platform switch
+        {
+            PlatformID.Unix => "Linux",
+            PlatformID.MacOSX => "macOS",
+            _ => "Windows"
+        };
+
+        return $"""
+            Video panel requires LibVLC which is not installed or not found.
+
+            Installation instructions for {os}:
+              - Linux:   sudo apt install vlc libvlc-dev
+                         (or equivalent for your distro: dnf, pacman, etc.)
+              - macOS:   brew install vlc
+              - Windows: LibVLC should be included automatically via NuGet.
+                         Try reinstalling the VideoLAN.LibVLC.Windows package.
+
+            After installing, restart the application.
+            """;
     }
 }

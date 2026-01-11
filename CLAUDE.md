@@ -90,7 +90,7 @@ DA DB DC DD 02 00 00 00 [width LE 2B] [height LE 2B] 02 00 00 00 [length LE 4B] 
 | HidSharp | USB HID communication |
 | SixLabors.ImageSharp | Image processing & GIF frame extraction |
 | LibVLCSharp | Video playback (local, URL, YouTube) |
-| VideoLAN.LibVLC.Windows | LibVLC native binaries |
+| VideoLAN.LibVLC.Windows | LibVLC native binaries (Windows only, see Platform Notes) |
 | YoutubeExplode | YouTube stream URL extraction |
 | PuppeteerSharp | Headless browser for HTML/Web panels |
 | Microsoft.Extensions.Hosting | Service hosting |
@@ -218,13 +218,30 @@ public interface IDisplayPanel : IDisposable
 ## Platform-Specific Notes
 
 **Linux:** Requires udev rules for unprivileged USB access (add rules per supported vendor):
-```
+```bash
 # Thermalright devices
 SUBSYSTEM=="usb", ATTR{idVendor}=="0416", ATTR{idProduct}=="5302", MODE="0666"
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0416", MODE="0666"
 ```
 
-**Windows:** Use `Microsoft.Extensions.Hosting.WindowsServices` for service registration.
+**Linux/macOS - Video Panel Requirements:** LibVLC must be installed via system package manager:
+```bash
+# Linux (Debian/Ubuntu)
+sudo apt install vlc libvlc-dev
+
+# Linux (Fedora/RHEL)
+sudo dnf install vlc vlc-devel
+
+# Linux (Arch)
+sudo pacman -S vlc
+
+# macOS
+brew install vlc
+```
+
+**Windows:**
+- Use `Microsoft.Extensions.Hosting.WindowsServices` for service registration
+- LibVLC native binaries are included automatically via NuGet
 
 ## Reference Projects
 
