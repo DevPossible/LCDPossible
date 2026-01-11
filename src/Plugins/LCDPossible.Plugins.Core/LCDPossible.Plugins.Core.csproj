@@ -22,9 +22,11 @@
     <PackageReference Include="System.Management" Version="10.0.1" />
   </ItemGroup>
 
-  <!-- Copy plugin.json to output -->
+  <!-- Copy plugin.json to output (but not to publish to avoid conflicts) -->
   <ItemGroup>
-    <None Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="plugin.json" CopyToOutputDirectory="PreserveNewest">
+      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

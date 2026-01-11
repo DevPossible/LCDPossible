@@ -16,9 +16,11 @@
 
   <!-- No additional dependencies - uses ImageSharp from SDK -->
 
+  <!-- Copy plugin.json to output (but not to publish to avoid conflicts) -->
   <ItemGroup>
     <None Update="plugin.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
     </None>
   </ItemGroup>
 
