@@ -130,22 +130,31 @@ public sealed class DisplayProfile
     /// <summary>
     /// Creates the default profile with sensible defaults.
     /// </summary>
-    public static DisplayProfile CreateDefault()
+    /// <param name="additionalPanels">Optional additional panel IDs to include after the default panels.</param>
+    public static DisplayProfile CreateDefault(params string[] additionalPanels)
     {
+        var slides = new List<SlideDefinition>
+        {
+            new() { Panel = "basic-info" },
+            new() { Panel = "cpu-usage-graphic" },
+            new() { Panel = "gpu-usage-graphic" },
+            new() { Panel = "ram-usage-graphic" },
+            new() { Panel = "network-info" }
+        };
+
+        // Add any additional panels
+        foreach (var panel in additionalPanels)
+        {
+            slides.Add(new SlideDefinition { Panel = panel });
+        }
+
         return new DisplayProfile
         {
             Name = "Default",
             Description = "Default display profile with system information panels",
             DefaultUpdateIntervalSeconds = 5,
             DefaultDurationSeconds = 15,
-            Slides =
-            [
-                new SlideDefinition { Panel = "basic-info" },
-                new SlideDefinition { Panel = "cpu-usage-graphic" },
-                new SlideDefinition { Panel = "gpu-usage-graphic" },
-                new SlideDefinition { Panel = "ram-usage-graphic" },
-                new SlideDefinition { Panel = "network-info" }
-            ]
+            Slides = slides
         };
     }
 }

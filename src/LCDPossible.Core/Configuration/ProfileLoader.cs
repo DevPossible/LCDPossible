@@ -22,10 +22,17 @@ public sealed class ProfileLoader
 
     private readonly ILogger<ProfileLoader>? _logger;
     private readonly IDeserializer _deserializer;
+    private readonly Func<DisplayProfile>? _defaultProfileFactory;
 
-    public ProfileLoader(ILogger<ProfileLoader>? logger = null)
+    /// <summary>
+    /// Creates a new ProfileLoader with optional custom default profile factory.
+    /// </summary>
+    /// <param name="logger">Optional logger.</param>
+    /// <param name="defaultProfileFactory">Optional factory to create default profile when no file is found.</param>
+    public ProfileLoader(ILogger<ProfileLoader>? logger = null, Func<DisplayProfile>? defaultProfileFactory = null)
     {
         _logger = logger;
+        _defaultProfileFactory = defaultProfileFactory;
         _deserializer = new DeserializerBuilder()
             .WithNamingConvention(UnderscoredNamingConvention.Instance)
             .IgnoreUnmatchedProperties()
@@ -80,9 +87,14 @@ public sealed class ProfileLoader
     /// </summary>
     public (DisplayProfile Profile, string? Path) LoadProfileWithPath()
     {
+        _logger?.LogDebug("Searching for profile in {Count} locations...", GetProfileSearchPaths().Count());
+
         foreach (var path in GetProfileSearchPaths())
         {
-            if (File.Exists(path))
+            var exists = File.Exists(path);
+            _logger?.LogDebug("  Checking: {Path} - {Status}", path, exists ? "EXISTS" : "not found");
+
+            if (exists)
             {
                 try
                 {
@@ -105,7 +117,8 @@ public sealed class ProfileLoader
         }
 
         _logger?.LogInformation("No profile file found, using default profile");
-        return (DisplayProfile.CreateDefault(), null);
+        var defaultProfile = _defaultProfileFactory?.Invoke() ?? DisplayProfile.CreateDefault();
+        return (defaultProfile, null);
     }
 
     /// <summary>

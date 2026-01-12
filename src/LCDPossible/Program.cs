@@ -68,8 +68,20 @@ static async Task<int> RunServiceAsync(string[] args)
         builder.Services.Configure<LcdPossibleOptions>(
             builder.Configuration.GetSection(LcdPossibleOptions.SectionName));
 
-        // Register profile loader
-        builder.Services.AddSingleton<ProfileLoader>();
+        // Register profile loader with Proxmox-aware default profile factory
+        builder.Services.AddSingleton<ProfileLoader>(sp =>
+        {
+            var logger = sp.GetService<ILogger<ProfileLoader>>();
+            return new ProfileLoader(logger, () =>
+            {
+                // When no profile file is found, create default with Proxmox panels if configured
+                if (IsProxmoxConfigured())
+                {
+                    return DisplayProfile.CreateDefault("proxmox-summary", "proxmox-vms");
+                }
+                return DisplayProfile.CreateDefault();
+            });
+        });
 
         // Register plugin manager
         builder.Services.AddSingleton<PluginManager>(sp =>
