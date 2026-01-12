@@ -31,7 +31,10 @@
     Maximum number of parallel jobs (default: 4, only used with -Parallel)
 
 .PARAMETER EnhanceDescriptions
-    Use Claude CLI to generate enhanced panel descriptions (requires 'claude' in PATH)
+    Use Ollama to generate enhanced panel descriptions (requires 'ollama' in PATH)
+
+.PARAMETER OllamaModel
+    Ollama model to use for description enhancement (default: phi3:mini)
 
 .EXAMPLE
     ./scripts/generate-panel-docs.ps1
@@ -69,7 +72,8 @@ param(
     [switch]$Build,
     [switch]$Parallel,
     [int]$ThrottleLimit = 4,
-    [switch]$EnhanceDescriptions
+    [switch]$EnhanceDescriptions,
+    [string]$OllamaModel = "phi3:mini"
 )
 
 $ErrorActionPreference = 'Stop'
@@ -578,16 +582,19 @@ $($firstPanel.PluginDescription)
         Set-Content -Path $pluginIndexPath -Value $pluginIndex -Encoding UTF8
     }
 
-    # Enhance descriptions using Claude CLI (if requested)
+    # Enhance descriptions using Ollama (if requested)
     if ($EnhanceDescriptions) {
-        Write-Host "`nEnhancing panel descriptions using Claude CLI..." -ForegroundColor Cyan
+        Write-Host "`nEnhancing panel descriptions using Ollama ($OllamaModel)..." -ForegroundColor Cyan
 
-        # Check if claude is available
-        $claudePath = Get-Command claude -ErrorAction SilentlyContinue
-        if (-not $claudePath) {
-            Write-Host "Warning: 'claude' command not found in PATH. Skipping description enhancement." -ForegroundColor Yellow
+        # Check if ollama is available
+        $ollamaPath = Get-Command ollama -ErrorAction SilentlyContinue
+        if (-not $ollamaPath) {
+            Write-Host "Warning: 'ollama' command not found in PATH. Skipping description enhancement." -ForegroundColor Yellow
         }
         else {
+            # Escape character for ANSI sequence removal
+            $esc = [char]27
+
             foreach ($panel in $allPanels) {
                 $markdownPath = Join-Path $DocsRoot "$($panel.PluginShortName)/panels/$($panel.TypeId)/$($panel.TypeId).md"
 
@@ -597,32 +604,60 @@ $($firstPanel.PluginDescription)
                     $currentContent = Get-Content $markdownPath -Raw
                     $displayId = if ($panel.PrefixPattern) { $panel.PrefixPattern } else { $panel.TypeId }
 
-                    # Create prompt for Claude
+                    # Create prompt for Ollama
                     $prompt = @"
-You are updating documentation for LCDPossible, an LCD controller application.
+You are a technical writer creating product documentation for LCDPossible, a professional LCD controller application.
 
 Panel: $displayId
 Category: $($panel.Category)
 Current Description: $($panel.Description)
 Help Text: $($panel.HelpText)
 
-Task: Write a concise, engaging "Overview" section (2-3 sentences) that:
-1. Explains what the panel does in user-friendly terms
-2. Mentions key features or use cases
-3. Is written for end users, not developers
+Task: Write a concise Overview section (2-3 sentences) using formal, corporate-professional language:
+1. Describe the panel's primary function and purpose
+2. Highlight key capabilities or typical use cases
+3. Maintain a professional, objective tone suitable for enterprise documentation
 
-Output ONLY the overview text, no headers or formatting.
+Output ONLY the overview text. No headers, formatting, markdown, or meta-commentary.
 "@
 
                     try {
-                        $enhanced = & claude --print "$prompt" 2>&1
+                        $enhanced = & ollama run $OllamaModel "$prompt" 2>&1
                         if ($LASTEXITCODE -eq 0 -and $enhanced) {
-                            # Insert overview after the description
-                            $insertPoint = $currentContent.IndexOf("`n`n", $currentContent.IndexOf($panel.Description))
-                            if ($insertPoint -gt 0) {
-                                $overview = "`n`n## Overview`n`n$enhanced"
-                                $newContent = $currentContent.Insert($insertPoint, $overview)
-                                Set-Content -Path $markdownPath -Value $newContent -Encoding UTF8
+                            # Clean up the response
+                            $enhancedText = ($enhanced -join "`n")
+
+                            # Remove ANSI escape sequences (cursor control, colors, spinner, etc.)
+                            $enhancedText = $enhancedText -replace "$esc\[[0-9;?]*[a-zA-Z]", ''
+                            $enhancedText = $enhancedText -replace '\[\?[0-9]+[a-z]', ''
+                            $enhancedText = $enhancedText -replace '\[[0-9]*[GK]', ''
+                            $enhancedText = $enhancedText -replace '[0-9]+[a-z](?=[0-9]+[a-z]|$)', ''
+
+                            # Remove any thinking tags (XML style)
+                            $enhancedText = $enhancedText -replace '(?s)<think>.*?</think>', ''
+
+                            # Remove qwen3 thinking output (Thinking... to ...done thinking.)
+                            $enhancedText = $enhancedText -replace '(?s)Thinking\.\.\..*?\.\.\.done thinking\.', ''
+
+                            # Remove spinner characters
+                            $enhancedText = $enhancedText -replace '[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]', ''
+
+                            # Clean up whitespace and trailing garbage
+                            $enhancedText = ($enhancedText -split "`n" | Where-Object { $_ -match '[a-zA-Z]' }) -join "`n"
+                            $enhancedText = $enhancedText.Trim()
+
+                            if ($enhancedText -and $enhancedText.Length -gt 20) {
+                                # Insert overview after the description
+                                $insertPoint = $currentContent.IndexOf("`n`n", $currentContent.IndexOf($panel.Description))
+                                if ($insertPoint -gt 0) {
+                                    $overview = "`n`n## Overview`n`n$enhancedText"
+                                    $newContent = $currentContent.Insert($insertPoint, $overview)
+                                    Set-Content -Path $markdownPath -Value $newContent -Encoding UTF8
+                                    Write-Host "    Enhanced successfully" -ForegroundColor Green
+                                }
+                            }
+                            else {
+                                Write-Host "    Skipped (empty or too short response)" -ForegroundColor Yellow
                             }
                         }
                     }
