@@ -120,7 +120,7 @@ jobs:
 
       - name: Upload changelog
         if: steps.version.outputs.should_release == 'true' || inputs.force_release
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: changelog
           path: changelog.md
