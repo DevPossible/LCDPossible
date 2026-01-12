@@ -254,6 +254,18 @@ try {
             Write-Host "  [WARN] Plugins directory not found in build output: $buildPluginsDir" -ForegroundColor Yellow
         }
 
+        # Copy SDK and Core assemblies to output directory (plugins need them on disk, not just embedded in single-file)
+        $buildOutputDir = Join-Path $BuildDir 'LCDPossible' 'bin' 'Release' 'net10.0' $runtime
+        foreach ($sharedDll in @('LCDPossible.Sdk.dll', 'LCDPossible.Core.dll')) {
+            $dllPath = Join-Path $buildOutputDir $sharedDll
+            if (Test-Path $dllPath) {
+                Copy-Item -Path $dllPath -Destination $outputDir -Force
+                Write-Host "  Copied $sharedDll for plugin compatibility" -ForegroundColor Gray
+            } else {
+                Write-Host "  [WARN] Assembly not found: $dllPath" -ForegroundColor Yellow
+            }
+        }
+
         # Rename executable to lowercase for Linux/macOS (case-sensitive filesystems)
         if ($runtime -notlike 'win-*') {
             $exePath = Join-Path $outputDir 'LCDPossible'
