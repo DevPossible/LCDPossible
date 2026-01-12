@@ -9,7 +9,6 @@
     <RepositoryUrl>https://github.com/DevPossible/LCDPossible</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
 
     <!-- Redirect bin/obj to /.build/{ProjectName}/ folder -->
     <BaseOutputPath>$(MSBuildThisFileDirectory).build\$(MSBuildProjectName)\bin\</BaseOutputPath>
