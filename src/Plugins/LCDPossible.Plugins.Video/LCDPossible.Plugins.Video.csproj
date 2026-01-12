@@ -20,15 +20,16 @@
     <PackageReference Include="YoutubeExplode" Version="6.5.6" />
   </ItemGroup>
 
-  <!-- Platform-specific LibVLC native libraries (based on target runtime, not build machine) -->
-  <ItemGroup Condition="$(RuntimeIdentifier.StartsWith('win'))">
+  <!-- Platform-specific LibVLC native libraries -->
+  <!-- Include when: publishing for target platform OR building locally on same platform -->
+  <ItemGroup Condition="$(RuntimeIdentifier.StartsWith('win')) OR ('$(RuntimeIdentifier)' == '' AND $([MSBuild]::IsOSPlatform('Windows')))">
     <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.21" />
   </ItemGroup>
 
   <!-- Linux: Install libvlc via system package manager (apt install vlc libvlc-dev) -->
   <!-- No NuGet package exists for Linux - LibVLCSharp will use system-installed libvlc -->
 
-  <ItemGroup Condition="$(RuntimeIdentifier.StartsWith('osx'))">
+  <ItemGroup Condition="$(RuntimeIdentifier.StartsWith('osx')) OR ('$(RuntimeIdentifier)' == '' AND $([MSBuild]::IsOSPlatform('OSX')))">
     <PackageReference Include="VideoLAN.LibVLC.Mac" Version="3.0.21" />
   </ItemGroup>
 
