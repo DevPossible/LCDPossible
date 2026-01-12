@@ -371,6 +371,12 @@ public sealed class SlideshowManager : IDisposable
             // Check if we have a cached frame that's still valid
             if (_panelFrameCache.TryGetValue(cacheKey, out var cached))
             {
+                // For non-live panels (like ErrorPanel), cache indefinitely - they don't change
+                if (!panel.IsLive)
+                {
+                    return cached.Frame.Clone();
+                }
+
                 var elapsed = now - cached.LastUpdate;
                 if (elapsed < updateInterval)
                 {
