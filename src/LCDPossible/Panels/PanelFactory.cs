@@ -134,53 +134,49 @@ public sealed class PanelFactory
     }
 
     /// <summary>
-    /// Creates a panel instance by type ID.
+    /// Result of attempting to create a panel.
     /// </summary>
-    /// <param name="panelTypeId">The panel type identifier. For panels with paths/URLs, use format "type:argument" (e.g., "video:path/to/video.mp4").</param>
+    public record PanelCreationResult(IDisplayPanel? Panel, string? ErrorMessage);
+
+    /// <summary>
+    /// Creates a panel instance by type ID, returning both the panel and any error message.
+    /// </summary>
+    /// <param name="panelTypeId">The panel type identifier.</param>
     /// <param name="settings">Optional settings dictionary for panel configuration.</param>
-    /// <returns>The panel instance, or null if type is unknown or plugin fails to load.</returns>
-    public async Task<IDisplayPanel?> CreatePanelAsync(string panelTypeId, Dictionary<string, string>? settings = null, CancellationToken cancellationToken = default)
+    /// <returns>Result containing the panel (if successful) or error message (if failed).</returns>
+    public async Task<PanelCreationResult> TryCreatePanelAsync(string panelTypeId, Dictionary<string, string>? settings = null, CancellationToken cancellationToken = default)
     {
-        if (_debug) Console.WriteLine($"[DEBUG] PanelFactory.CreatePanelAsync: Creating panel '{panelTypeId}'");
+        if (_debug) Console.WriteLine($"[DEBUG] PanelFactory.TryCreatePanelAsync: Creating panel '{panelTypeId}'");
 
         if (string.IsNullOrWhiteSpace(panelTypeId))
         {
-            _logger?.LogWarning("Cannot create panel: panel type ID is empty");
-            if (_debug) Console.WriteLine("[DEBUG] PanelFactory.CreatePanelAsync: Panel type ID is empty!");
-            return null;
+            return new PanelCreationResult(null, "Panel type ID is empty");
         }
 
         var normalizedId = panelTypeId.Trim();
-
-        // Parse panel type and argument (e.g., "video:path/to/file.mp4" -> type="video", arg="path/to/file.mp4")
         var (baseType, argument) = ParsePanelTypeId(normalizedId);
-        if (_debug) Console.WriteLine($"[DEBUG] PanelFactory.CreatePanelAsync: Parsed as baseType='{baseType}', argument='{argument}'");
 
         // Find which plugin provides this panel type
         var pluginId = _pluginManager.FindPluginForPanelType(baseType);
         if (pluginId == null)
         {
-            _logger?.LogWarning("No plugin found for panel type: {PanelType}", baseType);
-            if (_debug) Console.WriteLine($"[DEBUG] PanelFactory.CreatePanelAsync: No plugin found for panel type '{baseType}'!");
-            return null;
+            var error = $"No plugin registered for type '{baseType}'";
+            if (_debug) Console.WriteLine($"[DEBUG] PanelFactory: {error}");
+            return new PanelCreationResult(null, error);
         }
-        if (_debug) Console.WriteLine($"[DEBUG] PanelFactory.CreatePanelAsync: Found plugin '{pluginId}' for type '{baseType}'");
 
         try
         {
             // Load the plugin (if not already loaded)
-            if (_debug) Console.WriteLine($"[DEBUG] PanelFactory.CreatePanelAsync: Loading plugin '{pluginId}'...");
             var plugin = await _pluginManager.LoadPluginAsync(pluginId, cancellationToken);
             if (plugin == null)
             {
-                _logger?.LogWarning("Failed to load plugin {PluginId} for panel type {PanelType}", pluginId, baseType);
-                if (_debug) Console.WriteLine($"[DEBUG] PanelFactory.CreatePanelAsync: Failed to load plugin '{pluginId}'!");
-                return null;
+                var error = $"Failed to load plugin '{pluginId}'";
+                if (_debug) Console.WriteLine($"[DEBUG] PanelFactory: {error}");
+                return new PanelCreationResult(null, error);
             }
-            if (_debug) Console.WriteLine($"[DEBUG] PanelFactory.CreatePanelAsync: Plugin loaded: {plugin.DisplayName} v{plugin.Version}");
 
             // Create panel context
-            if (_debug) Console.WriteLine($"[DEBUG] PanelFactory.CreatePanelAsync: Creating context with SystemProvider={(_systemProvider != null ? _systemProvider.Name : "null")}");
             var context = new PanelCreationContext
             {
                 PanelTypeId = normalizedId,
@@ -193,16 +189,14 @@ public sealed class PanelFactory
             };
 
             // Create panel via plugin
-            if (_debug) Console.WriteLine($"[DEBUG] PanelFactory.CreatePanelAsync: Calling plugin.CreatePanel...");
             var panel = plugin.CreatePanel(normalizedId, context);
 
             if (panel == null)
             {
-                _logger?.LogWarning("Plugin {PluginId} returned null for panel type {PanelType}", pluginId, normalizedId);
-                if (_debug) Console.WriteLine($"[DEBUG] PanelFactory.CreatePanelAsync: Plugin returned null for panel type '{normalizedId}'!");
-                return null;
+                var error = $"Plugin '{pluginId}' returned null for '{normalizedId}'";
+                if (_debug) Console.WriteLine($"[DEBUG] PanelFactory: {error}");
+                return new PanelCreationResult(null, error);
             }
-            if (_debug) Console.WriteLine($"[DEBUG] PanelFactory.CreatePanelAsync: Panel created successfully: {panel.PanelId}");
 
             // Apply color scheme if it's a BaseLivePanel
             if (panel is BaseLivePanel livePanel)
@@ -210,14 +204,39 @@ public sealed class PanelFactory
                 livePanel.SetColorScheme(_colorScheme);
             }
 
-            return panel;
+            return new PanelCreationResult(panel, null);
         }
         catch (Exception ex)
         {
+            var error = $"{ex.GetType().Name}: {ex.Message}";
+            if (_debug) Console.WriteLine($"[DEBUG] PanelFactory: Exception loading panel '{normalizedId}' via plugin '{pluginId}': {error}");
             _logger?.LogError(ex, "Error creating panel {PanelType} via plugin {PluginId}", normalizedId, pluginId);
-            if (_debug) Console.WriteLine($"[DEBUG] PanelFactory.CreatePanelAsync: Exception - {ex.GetType().Name}: {ex.Message}");
-            return null;
+            return new PanelCreationResult(null, error);
         }
+    }
+
+    /// <summary>
+    /// Creates a panel instance by type ID.
+    /// </summary>
+    /// <param name="panelTypeId">The panel type identifier. For panels with paths/URLs, use format "type:argument" (e.g., "video:path/to/video.mp4").</param>
+    /// <param name="settings">Optional settings dictionary for panel configuration.</param>
+    /// <returns>The panel instance, or null if type is unknown or plugin fails to load.</returns>
+    public async Task<IDisplayPanel?> CreatePanelAsync(string panelTypeId, Dictionary<string, string>? settings = null, CancellationToken cancellationToken = default)
+    {
+        var result = await TryCreatePanelAsync(panelTypeId, settings, cancellationToken);
+        if (result.ErrorMessage != null)
+        {
+            _logger?.LogWarning("Failed to create panel '{PanelType}': {Error}", panelTypeId, result.ErrorMessage);
+        }
+        return result.Panel;
+    }
+
+    /// <summary>
+    /// Synchronous wrapper for TryCreatePanelAsync.
+    /// </summary>
+    public PanelCreationResult TryCreatePanel(string panelTypeId, Dictionary<string, string>? settings = null)
+    {
+        return TryCreatePanelAsync(panelTypeId, settings).GetAwaiter().GetResult();
     }
 
     /// <summary>

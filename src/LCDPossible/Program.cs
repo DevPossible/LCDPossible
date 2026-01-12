@@ -637,6 +637,114 @@ static bool IsDebugMode(string[] args)
                          a.Equals("-D", StringComparison.OrdinalIgnoreCase));
 }
 
+/// <summary>
+/// Gets the default profile panels, including Proxmox panels if configured.
+/// </summary>
+static string GetDefaultProfile(bool debug = false)
+{
+    // Base panels for all systems
+    var panels = new List<string>
+    {
+        "basic-info",
+        "cpu-usage-graphic",
+        "gpu-usage-graphic",
+        "ram-usage-graphic"
+    };
+
+    // Check if Proxmox is configured
+    if (IsProxmoxConfigured(debug))
+    {
+        if (debug) Console.WriteLine("[DEBUG] Proxmox is configured, adding Proxmox panels to default profile");
+        panels.Add("proxmox-summary");
+        panels.Add("proxmox-vms");
+    }
+
+    return string.Join(",", panels);
+}
+
+/// <summary>
+/// Checks if Proxmox API is configured by reading appsettings.json.
+/// </summary>
+static bool IsProxmoxConfigured(bool debug = false)
+{
+    try
+    {
+        // Determine config path based on platform
+        string configPath;
+        if (OperatingSystem.IsWindows())
+        {
+            configPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                "LCDPossible", "appsettings.json");
+        }
+        else if (OperatingSystem.IsMacOS())
+        {
+            configPath = "/Library/Application Support/LCDPossible/appsettings.json";
+        }
+        else
+        {
+            configPath = "/etc/lcdpossible/appsettings.json";
+        }
+
+        if (debug) Console.WriteLine($"[DEBUG] Checking for Proxmox config at: {configPath}");
+
+        if (!File.Exists(configPath))
+        {
+            if (debug) Console.WriteLine("[DEBUG] Config file not found");
+            return false;
+        }
+
+        var json = File.ReadAllText(configPath);
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        // Check for LCDPossible.Proxmox section
+        if (!root.TryGetProperty("LCDPossible", out var lcdSection))
+        {
+            if (debug) Console.WriteLine("[DEBUG] LCDPossible section not found in config");
+            return false;
+        }
+
+        if (!lcdSection.TryGetProperty("Proxmox", out var proxmoxSection))
+        {
+            if (debug) Console.WriteLine("[DEBUG] Proxmox section not found in config");
+            return false;
+        }
+
+        // Check if Proxmox is enabled and has required fields
+        var enabled = proxmoxSection.TryGetProperty("Enabled", out var enabledProp) &&
+                      enabledProp.ValueKind == JsonValueKind.True;
+
+        if (!enabled)
+        {
+            if (debug) Console.WriteLine("[DEBUG] Proxmox not enabled in config");
+            return false;
+        }
+
+        var hasApiUrl = proxmoxSection.TryGetProperty("ApiUrl", out var apiUrlProp) &&
+                        apiUrlProp.ValueKind == JsonValueKind.String &&
+                        !string.IsNullOrEmpty(apiUrlProp.GetString());
+
+        var hasTokenId = proxmoxSection.TryGetProperty("TokenId", out var tokenIdProp) &&
+                         tokenIdProp.ValueKind == JsonValueKind.String &&
+                         !string.IsNullOrEmpty(tokenIdProp.GetString());
+
+        var hasTokenSecret = proxmoxSection.TryGetProperty("TokenSecret", out var tokenSecretProp) &&
+                             tokenSecretProp.ValueKind == JsonValueKind.String &&
+                             !string.IsNullOrEmpty(tokenSecretProp.GetString());
+
+        var configured = hasApiUrl && hasTokenId && hasTokenSecret;
+        if (debug) Console.WriteLine($"[DEBUG] Proxmox configured: {configured} (Enabled={enabled}, ApiUrl={hasApiUrl}, TokenId={hasTokenId}, TokenSecret={hasTokenSecret})");
+
+        return configured;
+    }
+    catch (Exception ex)
+    {
+        if (debug) Console.WriteLine($"[DEBUG] Error checking Proxmox config: {ex.Message}");
+        return false;
+    }
+}
+
 static async Task<int> ShowPanels(string[] args)
 {
     var profile = GetShowProfile(args);
@@ -652,8 +760,8 @@ static async Task<int> ShowPanels(string[] args)
     // If no profile specified, use the default profile panels
     if (string.IsNullOrEmpty(profile))
     {
-        // Default profile: basic-info, cpu-usage-graphic, gpu-usage-graphic, ram-usage-graphic
-        profile = "basic-info,cpu-usage-graphic,gpu-usage-graphic,ram-usage-graphic";
+        // Get default profile (includes Proxmox panels if configured)
+        profile = GetDefaultProfile(debug);
         Console.WriteLine("No panels specified, using default profile");
         if (debug)
         {
@@ -752,7 +860,7 @@ static async Task<int> ShowPanels(string[] args)
         {
             Console.WriteLine("[DEBUG] Creating SlideshowManager...");
         }
-        using var slideshow = new SlideshowManager(panelFactory, items);
+        using var slideshow = new SlideshowManager(panelFactory, items, debug: debug);
         if (debug)
         {
             Console.WriteLine("[DEBUG] Initializing slideshow...");
@@ -855,8 +963,13 @@ static async Task<int> RenderPanelsToFiles(string[] args)
     // If no profile specified, use the default profile panels
     if (string.IsNullOrEmpty(profile))
     {
-        profile = "basic-info,cpu-usage-graphic,gpu-usage-graphic,ram-usage-graphic";
+        // Get default profile (includes Proxmox panels if configured)
+        profile = GetDefaultProfile(debug);
         Console.WriteLine("No panels specified, using default profile");
+        if (debug)
+        {
+            Console.WriteLine($"[DEBUG] Default profile: {profile}");
+        }
     }
 
     // Determine output directory (user's home folder)

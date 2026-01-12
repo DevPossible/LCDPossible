@@ -12,6 +12,7 @@ REPO="DevPossible/LCDPossible"
 INSTALL_DIR="/opt/lcdpossible"
 SERVICE_NAME="lcdpossible"
 CONFIG_DIR="/etc/lcdpossible"
+SERVICE_WAS_RUNNING=false
 
 echo "=============================================="
 echo "  LCDPossible Installer (Proxmox VE)"
@@ -146,7 +147,14 @@ fi
 echo ""
 echo "[3/8] Downloading and extracting..."
 if [ "$SKIP_DOWNLOAD" != "true" ]; then
-    echo "  Stopping service if running..."
+    # Capture service state before stopping (to restore later)
+    SERVICE_WAS_RUNNING=false
+    if systemctl is-active --quiet $SERVICE_NAME 2>/dev/null; then
+        SERVICE_WAS_RUNNING=true
+        echo "  Stopping running service..."
+    else
+        echo "  Service not running."
+    fi
     systemctl stop $SERVICE_NAME 2>/dev/null || true
 
     if [ "$USE_LOCAL_TARBALL" = "true" ]; then
@@ -229,59 +237,32 @@ echo "[6/8] Configuring Proxmox API access..."
 PROXMOX_API_CONFIGURED=false
 CREATE_NEW_TOKEN=false
 
-# Check if Proxmox config already exists
-if [ -f "$CONFIG_DIR/appsettings.json" ]; then
+# Check if auto-create API key flag is set (for non-interactive installs)
+# Set AUTO_CREATE_API_KEY=true to automatically create the API token
+if [ "$AUTO_CREATE_API_KEY" = "true" ]; then
+    echo "  Auto-create API key mode enabled."
+    CREATE_NEW_TOKEN=true
+elif [ -n "$AUTO_CREATE_API_KEY" ] && [ "$AUTO_CREATE_API_KEY" != "false" ]; then
+    echo "  Auto-create API key mode enabled."
+    CREATE_NEW_TOKEN=true
+elif [ -f "$CONFIG_DIR/appsettings.json" ]; then
+    # Check if Proxmox config already exists
     PROXMOX_ENABLED=$(jq -r '.LCDPossible.Proxmox.Enabled // false' "$CONFIG_DIR/appsettings.json" 2>/dev/null)
     EXISTING_TOKEN_ID=$(jq -r '.LCDPossible.Proxmox.TokenId // ""' "$CONFIG_DIR/appsettings.json" 2>/dev/null)
     EXISTING_API_URL=$(jq -r '.LCDPossible.Proxmox.ApiUrl // ""' "$CONFIG_DIR/appsettings.json" 2>/dev/null)
 
     if [ "$PROXMOX_ENABLED" = "true" ] && [ -n "$EXISTING_TOKEN_ID" ] && [ "$EXISTING_TOKEN_ID" != "null" ]; then
-        # Existing configuration found
+        # Existing configuration found - keep it
         echo "  Existing Proxmox API configuration found:"
         echo "    URL:      $EXISTING_API_URL"
         echo "    Token ID: $EXISTING_TOKEN_ID"
-        echo ""
-        echo "  Options:"
-        echo "    [K] Keep existing configuration"
-        echo "    [N] Create new API token (regenerate)"
-        echo "    [D] Disable Proxmox integration"
-        echo ""
-        # Read from /dev/tty to work with curl | bash
-        read -p "  Choice [K/n/d]: " -n 1 -r REPLY </dev/tty
-        echo
-
-        if [[ $REPLY =~ ^[Nn]$ ]]; then
-            # User wants to create new token
-            echo "  Creating new Proxmox API token..."
-            CREATE_NEW_TOKEN=true
-        elif [[ $REPLY =~ ^[Dd]$ ]]; then
-            # User wants to disable
-            echo "  Disabling Proxmox API integration..."
-            TMP_CONFIG=$(mktemp)
-            jq '.LCDPossible.Proxmox.Enabled = false' "$CONFIG_DIR/appsettings.json" > "$TMP_CONFIG"
-            mv "$TMP_CONFIG" "$CONFIG_DIR/appsettings.json"
-            echo "  [OK] Proxmox API disabled."
-        else
-            # Keep existing (default)
-            echo "  [OK] Keeping existing Proxmox API configuration."
-            PROXMOX_API_CONFIGURED=true
-        fi
+        echo "  [OK] Keeping existing Proxmox API configuration."
+        PROXMOX_API_CONFIGURED=true
     else
-        # No existing config, ask if they want to set it up
-        echo ""
-        # Read from /dev/tty to work with curl | bash
-        read -p "  Configure Proxmox API integration? [Y/n] " -n 1 -r REPLY </dev/tty
-        echo
-        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-            CREATE_NEW_TOKEN=true
-        else
-            echo "  [SKIP] Proxmox API not configured."
-        fi
+        echo "  [SKIP] Proxmox API not configured (use AUTO_CREATE_API_KEY=true to auto-configure)."
     fi
 else
-    # Config file doesn't exist yet - this shouldn't happen but handle it
-    echo "  [WARN] Config file not found, skipping Proxmox API setup."
-    echo "  Run the installer again after the config file is created."
+    echo "  [SKIP] Proxmox API not configured (use AUTO_CREATE_API_KEY=true to auto-configure)."
 fi
 
 # Create new API token if requested
@@ -405,12 +386,18 @@ systemctl enable $SERVICE_NAME
 echo "  [OK] Service configured and enabled."
 
 echo ""
-echo "[9/9] Starting service..."
-systemctl start $SERVICE_NAME
-if systemctl is-active --quiet $SERVICE_NAME; then
-    echo "  [OK] Service is running."
+echo "[9/9] Service status..."
+if [ "$SERVICE_WAS_RUNNING" = "true" ]; then
+    echo "  Restarting service (was running before install)..."
+    systemctl start $SERVICE_NAME
+    if systemctl is-active --quiet $SERVICE_NAME; then
+        echo "  [OK] Service is running."
+    else
+        echo "  [WARN] Service may have failed to start. Check: journalctl -u $SERVICE_NAME"
+    fi
 else
-    echo "  [WARN] Service may have failed to start. Check: journalctl -u $SERVICE_NAME"
+    echo "  [OK] Service enabled but not started (was not running before install)."
+    echo "  To start: systemctl start $SERVICE_NAME"
 fi
 
 echo ""

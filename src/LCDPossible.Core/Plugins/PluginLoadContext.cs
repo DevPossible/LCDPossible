@@ -71,12 +71,23 @@ public sealed class PluginLoadContext : AssemblyLoadContext
                 return loaded;
             }
 
-            // Try to load from the host application directory
+            // Try to load from the host application directory (for non-single-file deploys)
             var hostAssemblyPath = Path.Combine(_hostDirectory, $"{assemblyName.Name}.dll");
             if (File.Exists(hostAssemblyPath))
             {
                 // Load into the default context so all plugins share the same instance
                 return Default.LoadFromAssemblyPath(hostAssemblyPath);
+            }
+
+            // For single-file deployment: try to load from the default context
+            // The assembly may be embedded in the single-file bundle
+            try
+            {
+                return Default.LoadFromAssemblyName(assemblyName);
+            }
+            catch (FileNotFoundException)
+            {
+                // Assembly not found in bundle either, fall through
             }
 
             // Fall back to default context resolution

@@ -76,12 +76,14 @@ param(
     [switch]$SkipBuild,
     [switch]$SkipTests,
     [switch]$StayRemote,
+    [switch]$AutoCreateApiKey,
     [string]$SshKey,
     [int]$Port = 22,
     [string]$Version
 )
 
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'  # Disable progress bars (messes up console output)
 
 $ScriptRoot = $PSScriptRoot
 $ProjectRoot = Split-Path $ScriptRoot -Parent
@@ -254,9 +256,14 @@ function Invoke-RemoteInstall {
     Write-Step "5/5" "Running installation on $TargetHost..."
     Write-Host ""
 
-    # Run install script with LOCAL_TARBALL environment variable
-    # Use export to ensure the variable is available to the script
-    $installCmd = "export LOCAL_TARBALL='$RemoteTarball' && bash '$RemoteScript'"
+    # Build environment variables for install script
+    $envVars = "export LOCAL_TARBALL='$RemoteTarball'"
+    if ($AutoCreateApiKey) {
+        $envVars += " && export AUTO_CREATE_API_KEY=true"
+        Write-Info "Auto-create API key: enabled"
+    }
+
+    $installCmd = "$envVars && bash '$RemoteScript'"
 
     Write-Info "Remote tarball: $RemoteTarball"
     Write-Info "Running: $installCmd"

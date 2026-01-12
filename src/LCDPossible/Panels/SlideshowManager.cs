@@ -28,6 +28,7 @@ public sealed class SlideshowManager : IDisposable
     private DateTime _slideStartTime;
     private bool _initialized;
     private bool _disposed;
+    private readonly bool _debug;
 
     // Transition state
     private Image<Rgba32>? _previousFrame;
@@ -38,11 +39,13 @@ public sealed class SlideshowManager : IDisposable
     public SlideshowManager(
         PanelFactory panelFactory,
         List<SlideshowItem> items,
-        ILogger<SlideshowManager>? logger = null)
+        ILogger<SlideshowManager>? logger = null,
+        bool debug = false)
     {
         _panelFactory = panelFactory ?? throw new ArgumentNullException(nameof(panelFactory));
         _items = items ?? throw new ArgumentNullException(nameof(items));
         _logger = logger;
+        _debug = debug;
     }
 
     /// <summary>
@@ -104,22 +107,27 @@ public sealed class SlideshowManager : IDisposable
         {
             if (item.Type == "panel")
             {
-                var panel = _panelFactory.CreatePanel(item.Source, item.Settings);
-                if (panel != null)
+                var result = _panelFactory.TryCreatePanel(item.Source, item.Settings);
+                if (result.Panel != null)
                 {
-                    await panel.InitializeAsync(cancellationToken);
-                    _panels.Add(panel);
-                    _logger?.LogDebug("Initialized panel: {PanelId}", panel.PanelId);
+                    await result.Panel.InitializeAsync(cancellationToken);
+                    _panels.Add(result.Panel);
+                    if (_debug) Console.WriteLine($"[DEBUG] SlideshowManager: Initialized panel '{result.Panel.PanelId}'");
+                    _logger?.LogDebug("Initialized panel: {PanelId}", result.Panel.PanelId);
                 }
                 else
                 {
                     // Create an error panel for unknown/failed panel types
                     // This keeps _panels in sync with _items and shows a helpful error message
-                    _logger?.LogWarning("Unknown panel type '{Source}' - displaying error panel", item.Source);
+                    var errorMessage = result.ErrorMessage ?? "Unknown error";
+                    if (_debug) Console.WriteLine($"[DEBUG] SlideshowManager: Failed to create panel '{item.Source}': {errorMessage}");
+                    _logger?.LogWarning("Failed to create panel '{Source}': {Error}", item.Source, errorMessage);
                     var availablePanels = _panelFactory.AvailablePanels;
+                    if (_debug) Console.WriteLine($"[DEBUG] SlideshowManager: Available panels: {string.Join(", ", availablePanels)}");
+                    _logger?.LogDebug("Available panels: {Panels}", string.Join(", ", availablePanels));
                     var errorPanel = new ErrorPanel(
                         item.Source,
-                        $"Panel type '{item.Source}' was not found.",
+                        errorMessage,
                         availablePanels);
                     await errorPanel.InitializeAsync(cancellationToken);
                     _panels.Add(errorPanel);
@@ -397,6 +405,7 @@ public sealed class SlideshowManager : IDisposable
         catch (Exception ex)
         {
             // Log the error
+            if (_debug) Console.WriteLine($"[DEBUG] SlideshowManager: Panel '{panel.PanelId}' failed to render: {ex.Message}");
             _logger?.LogError(ex, "Panel '{PanelId}' failed to render: {Message}", panel.PanelId, ex.Message);
 
             // Mark this panel as failed to stop further update attempts
@@ -406,6 +415,7 @@ public sealed class SlideshowManager : IDisposable
             var errorFrame = GenerateErrorPage(width, height, panel.PanelId, ex.Message);
             _errorFrameCache[panelIndex] = (errorFrame, ex.Message);
 
+            if (_debug) Console.WriteLine($"[DEBUG] SlideshowManager: Panel '{panel.PanelId}' marked as failed - displaying error page");
             _logger?.LogWarning("Panel '{PanelId}' marked as failed - displaying error page until next slide", panel.PanelId);
 
             return errorFrame.Clone();

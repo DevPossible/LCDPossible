@@ -128,27 +128,32 @@ public sealed class ErrorPanel : IDisplayPanel
             };
             ctx.DrawText(panelOptions, $"\"{_panelTypeId}\"", panelColor);
 
-            y += 35;
+            y += 30;
 
-            // Error message (shortened)
-            var displayError = _errorMessage.Length > 60
-                ? _errorMessage[..57] + "..."
-                : _errorMessage;
-            var errorOptions = new RichTextOptions(_hintFont)
+            // Error message - full text with wrapping
+            var errorOptions = new RichTextOptions(_smallFont)
             {
-                Origin = new PointF(centerX, y),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                WrappingLength = width - 40
+                Origin = new PointF(20, y),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+                WrappingLength = width - 40,
+                LineSpacing = 1.1f
             };
+            // Limit to ~300 chars to leave room for available panels
+            var displayError = _errorMessage.Length > 300
+                ? _errorMessage[..297] + "..."
+                : _errorMessage;
             ctx.DrawText(errorOptions, displayError, textColor);
 
-            y += 40;
+            // Estimate lines used (roughly 60 chars per line at this font size)
+            var estimatedLines = Math.Min(5, (int)Math.Ceiling(displayError.Length / 50.0));
+            y += 18 * estimatedLines + 15;
 
             // Available panels section
             if (_availablePanels.Length == 0)
             {
                 // No plugins found - this is the real issue
-                var noPluginsOptions = new RichTextOptions(_messageFont)
+                var noPluginsOptions = new RichTextOptions(_hintFont)
                 {
                     Origin = new PointF(centerX, y),
                     HorizontalAlignment = HorizontalAlignment.Center
