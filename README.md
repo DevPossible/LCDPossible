@@ -166,6 +166,86 @@ cd LCDPossible
 ./package.ps1 -Version "1.0.0"
 ```
 
+## Uninstall
+
+### One-Line Uninstall
+
+Remove LCDPossible using a single command:
+
+**Windows** (PowerShell as Administrator):
+```powershell
+irm https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/uninstall-windows.ps1 | iex
+```
+
+**Ubuntu/Debian/Proxmox**:
+```bash
+curl -sSL https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/uninstall-ubuntu.sh | sudo bash
+```
+
+**Fedora/RHEL**:
+```bash
+curl -sSL https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/uninstall-fedora.sh | sudo bash
+```
+
+**Arch Linux**:
+```bash
+curl -sSL https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/uninstall-arch.sh | sudo bash
+```
+
+**macOS**:
+```bash
+curl -sSL https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/uninstall-macos.sh | bash
+```
+
+These scripts will:
+- Stop and remove the service (systemd/launchd/Windows Service)
+- Remove the symlink or PATH entry
+- Remove installed files from the installation directory
+- Preserve configuration files by default
+
+### Remove Configuration Files
+
+To also remove configuration files, use the `--remove-config` flag:
+
+```bash
+# Linux/macOS
+curl -sSL https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/uninstall-ubuntu.sh | sudo bash -s -- --remove-config
+
+# Windows
+irm https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/uninstall-windows.ps1 -OutFile uninstall.ps1; .\uninstall.ps1 -RemoveConfig
+```
+
+### Local Uninstall Script
+
+If you have the repository cloned, you can use the local scripts:
+
+```bash
+# Windows
+.\scripts\uninstall-windows.ps1
+.\scripts\uninstall-windows.ps1 -RemoveConfig  # Also remove config
+
+# Linux/macOS
+sudo ./scripts/uninstall-ubuntu.sh
+sudo ./scripts/uninstall-ubuntu.sh --remove-config
+```
+
+### Remote Uninstall via SSH
+
+Use `uninstall-local.ps1` to uninstall from a remote Linux/macOS host:
+
+```powershell
+# Basic uninstall
+.\scripts\uninstall-local.ps1 -TargetHost myserver.local
+
+# Specify distro and remove config
+.\scripts\uninstall-local.ps1 -TargetHost 192.168.1.100 -Distro proxmox -RemoveConfig
+
+# macOS target
+.\scripts\uninstall-local.ps1 -TargetHost mymac -User admin -Distro macos
+```
+
+Available distros: `ubuntu`, `debian`, `proxmox`, `fedora`, `arch`, `macos`
+
 ## CLI Commands
 
 ### Device Management
