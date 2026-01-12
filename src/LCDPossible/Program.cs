@@ -4,6 +4,7 @@ using LCDPossible.Core.Devices;
 using LCDPossible.Core.Ipc;
 using LCDPossible.Core.Plugins;
 using LCDPossible.Core.Rendering;
+using LCDPossible.Core.Transitions;
 using LCDPossible.Core.Usb;
 using LCDPossible;
 using LCDPossible.Cli;
@@ -205,12 +206,20 @@ CLI COMMANDS:
     list-panels, panels     List all available panel types with descriptions
     help-panel <type>       Show detailed help for a specific panel type
     status                  Show status of connected devices and configuration
-    test                    Render panels to JPEG files (supports wildcards: *, ?)
+    test                    Render panels to JPEG files (no LCD required, supports wildcards)
     test-pattern            Display a test pattern on the LCD
     set-image               Send an image file to the LCD display
     show                    Quick display panels (uses default profile if no panels specified)
     profile <sub-command>   Manage display profiles (use 'profile help' for details)
     config <sub-command>    Manage configuration (use 'config help' for details)
+
+TEST COMMAND OPTIONS:
+    --resolution, -r WxH    Target resolution (default: 1280x480)
+    --width W               Target width in pixels (overrides -r)
+    --height H              Target height in pixels (overrides -r)
+    --wait, -w <seconds>    Render frames for N seconds before capture
+    --transitions, -t       Enable transitions between panels
+    --output, -o <path>     Output directory (default: user home folder)
 
 RUNTIME COMMANDS (when service is running):
     status                  Get service status and current slideshow info
@@ -269,6 +278,10 @@ EXAMPLES:
     lcdpossible test cpu-*                    Render all CPU panels (wildcard)
     lcdpossible test *-graphic                Render all graphic panels (wildcard)
     lcdpossible test *                        Render ALL available panels
+    lcdpossible test -r 800x480               Render at 800x480 resolution
+    lcdpossible test -w 5 animated-gif:demo.gif   Wait 5 seconds then capture frame
+    lcdpossible test -o ./output cpu-info     Save output to ./output directory
+    lcdpossible test -t -w 3 a,b,c            Enable transitions, wait 3s, capture mid-transition
     lcdpossible test-pattern                  Send test pattern to first device
     lcdpossible test-pattern -d 1             Send test pattern to second device
     lcdpossible set-image -p wallpaper.jpg    Display an image
@@ -657,6 +670,100 @@ static bool IsDebugMode(string[] args)
 }
 
 /// <summary>
+/// Gets the resolution for test command. Checks --width, --height, and --resolution options.
+/// Defaults to 1280x480 (Trofeo Vision LCD).
+/// </summary>
+static (int Width, int Height) GetTestResolution(string[] args)
+{
+    var width = 1280;
+    var height = 480;
+
+    // Check for --resolution WxH format
+    for (var i = 0; i < args.Length - 1; i++)
+    {
+        if (args[i].Equals("--resolution", StringComparison.OrdinalIgnoreCase) ||
+            args[i].Equals("-r", StringComparison.OrdinalIgnoreCase))
+        {
+            var res = args[i + 1];
+            var parts = res.Split('x', 'X', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 2 &&
+                int.TryParse(parts[0], out var w) &&
+                int.TryParse(parts[1], out var h))
+            {
+                width = w;
+                height = h;
+            }
+        }
+    }
+
+    // Check for individual --width and --height
+    for (var i = 0; i < args.Length - 1; i++)
+    {
+        if (args[i].Equals("--width", StringComparison.OrdinalIgnoreCase))
+        {
+            if (int.TryParse(args[i + 1], out var w))
+            {
+                width = w;
+            }
+        }
+        else if (args[i].Equals("--height", StringComparison.OrdinalIgnoreCase))
+        {
+            if (int.TryParse(args[i + 1], out var h))
+            {
+                height = h;
+            }
+        }
+    }
+
+    return (width, height);
+}
+
+/// <summary>
+/// Gets the wait time in seconds for test command. Renders and discards frames until this time.
+/// Returns 0 for no wait (capture first frame immediately).
+/// </summary>
+static double GetTestWaitSeconds(string[] args)
+{
+    for (var i = 0; i < args.Length - 1; i++)
+    {
+        if (args[i].Equals("--wait", StringComparison.OrdinalIgnoreCase) ||
+            args[i].Equals("-w", StringComparison.OrdinalIgnoreCase))
+        {
+            if (double.TryParse(args[i + 1], out var seconds))
+            {
+                return Math.Max(0, seconds);
+            }
+        }
+    }
+    return 0;
+}
+
+/// <summary>
+/// Gets whether transitions are enabled for test command.
+/// </summary>
+static bool IsTransitionsEnabled(string[] args)
+{
+    return args.Any(a => a.Equals("--transitions", StringComparison.OrdinalIgnoreCase) ||
+                         a.Equals("-t", StringComparison.OrdinalIgnoreCase));
+}
+
+/// <summary>
+/// Gets the output path for test command. Defaults to user's home folder.
+/// </summary>
+static string GetTestOutputPath(string[] args)
+{
+    for (var i = 0; i < args.Length - 1; i++)
+    {
+        if (args[i].Equals("--output", StringComparison.OrdinalIgnoreCase) ||
+            args[i].Equals("-o", StringComparison.OrdinalIgnoreCase))
+        {
+            return args[i + 1];
+        }
+    }
+    return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+}
+
+/// <summary>
 /// Gets the default profile panels, including Proxmox panels if configured.
 /// </summary>
 static string GetDefaultProfile(bool debug = false)
@@ -973,10 +1080,20 @@ static async Task<int> RenderPanelsToFiles(string[] args)
     var profile = GetShowProfile(args);
     var debug = IsDebugMode(args);
 
+    // Parse test command options
+    var (width, height) = GetTestResolution(args);
+    var waitSeconds = GetTestWaitSeconds(args);
+    var transitionsEnabled = IsTransitionsEnabled(args);
+    var outputDir = GetTestOutputPath(args);
+
     if (debug)
     {
         Console.WriteLine("[DEBUG] Debug mode enabled");
         Console.WriteLine($"[DEBUG] Arguments: {string.Join(" ", args)}");
+        Console.WriteLine($"[DEBUG] Resolution: {width}x{height}");
+        Console.WriteLine($"[DEBUG] Wait: {waitSeconds}s");
+        Console.WriteLine($"[DEBUG] Transitions: {transitionsEnabled}");
+        Console.WriteLine($"[DEBUG] Output: {outputDir}");
     }
 
     // If no profile specified, use the default profile panels
@@ -991,14 +1108,32 @@ static async Task<int> RenderPanelsToFiles(string[] args)
         }
     }
 
-    // Determine output directory (user's home folder)
-    var outputDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+    Console.WriteLine($"Resolution: {width}x{height}");
+    if (waitSeconds > 0)
+    {
+        Console.WriteLine($"Wait time: {waitSeconds}s (rendering frames until capture)");
+    }
+    if (transitionsEnabled)
+    {
+        Console.WriteLine("Transitions: enabled");
+    }
 
-    // Default dimensions (same as Trofeo Vision)
-    const int width = 1280;
-    const int height = 480;
+    // Ensure output directory exists
+    if (!Directory.Exists(outputDir))
+    {
+        try
+        {
+            Directory.CreateDirectory(outputDir);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error: Could not create output directory '{outputDir}': {ex.Message}");
+            return 1;
+        }
+    }
 
     // Create stub system info provider - plugins provide actual hardware data
+    // No IPC or HID connection needed - test mode is completely standalone
     using var systemProvider = new StubSystemInfoProvider();
     await systemProvider.InitializeAsync();
 
@@ -1039,53 +1174,128 @@ static async Task<int> RenderPanelsToFiles(string[] args)
 
     // Parse the profile
     var items = InlineProfileParser.Parse(expandedProfile);
+
+    // If transitions are disabled, force TransitionType.None on all items
+    if (!transitionsEnabled)
+    {
+        foreach (var item in items)
+        {
+            item.Transition = TransitionType.None;
+        }
+    }
+
     Console.WriteLine($"Rendering {items.Count} panel(s) to files...\n");
 
     var filesWritten = new List<string>();
 
-    foreach (var item in items)
+    // Use slideshow manager when wait time is specified (to properly handle frame timing)
+    // or when rendering multiple panels with transitions
+    if (waitSeconds > 0 || (transitionsEnabled && items.Count > 1))
     {
-        try
+        // Use SlideshowManager for proper frame timing and transitions
+        using var slideshow = new SlideshowManager(panelFactory, items, debug: debug);
+        await slideshow.InitializeAsync(CancellationToken.None);
+
+        if (debug)
         {
-            // Create the panel (Source contains the panel type ID)
-            var panel = panelFactory.CreatePanel(item.Source, item.Settings);
-            if (panel == null)
-            {
-                Console.Error.WriteLine($"Error: Could not create panel '{item.Source}'");
-                return 1;
-            }
-
-            // Initialize the panel
-            await panel.InitializeAsync(CancellationToken.None);
-
-            // Render first frame
-            using var frame = await panel.RenderFrameAsync(width, height, CancellationToken.None);
-            if (frame == null)
-            {
-                Console.Error.WriteLine($"Error: Panel '{item.Source}' returned null frame");
-                panel.Dispose();
-                return 1;
-            }
-
-            // Generate safe filename from panel ID
-            var safeFileName = GetSafeFileName(panel.PanelId);
-            var outputPath = Path.Combine(outputDir, $"{safeFileName}.jpg");
-
-            // Save as JPEG
-            await frame.SaveAsJpegAsync(outputPath);
-            filesWritten.Add(outputPath);
-            Console.WriteLine(outputPath);
-
-            panel.Dispose();
+            Console.WriteLine($"[DEBUG] Slideshow initialized with {items.Count} item(s)");
         }
-        catch (Exception ex)
+
+        // Render and discard frames until wait time elapses
+        if (waitSeconds > 0)
         {
-            Console.Error.WriteLine($"Error: Failed to render panel '{item.Source}': {ex.Message}");
+            var startTime = DateTime.UtcNow;
+            var endTime = startTime.AddSeconds(waitSeconds);
+            var frameInterval = TimeSpan.FromMilliseconds(1000.0 / 30); // 30 FPS
+            var frameCount = 0;
+
+            Console.Write($"Rendering frames for {waitSeconds}s: ");
+
+            while (DateTime.UtcNow < endTime)
+            {
+                using var frame = await slideshow.RenderCurrentFrameAsync(width, height, CancellationToken.None);
+                frameCount++;
+
+                // Progress indicator every 30 frames (~1 second)
+                if (frameCount % 30 == 0)
+                {
+                    var remaining = (endTime - DateTime.UtcNow).TotalSeconds;
+                    Console.Write($"\rRendering frames for {waitSeconds}s: {Math.Max(0, remaining):F1}s remaining ({frameCount} frames)    ");
+                }
+
+                // Maintain approximate frame rate
+                await Task.Delay(frameInterval);
+            }
+
+            Console.WriteLine($"\rRendering complete: {frameCount} frames rendered                    ");
+
             if (debug)
             {
-                Console.Error.WriteLine($"[DEBUG] {ex}");
+                Console.WriteLine($"[DEBUG] Rendered and discarded {frameCount} frames over {waitSeconds}s");
             }
-            return 1;
+        }
+
+        // Capture the current frame after wait time
+        using var capturedFrame = await slideshow.RenderCurrentFrameAsync(width, height, CancellationToken.None);
+        if (capturedFrame != null)
+        {
+            var currentItem = slideshow.CurrentItem;
+            var panelId = currentItem?.Source ?? "slideshow";
+            var safeFileName = GetSafeFileName(panelId);
+            var outputPath = Path.Combine(outputDir, $"{safeFileName}.jpg");
+
+            await capturedFrame.SaveAsJpegAsync(outputPath);
+            filesWritten.Add(outputPath);
+            Console.WriteLine(outputPath);
+        }
+    }
+    else
+    {
+        // Simple mode: render first frame of each panel directly
+        foreach (var item in items)
+        {
+            try
+            {
+                // Create the panel (Source contains the panel type ID)
+                var panel = panelFactory.CreatePanel(item.Source, item.Settings);
+                if (panel == null)
+                {
+                    Console.Error.WriteLine($"Error: Could not create panel '{item.Source}'");
+                    return 1;
+                }
+
+                // Initialize the panel
+                await panel.InitializeAsync(CancellationToken.None);
+
+                // Render first frame
+                using var frame = await panel.RenderFrameAsync(width, height, CancellationToken.None);
+                if (frame == null)
+                {
+                    Console.Error.WriteLine($"Error: Panel '{item.Source}' returned null frame");
+                    panel.Dispose();
+                    return 1;
+                }
+
+                // Generate safe filename from panel ID
+                var safeFileName = GetSafeFileName(panel.PanelId);
+                var outputPath = Path.Combine(outputDir, $"{safeFileName}.jpg");
+
+                // Save as JPEG
+                await frame.SaveAsJpegAsync(outputPath);
+                filesWritten.Add(outputPath);
+                Console.WriteLine(outputPath);
+
+                panel.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error: Failed to render panel '{item.Source}': {ex.Message}");
+                if (debug)
+                {
+                    Console.Error.WriteLine($"[DEBUG] {ex}");
+                }
+                return 1;
+            }
         }
     }
 
