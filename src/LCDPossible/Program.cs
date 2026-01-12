@@ -149,7 +149,7 @@ static async Task<int> RunCliAsync(string[] args)
     command = command.ToLowerInvariant();
 
     // Commands that should be routed through IPC when service is running
-    var ipcCommands = new[] { "show", "set-image", "test-pattern", "status", "set-brightness", "next", "previous", "stop" };
+    var ipcCommands = new[] { "show", "set-image", "test-pattern", "status", "set-brightness", "next", "previous", "goto", "stop" };
 
     // Check if service is running and this is an IPC-capable command
     if (ipcCommands.Contains(command) && IpcPaths.IsServiceRunning())
@@ -171,11 +171,13 @@ static async Task<int> RunCliAsync(string[] args)
         "sensors" or "list-sensors" => await RunSensorsCommand(),
         "profile" => ProfileCommands.Run(args),
         "service" => ServiceCommands.Run(args),
+        "config" => ConfigCommands.Run(args),
         "help" or "h" or "?" => ShowHelp(),
         "version" or "v" => ShowVersion(),
         "stop" => StopService(),
         "next" => AdvanceSlide(),
         "previous" => PreviousSlide(),
+        "goto" => GoToSlide(args),
         "set-brightness" => await SetBrightness(args),
         _ => UnknownCommand(command)
     };
@@ -208,6 +210,7 @@ CLI COMMANDS:
     set-image               Send an image file to the LCD display
     show                    Quick display panels (uses default profile if no panels specified)
     profile <sub-command>   Manage display profiles (use 'profile help' for details)
+    config <sub-command>    Manage configuration (use 'config help' for details)
 
 RUNTIME COMMANDS (when service is running):
     status                  Get service status and current slideshow info
@@ -217,6 +220,7 @@ RUNTIME COMMANDS (when service is running):
     set-brightness <0-100>  Set display brightness
     next                    Advance to next slide
     previous                Go to previous slide
+    goto <index>            Jump to a specific slide (0-based, clamped to valid range)
     stop                    Stop the service gracefully
 
     Note: When the service is running, these commands communicate via IPC.
@@ -249,6 +253,9 @@ SHOW COMMAND:
       @background=path      Background image for the panel
 
 EXAMPLES:
+    lcdpossible config set-proxmox --api-url https://proxmox:8006 --token-id user@pve!token --token-secret xxx
+    lcdpossible config set-proxmox --api-url """"   Clear Proxmox API URL (disables Proxmox)
+    lcdpossible config show                   Show current configuration
     lcdpossible service install               Install service (requires admin/sudo)
     lcdpossible service start                 Start the installed service
     lcdpossible service status                Check service status
@@ -1423,6 +1430,14 @@ static IpcRequest BuildIpcRequest(string command, string[] args)
                 ipcArgs["device"] = brightnessDeviceIndex.ToString();
             }
             break;
+
+        case "goto":
+            var gotoIndex = GetGotoIndex(args);
+            if (gotoIndex.HasValue)
+            {
+                ipcArgs["index"] = gotoIndex.Value.ToString();
+            }
+            break;
     }
 
     return IpcRequest.Create(command, ipcArgs);
@@ -1552,6 +1567,20 @@ static int? GetBrightnessLevel(string[] args)
     return null;
 }
 
+static int? GetGotoIndex(string[] args)
+{
+    // Look for index value after "goto" command
+    for (var i = 0; i < args.Length - 1; i++)
+    {
+        if (args[i].ToLowerInvariant() == "goto" && int.TryParse(args[i + 1], out var index))
+        {
+            return index;
+        }
+    }
+
+    return null;
+}
+
 static int StopService()
 {
     Console.Error.WriteLine("Error: Service is not running.");
@@ -1570,6 +1599,32 @@ static int PreviousSlide()
 {
     Console.Error.WriteLine("Error: Service is not running.");
     Console.Error.WriteLine("Use 'lcdpossible serve' to start the service, then use 'previous' to go back.");
+    return 1;
+}
+
+static int GoToSlide(string[] args)
+{
+    // Parse index from args
+    int? index = null;
+    for (var i = 0; i < args.Length - 1; i++)
+    {
+        if (args[i].ToLowerInvariant() == "goto" && int.TryParse(args[i + 1], out var parsed))
+        {
+            index = parsed;
+            break;
+        }
+    }
+
+    if (!index.HasValue)
+    {
+        Console.Error.WriteLine("Error: Missing slide index.");
+        Console.Error.WriteLine("Usage: lcdpossible goto <index>");
+        Console.Error.WriteLine("Example: lcdpossible goto 2");
+        return 1;
+    }
+
+    Console.Error.WriteLine("Error: Service is not running.");
+    Console.Error.WriteLine("Use 'lcdpossible serve' to start the service, then use 'goto' to navigate slides.");
     return 1;
 }
 

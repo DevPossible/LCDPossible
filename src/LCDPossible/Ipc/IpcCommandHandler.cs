@@ -79,6 +79,7 @@ public sealed class IpcCommandHandler
                 "reload" or "reload-profile" => await HandleReloadAsync(request, cancellationToken),
                 "next" => HandleNext(request),
                 "previous" => HandlePrevious(request),
+                "goto" => HandleGoTo(request),
                 "stop" => HandleStop(request),
                 "list" => HandleList(request),
                 _ => IpcResponse.Fail(request.Id, IpcErrorCodes.InvalidCommand,
@@ -363,6 +364,37 @@ public sealed class IpcCommandHandler
             message = "Returned to previous slide",
             currentIndex = slideshow.CurrentIndex,
             currentPanel = slideshow.CurrentPanelId
+        });
+    }
+
+    private IpcResponse HandleGoTo(IpcRequest request)
+    {
+        var slideshows = _getSlideshows();
+        if (!slideshows.TryGetValue("default", out var slideshow))
+        {
+            return IpcResponse.Fail(request.Id, IpcErrorCodes.InternalError, "No slideshow active");
+        }
+
+        var indexStr = request.GetString("index");
+        if (string.IsNullOrWhiteSpace(indexStr) || !int.TryParse(indexStr, out var requestedIndex))
+        {
+            return IpcResponse.Fail(request.Id, IpcErrorCodes.InvalidArgs, "Missing or invalid 'index' argument");
+        }
+
+        var actualIndex = slideshow.GoToSlide(requestedIndex);
+        var wasAdjusted = actualIndex != requestedIndex;
+
+        _logger.LogInformation("IPC: Navigated to slide {Index} (requested: {Requested})",
+            actualIndex, requestedIndex);
+
+        return IpcResponse.Ok(request.Id, new
+        {
+            message = wasAdjusted
+                ? $"Navigated to slide {actualIndex} (adjusted from {requestedIndex})"
+                : $"Navigated to slide {actualIndex}",
+            currentIndex = slideshow.CurrentIndex,
+            currentPanel = slideshow.CurrentPanelId,
+            totalSlides = slideshow.TotalSlides
         });
     }
 

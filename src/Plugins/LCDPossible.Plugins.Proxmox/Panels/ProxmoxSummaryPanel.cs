@@ -37,7 +37,27 @@ public sealed class ProxmoxSummaryPanel : BaseLivePanel
         {
             if (metrics == null || !FontsLoaded)
             {
-                DrawCenteredText(ctx, "Proxmox Unavailable", width / 2f, height / 2f - 20, TitleFont!, SecondaryTextColor);
+                // Show error title
+                DrawCenteredText(ctx, "Proxmox Connection Error", width / 2f, height / 2f - 60, TitleFont!, WarningColor);
+
+                // Show specific error message if available
+                if (_client.HasSslError)
+                {
+                    DrawCenteredText(ctx, "SSL Certificate Error", width / 2f, height / 2f - 20, ValueFont!, CriticalColor);
+                    DrawCenteredText(ctx, "Run: lcdpossible config set-proxmox --ignore-ssl-errors", width / 2f, height / 2f + 20, SmallFont!, SecondaryTextColor);
+                }
+                else if (!string.IsNullOrEmpty(_client.LastError))
+                {
+                    // Truncate long error messages
+                    var errorMsg = _client.LastError.Length > 60
+                        ? _client.LastError[..57] + "..."
+                        : _client.LastError;
+                    DrawCenteredText(ctx, errorMsg, width / 2f, height / 2f, SmallFont!, SecondaryTextColor);
+                }
+                else
+                {
+                    DrawCenteredText(ctx, "Unable to connect to Proxmox API", width / 2f, height / 2f, SmallFont!, SecondaryTextColor);
+                }
                 return;
             }
 

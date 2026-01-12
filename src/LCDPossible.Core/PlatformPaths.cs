@@ -21,9 +21,9 @@ public static class PlatformPaths
     private const string SystemConfigDir = "/etc/lcdpossible";
 
     /// <summary>
-    /// Gets the user-specific application data directory.
+    /// Gets the application data directory for configuration and plugins.
     /// Checks LCDPOSSIBLE_DATA_DIR environment variable first for override.
-    /// Windows: %APPDATA%\LCDPossible (C:\Users\{user}\AppData\Roaming\LCDPossible)
+    /// Windows: C:\ProgramData\LCDPossible (shared by all users and services)
     /// Linux (root): /etc/lcdpossible (system service location)
     /// Linux (user): ~/.config/LCDPossible (respects XDG_CONFIG_HOME)
     /// macOS:   ~/Library/Application Support/LCDPossible
@@ -41,7 +41,9 @@ public static class PlatformPaths
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            basePath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            // Use CommonApplicationData (C:\ProgramData) so CLI and Windows Service share config
+            // This avoids the issue where CLI writes to user's AppData but service runs as SYSTEM
+            basePath = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
         }
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {

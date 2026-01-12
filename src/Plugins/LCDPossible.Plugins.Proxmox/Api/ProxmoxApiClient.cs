@@ -12,6 +12,7 @@ public sealed class ProxmoxApiClient : IDisposable
 {
     private readonly ProxmoxPluginOptions _options;
     private readonly ILogger? _logger;
+    private readonly bool _debug;
     private HttpClient? _httpClient;
     private bool _disposed;
     private bool _initialized;
@@ -24,10 +25,26 @@ public sealed class ProxmoxApiClient : IDisposable
 
     public bool IsAvailable => _initialized && !_disposed && _httpClient != null;
 
-    public ProxmoxApiClient(ProxmoxPluginOptions options, ILogger? logger = null)
+    /// <summary>
+    /// Gets the last error message, if any.
+    /// </summary>
+    public string? LastError { get; private set; }
+
+    /// <summary>
+    /// Indicates if the last error was an SSL certificate error.
+    /// </summary>
+    public bool HasSslError { get; private set; }
+
+    public ProxmoxApiClient(ProxmoxPluginOptions options, ILogger? logger = null, bool debug = false)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _logger = logger;
+        _debug = debug;
+    }
+
+    private void DebugLog(string message)
+    {
+        if (_debug) Console.WriteLine($"[DEBUG] ProxmoxApiClient: {message}");
     }
 
     public Task InitializeAsync(CancellationToken cancellationToken = default)
@@ -115,22 +132,39 @@ public sealed class ProxmoxApiClient : IDisposable
             var nodesResponse = await GetAsync<ProxmoxApiResponse<List<NodeItem>>>(
                 "nodes", cancellationToken);
 
+            DebugLog($"GetMetricsAsync: nodesResponse IsNull={nodesResponse == null}, DataCount={nodesResponse?.Data?.Count ?? 0}");
+
             if (nodesResponse?.Data != null)
             {
                 foreach (var node in nodesResponse.Data)
                 {
+                    DebugLog($"GetMetricsAsync: Node from list - Name={node.Node}, Status={node.Status}");
+
+                    // Fetch detailed node status (the /nodes list doesn't include resource metrics)
+                    var nodeStatus = await GetAsync<ProxmoxApiResponse<NodeStatusItem>>(
+                        $"nodes/{node.Node}/status", cancellationToken);
+
+                    var cpu = nodeStatus?.Data?.Cpu ?? 0;
+                    var mem = nodeStatus?.Data?.Memory?.Used ?? 0;
+                    var maxMem = nodeStatus?.Data?.Memory?.Total ?? 0;
+                    var uptime = nodeStatus?.Data?.Uptime ?? 0;
+
+                    DebugLog($"GetMetricsAsync: Node status - Name={node.Node}, Cpu={cpu}, Mem={mem}, MaxMem={maxMem}, Uptime={uptime}");
+
                     var nodeMetrics = new ProxmoxNodeMetrics
                     {
                         Name = node.Node,
                         Status = node.Status,
-                        CpuUsagePercent = (float)(node.Cpu * 100),
-                        MemoryUsedGb = node.Mem / (1024f * 1024f * 1024f),
-                        MemoryTotalGb = node.MaxMem / (1024f * 1024f * 1024f),
-                        UptimeSeconds = node.Uptime
+                        CpuUsagePercent = (float)(cpu * 100),
+                        MemoryUsedGb = mem / (1024f * 1024f * 1024f),
+                        MemoryTotalGb = maxMem / (1024f * 1024f * 1024f),
+                        UptimeSeconds = uptime
                     };
                     nodeMetrics.MemoryUsagePercent = nodeMetrics.MemoryTotalGb > 0
                         ? (nodeMetrics.MemoryUsedGb / nodeMetrics.MemoryTotalGb) * 100
                         : 0;
+
+                    DebugLog($"GetMetricsAsync: Node calc - CpuUsage={nodeMetrics.CpuUsagePercent}%, MemUsed={nodeMetrics.MemoryUsedGb}GB, MemTotal={nodeMetrics.MemoryTotalGb}GB");
 
                     metrics.Nodes.Add(nodeMetrics);
 
@@ -175,6 +209,17 @@ public sealed class ProxmoxApiClient : IDisposable
                 }
             }
 
+            // If we have no nodes, the API calls failed - return null to trigger error page
+            if (metrics.Nodes.Count == 0)
+            {
+                DebugLog("GetMetricsAsync: No nodes retrieved, returning null to trigger error page");
+                if (string.IsNullOrEmpty(LastError))
+                {
+                    LastError = "No data received from Proxmox API";
+                }
+                return null;
+            }
+
             // Check for alerts (high resource usage, failed tasks, etc.)
             GenerateAlerts(metrics);
 
@@ -184,6 +229,7 @@ public sealed class ProxmoxApiClient : IDisposable
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Error fetching Proxmox metrics");
+            LastError = ex.Message;
             return null;
         }
 
@@ -342,20 +388,56 @@ public sealed class ProxmoxApiClient : IDisposable
     {
         if (_httpClient == null)
         {
+            DebugLog("GetAsync: HttpClient is null");
             return null;
         }
 
         try
         {
+            DebugLog($"GetAsync: Fetching {endpoint}");
             var response = await _httpClient.GetAsync(endpoint, cancellationToken);
+
+            DebugLog($"GetAsync: Response status {response.StatusCode} for {endpoint}");
+
             response.EnsureSuccessStatusCode();
 
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
-            return JsonSerializer.Deserialize<T>(content, JsonOptions);
+
+            // Log raw response for debugging (truncate if too long)
+            var logContent = content.Length > 1000 ? content[..1000] + "..." : content;
+            DebugLog($"GetAsync: Raw response for {endpoint}: {logContent}");
+
+            var result = JsonSerializer.Deserialize<T>(content, JsonOptions);
+
+            DebugLog($"GetAsync: Deserialized {typeof(T).Name} for {endpoint}, IsNull={result == null}");
+
+            return result;
         }
         catch (HttpRequestException ex)
         {
+            DebugLog($"HTTP request failed for {endpoint}: {ex.Message}");
             _logger?.LogWarning(ex, "HTTP request failed for endpoint {Endpoint}", endpoint);
+
+            // Check for SSL errors
+            if (ex.Message.Contains("SSL", StringComparison.OrdinalIgnoreCase) ||
+                ex.Message.Contains("certificate", StringComparison.OrdinalIgnoreCase) ||
+                ex.InnerException?.Message.Contains("SSL", StringComparison.OrdinalIgnoreCase) == true ||
+                ex.InnerException?.Message.Contains("certificate", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                HasSslError = true;
+                LastError = "SSL certificate error. Run: lcdpossible config set-proxmox --ignore-ssl-errors";
+            }
+            else
+            {
+                LastError = ex.Message;
+            }
+
+            return null;
+        }
+        catch (JsonException ex)
+        {
+            DebugLog($"JSON deserialization failed for {endpoint}: {ex.Message}");
+            _logger?.LogError(ex, "JSON deserialization failed for endpoint {Endpoint}", endpoint);
             return null;
         }
     }
@@ -388,45 +470,109 @@ public sealed class ProxmoxApiClient : IDisposable
 
     private sealed class NodeItem
     {
+        [JsonPropertyName("node")]
         public string Node { get; set; } = string.Empty;
+
+        [JsonPropertyName("status")]
         public string Status { get; set; } = string.Empty;
+    }
+
+    private sealed class NodeStatusItem
+    {
+        [JsonPropertyName("cpu")]
         public double Cpu { get; set; }
-        public long Mem { get; set; }
-        public long MaxMem { get; set; }
+
+        [JsonPropertyName("memory")]
+        public MemoryInfo? Memory { get; set; }
+
+        [JsonPropertyName("uptime")]
         public long Uptime { get; set; }
+    }
+
+    private sealed class MemoryInfo
+    {
+        [JsonPropertyName("used")]
+        public long Used { get; set; }
+
+        [JsonPropertyName("total")]
+        public long Total { get; set; }
+
+        [JsonPropertyName("free")]
+        public long Free { get; set; }
     }
 
     private sealed class VmItem
     {
+        [JsonPropertyName("vmid")]
         public int Vmid { get; set; }
+
+        [JsonPropertyName("name")]
         public string? Name { get; set; }
+
+        [JsonPropertyName("status")]
         public string Status { get; set; } = string.Empty;
+
+        [JsonPropertyName("cpu")]
         public double Cpu { get; set; }
+
+        [JsonPropertyName("mem")]
         public long Mem { get; set; }
+
+        [JsonPropertyName("maxmem")]
         public long MaxMem { get; set; }
+
+        [JsonPropertyName("uptime")]
         public long Uptime { get; set; }
+
+        [JsonPropertyName("cpus")]
         public int Cpus { get; set; }
     }
 
     private sealed class ContainerItem
     {
+        [JsonPropertyName("vmid")]
         public int Vmid { get; set; }
+
+        [JsonPropertyName("name")]
         public string? Name { get; set; }
+
+        [JsonPropertyName("status")]
         public string Status { get; set; } = string.Empty;
+
+        [JsonPropertyName("cpu")]
         public double Cpu { get; set; }
+
+        [JsonPropertyName("mem")]
         public long Mem { get; set; }
+
+        [JsonPropertyName("maxmem")]
         public long MaxMem { get; set; }
+
+        [JsonPropertyName("uptime")]
         public long Uptime { get; set; }
     }
 
     private sealed class TaskItem
     {
+        [JsonPropertyName("upid")]
         public string Upid { get; set; } = string.Empty;
+
+        [JsonPropertyName("type")]
         public string Type { get; set; } = string.Empty;
+
+        [JsonPropertyName("status")]
         public string? Status { get; set; }
+
+        [JsonPropertyName("node")]
         public string Node { get; set; } = string.Empty;
+
+        [JsonPropertyName("user")]
         public string User { get; set; } = string.Empty;
+
+        [JsonPropertyName("starttime")]
         public long StartTime { get; set; }
+
+        [JsonPropertyName("endtime")]
         public long EndTime { get; set; }
     }
 

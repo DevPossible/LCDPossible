@@ -602,6 +602,36 @@ public sealed class SlideshowManager : IDisposable
     }
 
     /// <summary>
+    /// Goes to a specific slide index with transition.
+    /// If index is out of range, clamps to valid range (0 to count-1).
+    /// </summary>
+    /// <param name="index">Zero-based slide index.</param>
+    /// <returns>The actual index that was navigated to.</returns>
+    public int GoToSlide(int index)
+    {
+        if (_items.Count == 0)
+        {
+            return 0;
+        }
+
+        // Clamp index to valid range
+        if (index < 0)
+        {
+            index = 0;
+        }
+        else if (index >= _items.Count)
+        {
+            index = _items.Count - 1;
+        }
+
+        _currentIndex = index;
+        _slideStartTime = DateTime.UtcNow;
+        StartManualTransition();
+
+        return _currentIndex;
+    }
+
+    /// <summary>
     /// Starts a transition for manual slide changes.
     /// </summary>
     private void StartManualTransition()
