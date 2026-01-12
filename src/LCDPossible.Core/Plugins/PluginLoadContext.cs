@@ -85,9 +85,10 @@ public sealed class PluginLoadContext : AssemblyLoadContext
             {
                 return Default.LoadFromAssemblyName(assemblyName);
             }
-            catch (FileNotFoundException)
+            catch (Exception)
             {
                 // Assembly not found in bundle either, fall through
+                // Catching all exceptions because single-file loading can throw various types
             }
 
             // Fall back to default context resolution

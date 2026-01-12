@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.Loader;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -21,6 +22,7 @@ public sealed class PluginManager : IDisposable
     private readonly Dictionary<string, string> _panelTypeToPlugin = new(StringComparer.OrdinalIgnoreCase);
 
     private bool _disposed;
+    private static bool _sharedAssembliesPreloaded;
 
     /// <summary>
     /// Creates a new plugin manager.
@@ -43,6 +45,67 @@ public sealed class PluginManager : IDisposable
     /// Gets IDs of currently loaded plugins.
     /// </summary>
     public IReadOnlyCollection<string> LoadedPluginIds => _loadedPlugins.Keys;
+
+    /// <summary>
+    /// Ensures shared assemblies (SDK, Core, etc.) are loaded in the default context
+    /// before plugins try to use them. This is essential for single-file deployments.
+    /// </summary>
+    private void EnsureSharedAssembliesLoaded()
+    {
+        if (_sharedAssembliesPreloaded) return;
+
+        // List of assemblies that must be available to plugins
+        var sharedAssemblies = new[]
+        {
+            "LCDPossible.Sdk",
+            "LCDPossible.Core",
+            "SixLabors.ImageSharp",
+            "SixLabors.ImageSharp.Drawing",
+            "SixLabors.Fonts"
+        };
+
+        foreach (var assemblyName in sharedAssemblies)
+        {
+            try
+            {
+                // Check if already loaded
+                var loaded = AssemblyLoadContext.Default.Assemblies
+                    .FirstOrDefault(a => string.Equals(a.GetName().Name, assemblyName, StringComparison.OrdinalIgnoreCase));
+
+                if (loaded != null)
+                {
+                    if (_debug) Console.WriteLine($"[DEBUG] PluginManager: Shared assembly '{assemblyName}' already loaded");
+                    continue;
+                }
+
+                // Try to load from disk first (non-single-file deployment)
+                var assemblyPath = Path.Combine(AppContext.BaseDirectory, $"{assemblyName}.dll");
+                if (File.Exists(assemblyPath))
+                {
+                    AssemblyLoadContext.Default.LoadFromAssemblyPath(assemblyPath);
+                    if (_debug) Console.WriteLine($"[DEBUG] PluginManager: Loaded shared assembly '{assemblyName}' from disk");
+                    continue;
+                }
+
+                // Try to load from the bundle (single-file deployment)
+                try
+                {
+                    AssemblyLoadContext.Default.LoadFromAssemblyName(new AssemblyName(assemblyName));
+                    if (_debug) Console.WriteLine($"[DEBUG] PluginManager: Loaded shared assembly '{assemblyName}' from bundle");
+                }
+                catch (Exception ex)
+                {
+                    if (_debug) Console.WriteLine($"[DEBUG] PluginManager: Could not preload '{assemblyName}': {ex.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                if (_debug) Console.WriteLine($"[DEBUG] PluginManager: Error preloading '{assemblyName}': {ex.Message}");
+            }
+        }
+
+        _sharedAssembliesPreloaded = true;
+    }
 
     /// <summary>
     /// Discovers all available plugins from built-in and user directories.
@@ -207,6 +270,10 @@ public sealed class PluginManager : IDisposable
         try
         {
             _logger.LogInformation("Loading plugin: {PluginId}", pluginId);
+
+            // Ensure shared assemblies are loaded before creating plugin context
+            // This is essential for single-file deployments where SDK is embedded
+            EnsureSharedAssembliesLoaded();
 
             // Create isolated load context
             entry.LoadContext = new PluginLoadContext(entry.AssemblyPath);
