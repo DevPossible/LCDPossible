@@ -6,18 +6,19 @@ using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
+using LCDPossible.Core.Rendering;
 namespace LCDPossible.Plugins.Screensavers.Panels;
 
 /// <summary>
 /// Analog clock screensaver with smooth second hand.
 /// </summary>
-public sealed class ClockPanel : BaseLivePanel
+public sealed class ClockPanel : CanvasPanel
 {
     private Font? _digitFont;
 
     public override string PanelId => "clock";
     public override string DisplayName => "Clock";
-    public override bool IsAnimated => true;
+    public override PanelRenderMode RenderMode => PanelRenderMode.Stream;
 
     public override Task InitializeAsync(CancellationToken cancellationToken = default)
     {

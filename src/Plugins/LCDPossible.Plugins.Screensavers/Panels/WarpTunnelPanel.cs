@@ -2,18 +2,19 @@ using LCDPossible.Sdk;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
+using LCDPossible.Core.Rendering;
 namespace LCDPossible.Plugins.Screensavers.Panels;
 
 /// <summary>
 /// Flying through a colorful warp tunnel effect.
 /// </summary>
-public sealed class WarpTunnelPanel : BaseLivePanel
+public sealed class WarpTunnelPanel : CanvasPanel
 {
     private DateTime _startTime;
 
     public override string PanelId => "warp-tunnel";
     public override string DisplayName => "Warp Tunnel";
-    public override bool IsAnimated => true;
+    public override PanelRenderMode RenderMode => PanelRenderMode.Stream;
 
     public WarpTunnelPanel()
     {

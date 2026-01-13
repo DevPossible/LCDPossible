@@ -5,12 +5,13 @@ using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
+using LCDPossible.Core.Rendering;
 namespace LCDPossible.Plugins.Screensavers.Panels;
 
 /// <summary>
 /// 3D pipes growing in random directions (classic Windows screensaver).
 /// </summary>
-public sealed class PipesPanel : BaseLivePanel
+public sealed class PipesPanel : CanvasPanel
 {
     private const int GridSize = 40;
     private const int PipeRadius = 8;
@@ -31,7 +32,7 @@ public sealed class PipesPanel : BaseLivePanel
 
     public override string PanelId => "pipes";
     public override string DisplayName => "Pipes";
-    public override bool IsAnimated => true;
+    public override PanelRenderMode RenderMode => PanelRenderMode.Stream;
 
     public PipesPanel()
     {

@@ -231,14 +231,45 @@
     {
       "typeId": "network-info",
       "displayName": "Network Info",
-      "description": "Network configuration including hostname, IP addresses, gateway, and DNS",
+      "description": "Network interfaces with IP addresses, gateway, MAC, and link speed",
       "category": "Network",
       "isLive": true,
-      "helpText": "Displays network configuration details:\n- Hostname\n- Primary IP address(es)\n- Default gateway\n- DNS servers\n- Active network adapter name\n\nWorks on all platforms without additional dependencies.",
+      "dependencies": ["PuppeteerSharp"],
+      "helpText": "Displays active network interfaces using responsive HTML widgets:\n- Interface name and type (Ethernet, WiFi)\n- IP address and subnet mask\n- Default gateway\n- Link speed (Mbps/Gbps)\n- MAC address\n\nLayout adapts automatically based on number of interfaces (1-4).\nWorks on all platforms.",
       "examples": [
         {
           "command": "lcdpossible show network-info",
-          "description": "Display network configuration"
+          "description": "Display network interfaces"
+        }
+      ]
+    },
+    {
+      "typeId": "cpu-status",
+      "displayName": "CPU Status",
+      "description": "CPU status with usage, temperature, frequency, and core info",
+      "category": "CPU",
+      "isLive": true,
+      "dependencies": ["LibreHardwareMonitorLib", "PuppeteerSharp"],
+      "helpText": "Displays CPU status using responsive HTML widgets:\n- CPU model name\n- Usage percentage with progress bar\n- Temperature gauge (if available)\n- Frequency, power, and core info\n\nUses responsive web components that scale across different display resolutions.",
+      "examples": [
+        {
+          "command": "lcdpossible show cpu-status",
+          "description": "Display CPU status dashboard"
+        }
+      ]
+    },
+    {
+      "typeId": "new-components-demo",
+      "displayName": "New Components Demo",
+      "description": "Demo panel showcasing ECharts and DaisyUI components",
+      "category": "Demo",
+      "isLive": true,
+      "dependencies": ["LibreHardwareMonitorLib", "PuppeteerSharp"],
+      "helpText": "Demonstrates the new graphical components:\n- ECharts gauges (arc style)\n- DaisyUI radial-progress gauges\n- ECharts donut charts\n- DaisyUI donut charts\n- ECharts sparklines\n- Both ECharts and DaisyUI progress bars",
+      "examples": [
+        {
+          "command": "lcdpossible show new-components-demo",
+          "description": "Display the new components demo panel"
         }
       ]
     }

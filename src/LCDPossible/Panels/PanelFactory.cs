@@ -19,6 +19,7 @@ public sealed class PanelFactory
     private readonly ILogger<PanelFactory>? _logger;
     private readonly bool _debug;
     private ResolvedColorScheme _colorScheme = ResolvedColorScheme.CreateDefault();
+    private Theme? _currentTheme;
 
     public PanelFactory(
         PluginManager pluginManager,
@@ -134,6 +135,19 @@ public sealed class PanelFactory
     }
 
     /// <summary>
+    /// Sets the theme for all created panels.
+    /// This also updates the color scheme from the theme.
+    /// </summary>
+    public void SetTheme(Theme? theme)
+    {
+        _currentTheme = theme;
+        if (theme != null)
+        {
+            _colorScheme = theme.ToColorScheme().Resolve();
+        }
+    }
+
+    /// <summary>
     /// Result of attempting to create a panel.
     /// </summary>
     public record PanelCreationResult(IDisplayPanel? Panel, string? ErrorMessage);
@@ -198,10 +212,14 @@ public sealed class PanelFactory
                 return new PanelCreationResult(null, error);
             }
 
-            // Apply color scheme if it's a BaseLivePanel
-            if (panel is BaseLivePanel livePanel)
+            // Apply theme to HtmlPanel-based panels (new widget system)
+            if (panel is LCDPossible.Sdk.HtmlPanel htmlPanel)
             {
-                livePanel.SetColorScheme(_colorScheme);
+                htmlPanel.SetTheme(_currentTheme);
+            }
+            else if (panel is LCDPossible.Sdk.BasePanel basePanel)
+            {
+                basePanel.SetColorScheme(_colorScheme);
             }
 
             return new PanelCreationResult(panel, null);

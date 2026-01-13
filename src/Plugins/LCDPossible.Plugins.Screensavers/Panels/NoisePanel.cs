@@ -2,18 +2,19 @@ using LCDPossible.Sdk;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
+using LCDPossible.Core.Rendering;
 namespace LCDPossible.Plugins.Screensavers.Panels;
 
 /// <summary>
 /// TV static / white noise effect.
 /// </summary>
-public sealed class NoisePanel : BaseLivePanel
+public sealed class NoisePanel : CanvasPanel
 {
     private readonly Random _random;
 
     public override string PanelId => "noise";
     public override string DisplayName => "Static";
-    public override bool IsAnimated => true;
+    public override PanelRenderMode RenderMode => PanelRenderMode.Stream;
 
     public NoisePanel()
     {

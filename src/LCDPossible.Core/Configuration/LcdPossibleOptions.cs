@@ -35,6 +35,13 @@ public sealed class GeneralOptions
     public string ThemesDirectory { get; set; } = "themes";
 
     /// <summary>
+    /// Default theme ID for all panels (default: "cyberpunk").
+    /// Available themes: cyberpunk, rgb-gaming, executive, clean.
+    /// Can be overridden at the device level or per-panel.
+    /// </summary>
+    public string DefaultTheme { get; set; } = "cyberpunk";
+
+    /// <summary>
     /// JPEG encoding quality (1-100, default: 95).
     /// </summary>
     public int JpegQuality { get; set; } = 95;
@@ -204,6 +211,13 @@ public sealed class SlideshowItem
     /// Custom panel-specific settings (e.g., text=HELLO, color=red, size=large).
     /// </summary>
     public Dictionary<string, string>? Settings { get; set; }
+
+    /// <summary>
+    /// Theme override for this specific panel (optional).
+    /// If null, uses device theme or app default theme.
+    /// Available themes: cyberpunk, rgb-gaming, executive, clean.
+    /// </summary>
+    public string? Theme { get; set; }
 }
 
 /// <summary>

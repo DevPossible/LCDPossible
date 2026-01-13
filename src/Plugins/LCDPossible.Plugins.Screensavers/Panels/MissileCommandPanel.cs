@@ -5,12 +5,13 @@ using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
+using LCDPossible.Core.Rendering;
 namespace LCDPossible.Plugins.Screensavers.Panels;
 
 /// <summary>
 /// Missile Command game simulation - defend cities from incoming missiles.
 /// </summary>
-public sealed class MissileCommandPanel : BaseLivePanel
+public sealed class MissileCommandPanel : CanvasPanel
 {
     private readonly Random _random = new();
     private readonly List<EnemyMissile> _enemyMissiles = new();
@@ -35,7 +36,7 @@ public sealed class MissileCommandPanel : BaseLivePanel
 
     public override string PanelId => "missile-command";
     public override string DisplayName => "Missile Command";
-    public override bool IsAnimated => true;
+    public override PanelRenderMode RenderMode => PanelRenderMode.Stream;
 
     public MissileCommandPanel()
     {

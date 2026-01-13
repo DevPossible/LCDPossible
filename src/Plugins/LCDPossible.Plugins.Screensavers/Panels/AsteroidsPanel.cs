@@ -4,12 +4,13 @@ using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
+using LCDPossible.Core.Rendering;
 namespace LCDPossible.Plugins.Screensavers.Panels;
 
 /// <summary>
 /// Asteroids game simulation with vector-style graphics.
 /// </summary>
-public sealed class AsteroidsPanel : BaseLivePanel
+public sealed class AsteroidsPanel : CanvasPanel
 {
     private const int AsteroidCount = 8;
     private const float ShipSpeed = 150f;
@@ -26,7 +27,7 @@ public sealed class AsteroidsPanel : BaseLivePanel
 
     public override string PanelId => "asteroids";
     public override string DisplayName => "Asteroids";
-    public override bool IsAnimated => true;
+    public override PanelRenderMode RenderMode => PanelRenderMode.Stream;
 
     public AsteroidsPanel()
     {

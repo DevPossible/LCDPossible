@@ -1,4 +1,5 @@
 using System.Text.Json;
+using LCDPossible.Core;
 using LCDPossible.Core.Configuration;
 using LCDPossible.Core.Devices;
 using LCDPossible.Core.Ipc;
@@ -303,13 +304,19 @@ CONFIGURATION:
     macOS:      /Library/Application Support/LCDPossible/display-profile.yaml
 
     If no profile is found, a default profile is used.
-");
 
-    // Dynamic panel list from plugins
-    ShowAvailablePanelsSummary();
+THEMES:
+    LCDPossible includes several built-in color themes:
 
-    Console.WriteLine(@"
-    Use 'lcdpossible list-panels' for full descriptions.
+    Gamer:      cyberpunk (default), rgb-gaming
+    Corporate:  executive, clean
+
+    Set theme:          lcdpossible config set-theme <name>
+    List themes:        lcdpossible config list-themes
+    Per-panel override: cpu-widget|@theme=executive
+
+PANELS:
+    Use 'lcdpossible list-panels' for available panel types.
     Use 'lcdpossible help-panel <type>' for detailed help on a panel.
 
 SUPPORTED DEVICES:");
@@ -322,60 +329,6 @@ SUPPORTED DEVICES:");
 For more information, visit: https://github.com/DevPossible/LCDPossible
 ");
     return 0;
-}
-
-static void ShowAvailablePanelsSummary()
-{
-    Console.WriteLine("AVAILABLE PANELS:");
-
-    try
-    {
-        using var pluginManager = new PluginManager();
-        pluginManager.DiscoverPlugins();
-
-        var panelFactory = new PanelFactory(pluginManager);
-        var panelsByCategory = panelFactory.GetAllPanelMetadataByCategory();
-
-        if (panelsByCategory.Count == 0)
-        {
-            Console.WriteLine("    No panels available. Make sure plugins are installed.");
-            return;
-        }
-
-        // Define category order for consistent display
-        var categoryOrder = new[] { "System", "CPU", "GPU", "Memory", "Network", "Storage", "Proxmox", "Media", "Web", "Other" };
-
-        foreach (var category in categoryOrder)
-        {
-            if (!panelsByCategory.TryGetValue(category, out var panels) || panels.Count == 0)
-                continue;
-
-            Console.WriteLine($"    {category}:");
-            foreach (var panel in panels)
-            {
-                Console.WriteLine($"        {panel.DisplayId}");
-            }
-            Console.WriteLine();
-        }
-
-        // Show any categories not in the predefined order
-        foreach (var (category, panels) in panelsByCategory)
-        {
-            if (categoryOrder.Contains(category, StringComparer.OrdinalIgnoreCase))
-                continue;
-
-            Console.WriteLine($"    {category}:");
-            foreach (var panel in panels)
-            {
-                Console.WriteLine($"        {panel.DisplayId}");
-            }
-            Console.WriteLine();
-        }
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"    Error loading panels: {ex.Message}");
-    }
 }
 
 static int ShowVersion()
@@ -743,8 +696,113 @@ static double GetTestWaitSeconds(string[] args)
 /// </summary>
 static bool IsTransitionsEnabled(string[] args)
 {
+    // Note: -t is case-sensitive to avoid collision with -T (theme)
     return args.Any(a => a.Equals("--transitions", StringComparison.OrdinalIgnoreCase) ||
-                         a.Equals("-t", StringComparison.OrdinalIgnoreCase));
+                         a.Equals("-t", StringComparison.Ordinal));
+}
+
+/// <summary>
+/// Gets the themes for test command. Supports wildcards (e.g., "gam*" matches "gaming", "*" matches all).
+/// Returns null if no themes specified (use default).
+/// </summary>
+static string[]? GetTestThemes(string[] args, bool debug)
+{
+    // Parse --theme argument (can be comma-separated or repeated)
+    var themes = new List<string>();
+
+    for (var i = 0; i < args.Length - 1; i++)
+    {
+        if (args[i].Equals("--theme", StringComparison.OrdinalIgnoreCase) ||
+            args[i].Equals("-T", StringComparison.OrdinalIgnoreCase))
+        {
+            var themeArg = args[i + 1];
+            themes.AddRange(themeArg.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        }
+    }
+
+    if (themes.Count == 0)
+    {
+        // Use default theme from config (or fallback to cyberpunk)
+        var defaultTheme = GetDefaultThemeFromConfig();
+        if (debug)
+        {
+            Console.WriteLine($"[DEBUG] No --theme specified, using default: {defaultTheme}");
+        }
+        return [defaultTheme];
+    }
+
+    // Expand wildcards
+    var availableThemes = ThemeManager.PresetIds.ToArray();
+    var expandedThemes = new List<string>();
+
+    foreach (var pattern in themes)
+    {
+        if (pattern.Contains('*') || pattern.Contains('?'))
+        {
+            // Convert wildcard pattern to regex
+            var regexPattern = "^" + System.Text.RegularExpressions.Regex.Escape(pattern)
+                .Replace("\\*", ".*")
+                .Replace("\\?", ".") + "$";
+
+            var regex = new System.Text.RegularExpressions.Regex(regexPattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            var matches = availableThemes.Where(t => regex.IsMatch(t)).OrderBy(t => t).ToList();
+
+            if (debug)
+            {
+                Console.WriteLine($"[DEBUG] Theme pattern '{pattern}' matched {matches.Count} theme(s): {string.Join(", ", matches)}");
+            }
+
+            expandedThemes.AddRange(matches);
+        }
+        else if (ThemeManager.HasTheme(pattern))
+        {
+            expandedThemes.Add(pattern);
+        }
+        else
+        {
+            Console.Error.WriteLine($"Warning: Unknown theme '{pattern}', skipping.");
+        }
+    }
+
+    return expandedThemes.Distinct().ToArray();
+}
+
+/// <summary>
+/// Gets the path to the application configuration file.
+/// </summary>
+static string GetAppConfigPath()
+{
+    var configDir = PlatformPaths.GetUserDataDirectory();
+    return Path.Combine(configDir, "config.json");
+}
+
+/// <summary>
+/// Gets the default theme from app configuration, or "cyberpunk" if not set.
+/// </summary>
+static string GetDefaultThemeFromConfig()
+{
+    var path = GetAppConfigPath();
+    if (!File.Exists(path))
+    {
+        return "cyberpunk";
+    }
+
+    try
+    {
+        var json = File.ReadAllText(path);
+        using var doc = System.Text.Json.JsonDocument.Parse(json);
+        if (doc.RootElement.TryGetProperty("General", out var general) &&
+            general.TryGetProperty("DefaultTheme", out var theme))
+        {
+            return theme.GetString() ?? "cyberpunk";
+        }
+    }
+    catch
+    {
+        // Ignore errors reading config
+    }
+
+    return "cyberpunk";
 }
 
 /// <summary>
@@ -1144,6 +1202,13 @@ static async Task<int> RenderPanelsToFiles(string[] args)
     // Create panel factory
     var panelFactory = new PanelFactory(pluginManager, systemProvider, debug: debug);
 
+    // Get themes (if specified)
+    var themes = GetTestThemes(args, debug);
+    if (themes != null && themes.Length > 0)
+    {
+        Console.WriteLine($"Themes: {string.Join(", ", themes)}");
+    }
+
     // Get available panels for wildcard expansion
     var availablePanels = panelFactory.AvailablePanels;
     if (debug)
@@ -1192,71 +1257,123 @@ static async Task<int> RenderPanelsToFiles(string[] args)
     // or when rendering multiple panels with transitions
     if (waitSeconds > 0 || (transitionsEnabled && items.Count > 1))
     {
-        // Use SlideshowManager for proper frame timing and transitions
-        using var slideshow = new SlideshowManager(panelFactory, items, debug: debug);
-        await slideshow.InitializeAsync(CancellationToken.None);
+        // Iterate over themes (or just once with no theme if none specified)
+        var themesToRender = themes != null && themes.Length > 0
+            ? themes
+            : new string?[] { null };
 
-        if (debug)
+        foreach (var themeId in themesToRender)
         {
-            Console.WriteLine($"[DEBUG] Slideshow initialized with {items.Count} item(s)");
-        }
-
-        // Render and discard frames until wait time elapses
-        if (waitSeconds > 0)
-        {
-            var startTime = DateTime.UtcNow;
-            var endTime = startTime.AddSeconds(waitSeconds);
-            var frameInterval = TimeSpan.FromMilliseconds(1000.0 / 30); // 30 FPS
-            var frameCount = 0;
-
-            Console.Write($"Rendering frames for {waitSeconds}s: ");
-
-            while (DateTime.UtcNow < endTime)
+            // Set theme on factory
+            if (themeId != null)
             {
-                using var frame = await slideshow.RenderCurrentFrameAsync(width, height, CancellationToken.None);
-                frameCount++;
-
-                // Progress indicator every 30 frames (~1 second)
-                if (frameCount % 30 == 0)
+                var theme = ThemeManager.GetTheme(themeId);
+                panelFactory.SetTheme(theme);
+                if (debug)
                 {
-                    var remaining = (endTime - DateTime.UtcNow).TotalSeconds;
-                    Console.Write($"\rRendering frames for {waitSeconds}s: {Math.Max(0, remaining):F1}s remaining ({frameCount} frames)    ");
+                    Console.WriteLine($"[DEBUG] Using theme: {themeId}");
                 }
-
-                // Maintain approximate frame rate
-                await Task.Delay(frameInterval);
+            }
+            else
+            {
+                panelFactory.SetTheme(null);
             }
 
-            Console.WriteLine($"\rRendering complete: {frameCount} frames rendered                    ");
+            // Use SlideshowManager for proper frame timing and transitions
+            using var slideshow = new SlideshowManager(panelFactory, items, debug: debug);
+            await slideshow.InitializeAsync(CancellationToken.None);
 
             if (debug)
             {
-                Console.WriteLine($"[DEBUG] Rendered and discarded {frameCount} frames over {waitSeconds}s");
+                Console.WriteLine($"[DEBUG] Slideshow initialized with {items.Count} item(s)");
             }
-        }
 
-        // Capture the current frame after wait time
-        using var capturedFrame = await slideshow.RenderCurrentFrameAsync(width, height, CancellationToken.None);
-        if (capturedFrame != null)
-        {
-            var currentItem = slideshow.CurrentItem;
-            var panelId = currentItem?.Source ?? "slideshow";
-            var safeFileName = GetSafeFileName(panelId);
-            var outputPath = Path.Combine(outputDir, $"{safeFileName}.jpg");
+            // Render and discard frames until wait time elapses
+            if (waitSeconds > 0)
+            {
+                var startTime = DateTime.UtcNow;
+                var endTime = startTime.AddSeconds(waitSeconds);
+                var frameInterval = TimeSpan.FromMilliseconds(1000.0 / 30); // 30 FPS
+                var frameCount = 0;
 
-            await capturedFrame.SaveAsJpegAsync(outputPath);
-            filesWritten.Add(outputPath);
-            Console.WriteLine(outputPath);
+                Console.Write($"Rendering frames for {waitSeconds}s: ");
+
+                while (DateTime.UtcNow < endTime)
+                {
+                    using var frame = await slideshow.RenderCurrentFrameAsync(width, height, CancellationToken.None);
+                    frameCount++;
+
+                    // Progress indicator every 30 frames (~1 second)
+                    if (frameCount % 30 == 0)
+                    {
+                        var remaining = (endTime - DateTime.UtcNow).TotalSeconds;
+                        Console.Write($"\rRendering frames for {waitSeconds}s: {Math.Max(0, remaining):F1}s remaining ({frameCount} frames)    ");
+                    }
+
+                    // Maintain approximate frame rate
+                    await Task.Delay(frameInterval);
+                }
+
+                Console.WriteLine($"\rRendering complete: {frameCount} frames rendered                    ");
+
+                if (debug)
+                {
+                    Console.WriteLine($"[DEBUG] Rendered and discarded {frameCount} frames over {waitSeconds}s");
+                }
+            }
+
+            // Capture ALL panels after wait time (not just current slide)
+            // This ensures each panel's HTML/CSS has had time to initialize
+            for (var i = 0; i < items.Count; i++)
+            {
+                // Navigate to this panel
+                slideshow.GoToSlide(i);
+
+                // Render a few frames to ensure this panel is fully rendered
+                for (var warmup = 0; warmup < 5; warmup++)
+                {
+                    using var warmupFrame = await slideshow.RenderCurrentFrameAsync(width, height, CancellationToken.None);
+                    await Task.Delay(TimeSpan.FromMilliseconds(50));
+                }
+
+                // Capture the frame
+                using var capturedFrame = await slideshow.RenderCurrentFrameAsync(width, height, CancellationToken.None);
+                if (capturedFrame != null)
+                {
+                    var currentItem = slideshow.CurrentItem;
+                    var panelId = currentItem?.Source ?? $"panel-{i}";
+                    var safeFileName = GetSafeFileName(panelId);
+                    // Format: {panel}.jpg or {panel}-{theme}.jpg when themes are specified
+                    var fileName = themeId != null
+                        ? $"{safeFileName}-{themeId}.jpg"
+                        : $"{safeFileName}.jpg";
+                    var outputPath = Path.Combine(outputDir, fileName);
+
+                    await capturedFrame.SaveAsJpegAsync(outputPath);
+                    var fullPath = Path.GetFullPath(outputPath);
+                    filesWritten.Add(fullPath);
+                    if (debug)
+                    {
+                        var fileInfo = new FileInfo(fullPath);
+                        Console.WriteLine($"[DEBUG] Written: {fullPath} ({fileInfo.Length} bytes)");
+                    }
+                    else
+                    {
+                        Console.WriteLine(fullPath);
+                    }
+                }
+            }
         }
     }
     else
     {
         // Simple mode: render first frame of each panel directly
+        // Themes only apply to HtmlPanel/WidgetPanel - CanvasPanel uses ColorScheme directly
         foreach (var item in items)
         {
             try
             {
-                // Create the panel (Source contains the panel type ID)
+                // Create the panel first to check its type
                 var panel = panelFactory.CreatePanel(item.Source, item.Settings);
                 if (panel == null)
                 {
@@ -1264,28 +1381,108 @@ static async Task<int> RenderPanelsToFiles(string[] args)
                     return 1;
                 }
 
-                // Initialize the panel
-                await panel.InitializeAsync(CancellationToken.None);
-
-                // Render first frame
-                using var frame = await panel.RenderFrameAsync(width, height, CancellationToken.None);
-                if (frame == null)
-                {
-                    Console.Error.WriteLine($"Error: Panel '{item.Source}' returned null frame");
-                    panel.Dispose();
-                    return 1;
-                }
-
-                // Generate safe filename from panel ID
+                // Check if panel supports themes (HtmlPanel and its descendants like WidgetPanel)
+                var supportsThemes = panel is LCDPossible.Sdk.HtmlPanel;
                 var safeFileName = GetSafeFileName(panel.PanelId);
-                var outputPath = Path.Combine(outputDir, $"{safeFileName}.jpg");
 
-                // Save as JPEG
-                await frame.SaveAsJpegAsync(outputPath);
-                filesWritten.Add(outputPath);
-                Console.WriteLine(outputPath);
-
+                // Dispose the initial panel - we'll create fresh ones for each theme
                 panel.Dispose();
+
+                if (supportsThemes && themes != null && themes.Length > 0)
+                {
+                    // Render with each theme - create a new panel for each to ensure fresh initialization
+                    foreach (var themeId in themes)
+                    {
+                        var theme = ThemeManager.GetTheme(themeId);
+                        panelFactory.SetTheme(theme);
+
+                        // Create a fresh panel with the theme applied
+                        var themedPanel = panelFactory.CreatePanel(item.Source, item.Settings);
+                        if (themedPanel == null)
+                        {
+                            Console.Error.WriteLine($"Error: Could not create panel '{item.Source}' with theme '{themeId}'");
+                            return 1;
+                        }
+
+                        if (debug)
+                        {
+                            Console.WriteLine($"[DEBUG] Rendering {themedPanel.PanelId} with theme: {themeId}");
+                        }
+
+                        // Initialize and render
+                        await themedPanel.InitializeAsync(CancellationToken.None);
+                        using var frame = await themedPanel.RenderFrameAsync(width, height, CancellationToken.None);
+                        if (frame == null)
+                        {
+                            Console.Error.WriteLine($"Error: Panel '{item.Source}' returned null frame");
+                            themedPanel.Dispose();
+                            return 1;
+                        }
+
+                        // Save with theme suffix
+                        var fileName = $"{safeFileName}-{themeId}.jpg";
+                        var outputPath = Path.Combine(outputDir, fileName);
+                        await frame.SaveAsJpegAsync(outputPath);
+                        var fullPath = Path.GetFullPath(outputPath);
+                        filesWritten.Add(fullPath);
+
+                        if (debug)
+                        {
+                            var fileInfo = new FileInfo(fullPath);
+                            Console.WriteLine($"[DEBUG] Written: {fullPath} ({fileInfo.Length} bytes)");
+                        }
+                        else
+                        {
+                            Console.WriteLine(fullPath);
+                        }
+
+                        themedPanel.Dispose();
+                    }
+                }
+                else
+                {
+                    // Non-themed panel (CanvasPanel) - create fresh panel and render once with -canvas suffix
+                    var canvasPanel = panelFactory.CreatePanel(item.Source, item.Settings);
+                    if (canvasPanel == null)
+                    {
+                        Console.Error.WriteLine($"Error: Could not create panel '{item.Source}'");
+                        return 1;
+                    }
+
+                    if (debug)
+                    {
+                        Console.WriteLine($"[DEBUG] Rendering {canvasPanel.PanelId} (CanvasPanel - themes not applicable)");
+                    }
+
+                    // Initialize and render
+                    await canvasPanel.InitializeAsync(CancellationToken.None);
+                    using var frame = await canvasPanel.RenderFrameAsync(width, height, CancellationToken.None);
+                    if (frame == null)
+                    {
+                        Console.Error.WriteLine($"Error: Panel '{item.Source}' returned null frame");
+                        canvasPanel.Dispose();
+                        return 1;
+                    }
+
+                    // Save with -canvas suffix for CanvasPanel types
+                    var fileName = $"{safeFileName}-canvas.jpg";
+                    var outputPath = Path.Combine(outputDir, fileName);
+                    await frame.SaveAsJpegAsync(outputPath);
+                    var fullPath = Path.GetFullPath(outputPath);
+                    filesWritten.Add(fullPath);
+
+                    if (debug)
+                    {
+                        var fileInfo = new FileInfo(fullPath);
+                        Console.WriteLine($"[DEBUG] Written: {fullPath} ({fileInfo.Length} bytes)");
+                    }
+                    else
+                    {
+                        Console.WriteLine(fullPath);
+                    }
+
+                    canvasPanel.Dispose();
+                }
             }
             catch (Exception ex)
             {

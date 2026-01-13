@@ -2,12 +2,13 @@ using LCDPossible.Sdk;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
+using LCDPossible.Core.Rendering;
 namespace LCDPossible.Plugins.Screensavers.Panels;
 
 /// <summary>
 /// Classic demoscene fire effect with palette animation.
 /// </summary>
-public sealed class FirePanel : BaseLivePanel
+public sealed class FirePanel : CanvasPanel
 {
     private const int ScaleFactor = 4; // Render at lower resolution for performance
 
@@ -19,7 +20,7 @@ public sealed class FirePanel : BaseLivePanel
 
     public override string PanelId => "fire";
     public override string DisplayName => "Fire";
-    public override bool IsAnimated => true;
+    public override PanelRenderMode RenderMode => PanelRenderMode.Stream;
 
     public FirePanel()
     {

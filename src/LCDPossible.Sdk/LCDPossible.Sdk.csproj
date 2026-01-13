@@ -28,4 +28,20 @@
     <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.5" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Template engine for HtmlPanel -->
+    <PackageReference Include="Scriban" Version="5.12.0" />
+    <!-- Headless browser for HtmlPanel rendering -->
+    <PackageReference Include="PuppeteerSharp" Version="20.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- HTML assets (CSS, JS, icons) for HtmlPanel/WidgetPanel rendering -->
+    <Content Include="html_assets\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Pack>true</Pack>
+      <PackagePath>contentFiles\any\any\html_assets;content\html_assets</PackagePath>
+    </Content>
+  </ItemGroup>
+
 </Project>

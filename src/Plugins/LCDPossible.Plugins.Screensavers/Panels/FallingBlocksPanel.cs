@@ -5,18 +5,18 @@ using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
+using LCDPossible.Core.Rendering;
 namespace LCDPossible.Plugins.Screensavers.Panels;
 
 /// <summary>
 /// Tetris-style falling blocks screensaver with AI-controlled gameplay.
 /// Supports 1-3 simultaneous players with separate boards.
 /// </summary>
-public sealed class FallingBlocksPanel : BaseLivePanel
+public sealed class FallingBlocksPanel : CanvasPanel
 {
     public override string PanelId => "falling-blocks";
     public override string DisplayName => "Falling Blocks";
-    public override bool IsLive => true;
-    public override bool IsAnimated => true;
+    public override PanelRenderMode RenderMode => PanelRenderMode.Stream;
 
     // Grid dimensions
     private const int GridWidth = 10;

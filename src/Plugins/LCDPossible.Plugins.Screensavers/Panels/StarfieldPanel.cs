@@ -5,12 +5,13 @@ using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
+using LCDPossible.Core.Rendering;
 namespace LCDPossible.Plugins.Screensavers.Panels;
 
 /// <summary>
 /// Classic starfield warp effect - stars streaming outward from center.
 /// </summary>
-public sealed class StarfieldPanel : BaseLivePanel
+public sealed class StarfieldPanel : CanvasPanel
 {
     private const int StarCount = 200;
     private const float MaxDepth = 32f;
@@ -24,7 +25,7 @@ public sealed class StarfieldPanel : BaseLivePanel
 
     public override string PanelId => "starfield";
     public override string DisplayName => "Starfield";
-    public override bool IsAnimated => true;
+    public override PanelRenderMode RenderMode => PanelRenderMode.Stream;
 
     public StarfieldPanel()
     {

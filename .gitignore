@@ -145,3 +145,4 @@ npm-debug.log*
 .mcp-debug-tools/
 .claude/settings.local.json
 docs/potential-features.md
+tmpclaude*

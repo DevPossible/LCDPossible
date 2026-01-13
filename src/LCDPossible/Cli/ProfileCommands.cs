@@ -35,7 +35,7 @@ public static class ProfileCommands
             "set-panelparam" or "set-param" or "set" => SetPanelParam(args),
             "get-panelparam" or "get-param" or "get" => GetPanelParam(args),
             "clear-panelparams" or "clear-params" or "clear" => ClearPanelParams(args),
-            "delete" => DeleteProfile(args),
+            "delete" or "remove-profile" => DeleteProfile(args),
             "show" => ShowProfile(args),
             "reload" => ReloadProfile(args),
             "help" or "-h" or "--help" or "/?" => ShowProfileHelp(),
@@ -946,7 +946,8 @@ SUB-COMMANDS:
   Profile Operations:
     new <name>                  Create a new empty profile
     list                        List all available profiles
-    delete <name>               Delete a profile (use --force for default)
+    delete <name>               Delete a profile file (use --force for default)
+    remove-profile <name>       Alias for delete
     show [name]                 Show profile details (alias for list-panels)
     reload                      Force the running service to reload the profile
 
@@ -1016,6 +1017,10 @@ EXAMPLES:
 
     # Create a new profile
     lcdpossible profile new my-gaming-profile
+
+    # Delete/remove a profile
+    lcdpossible profile delete my-old-profile
+    lcdpossible profile remove-profile my-old-profile
 
     # Add panels to a profile
     lcdpossible profile append-panel cpu-usage-graphic -p my-gaming-profile

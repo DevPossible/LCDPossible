@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using LCDPossible.Core;
+using LCDPossible.Core.Configuration;
 
 namespace LCDPossible.Cli;
 
@@ -42,6 +43,8 @@ public static class ConfigCommands
         {
             "set-proxmox" => SetProxmox(subArgs),
             "validate-proxmox" => ValidateProxmox(),
+            "set-theme" => SetTheme(subArgs),
+            "list-themes" or "themes" => ListThemes(),
             "show" => ShowConfig(),
             "path" => ShowConfigPath(),
             "help" or "?" => ShowHelp(),
@@ -58,11 +61,25 @@ USAGE:
     lcdpossible config <command> [options]
 
 COMMANDS:
+    set-theme <name>    Set the default display theme
+    list-themes         List available themes
     set-proxmox         Configure Proxmox API settings
     validate-proxmox    Test Proxmox API connection
     show                Show current configuration
     path                Show configuration file path
     help                Show this help message
+
+THEME OPTIONS:
+    Available themes:
+      GAMER THEMES:
+        cyberpunk    - Neon cyan/magenta on deep black (default)
+        rgb-gaming   - Rainbow RGB with hot pink accents
+
+      CORPORATE THEMES:
+        executive    - Professional navy blue with gold accents
+        clean        - Minimal white/light theme
+
+    Themes can also be overridden per-panel in the profile using @theme=name
 
 SET-PROXMOX OPTIONS:
     --api-url <url>         Proxmox API URL (e.g., https://proxmox.local:8006)
@@ -77,16 +94,18 @@ SET-PROXMOX OPTIONS:
     Pass an empty string """" to clear a value.
 
 EXAMPLES:
+    # Set default theme to RGB Gaming
+    lcdpossible config set-theme rgb-gaming
+
+    # Set default theme to Executive (corporate)
+    lcdpossible config set-theme executive
+
+    # List all available themes
+    lcdpossible config list-themes
+
     # Configure Proxmox API (use / instead of ! to avoid shell escaping)
     lcdpossible config set-proxmox --api-url https://proxmox.local:8006 \
         --token-id monitor@pve/lcdpossible --token-secret xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-
-    # Clear API credentials (disable Proxmox)
-    lcdpossible config set-proxmox --api-url """" --token-id """" --token-secret """"
-
-    # Just enable/disable without changing credentials
-    lcdpossible config set-proxmox --enabled
-    lcdpossible config set-proxmox --disabled
 
     # Test Proxmox connection
     lcdpossible config validate-proxmox
@@ -675,5 +694,179 @@ EXAMPLES:
             Console.Error.WriteLine($"Error: {ex.Message}");
             return 1;
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // THEME MANAGEMENT
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private static string GetAppConfigPath()
+    {
+        var configDir = PlatformPaths.GetUserDataDirectory();
+        return Path.Combine(configDir, "config.json");
+    }
+
+    private static int ListThemes()
+    {
+        Console.WriteLine("Available Display Themes\n");
+
+        var themes = ThemeManager.GetThemeList();
+        var currentTheme = GetCurrentTheme();
+
+        string? lastCategory = null;
+        foreach (var (id, name, category) in themes)
+        {
+            if (category != lastCategory)
+            {
+                Console.WriteLine($"  {category.ToUpperInvariant()} THEMES:");
+                lastCategory = category;
+            }
+
+            var isCurrent = id.Equals(currentTheme, StringComparison.OrdinalIgnoreCase);
+            var marker = isCurrent ? " *" : "";
+            var theme = ThemeManager.GetTheme(id);
+
+            Console.WriteLine($"    {id,-14} - {name}{marker}");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("  * = current default theme");
+        Console.WriteLine();
+        Console.WriteLine("Set theme with: lcdpossible config set-theme <name>");
+        Console.WriteLine("Override per-panel with: cpu-widget|@theme=executive");
+
+        return 0;
+    }
+
+    private static int SetTheme(string[] args)
+    {
+        if (args.Length == 0)
+        {
+            Console.Error.WriteLine("Error: Theme name required.");
+            Console.Error.WriteLine("Usage: lcdpossible config set-theme <name>");
+            Console.Error.WriteLine("Use 'lcdpossible config list-themes' to see available themes.");
+            return 1;
+        }
+
+        var themeId = args[0].ToLowerInvariant();
+
+        // Validate theme exists
+        if (!ThemeManager.HasTheme(themeId))
+        {
+            Console.Error.WriteLine($"Error: Unknown theme '{themeId}'");
+            Console.Error.WriteLine();
+            Console.Error.WriteLine("Available themes:");
+            foreach (var (id, name, category) in ThemeManager.GetThemeList())
+            {
+                Console.Error.WriteLine($"  {id,-14} ({category})");
+            }
+            return 1;
+        }
+
+        // Load or create app config
+        var path = GetAppConfigPath();
+        JsonObject config;
+
+        if (File.Exists(path))
+        {
+            try
+            {
+                var json = File.ReadAllText(path);
+                config = JsonNode.Parse(json) as JsonObject ?? new JsonObject();
+            }
+            catch (JsonException)
+            {
+                Console.WriteLine("Warning: Existing config file is invalid, creating new one.");
+                config = new JsonObject();
+            }
+        }
+        else
+        {
+            config = new JsonObject();
+        }
+
+        // Ensure General section exists
+        if (!config.ContainsKey("General"))
+        {
+            config["General"] = new JsonObject();
+        }
+
+        // Set the theme
+        var general = config["General"] as JsonObject;
+        general!["DefaultTheme"] = themeId;
+
+        // Ensure directory exists
+        var directory = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+        {
+            try
+            {
+                Directory.CreateDirectory(directory);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error creating directory: {ex.Message}");
+                return 1;
+            }
+        }
+
+        // Write config
+        try
+        {
+            var options = new JsonSerializerOptions { WriteIndented = true };
+            var json = config.ToJsonString(options);
+            File.WriteAllText(path, json);
+
+            var theme = ThemeManager.GetTheme(themeId);
+            Console.WriteLine($"Default theme set to: {theme.Name} ({themeId})");
+            Console.WriteLine();
+            Console.WriteLine("Theme colors:");
+            Console.WriteLine($"  Background: {theme.Background}");
+            Console.WriteLine($"  Accent:     {theme.Accent}");
+            Console.WriteLine($"  Text:       {theme.TextPrimary}");
+            Console.WriteLine();
+            Console.WriteLine($"Configuration saved to: {path}");
+            Console.WriteLine();
+            Console.WriteLine("Note: Restart the service for changes to take effect:");
+            Console.WriteLine("  lcdpossible service restart");
+
+            return 0;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            Console.Error.WriteLine($"Error: Permission denied writing to {path}");
+            return 1;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error writing configuration: {ex.Message}");
+            return 1;
+        }
+    }
+
+    private static string GetCurrentTheme()
+    {
+        var path = GetAppConfigPath();
+        if (!File.Exists(path))
+        {
+            return "cyberpunk";
+        }
+
+        try
+        {
+            var json = File.ReadAllText(path);
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("General", out var general) &&
+                general.TryGetProperty("DefaultTheme", out var theme))
+            {
+                return theme.GetString() ?? "cyberpunk";
+            }
+        }
+        catch
+        {
+            // Ignore errors reading config
+        }
+
+        return "cyberpunk";
     }
 }

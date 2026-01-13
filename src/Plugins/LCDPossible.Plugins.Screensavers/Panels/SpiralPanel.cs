@@ -2,18 +2,19 @@ using LCDPossible.Sdk;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
+using LCDPossible.Core.Rendering;
 namespace LCDPossible.Plugins.Screensavers.Panels;
 
 /// <summary>
 /// Hypnotic rotating spiral pattern.
 /// </summary>
-public sealed class SpiralPanel : BaseLivePanel
+public sealed class SpiralPanel : CanvasPanel
 {
     private DateTime _startTime;
 
     public override string PanelId => "spiral";
     public override string DisplayName => "Spiral";
-    public override bool IsAnimated => true;
+    public override PanelRenderMode RenderMode => PanelRenderMode.Stream;
 
     public SpiralPanel()
     {

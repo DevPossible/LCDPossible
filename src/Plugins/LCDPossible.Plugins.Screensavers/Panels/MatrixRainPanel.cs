@@ -5,12 +5,13 @@ using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
+using LCDPossible.Core.Rendering;
 namespace LCDPossible.Plugins.Screensavers.Panels;
 
 /// <summary>
 /// Digital rain effect inspired by The Matrix.
 /// </summary>
-public sealed class MatrixRainPanel : BaseLivePanel
+public sealed class MatrixRainPanel : CanvasPanel
 {
     private const int CharSize = 16;
     private const int TrailLength = 20;
@@ -29,7 +30,7 @@ public sealed class MatrixRainPanel : BaseLivePanel
 
     public override string PanelId => "matrix-rain";
     public override string DisplayName => "Matrix Rain";
-    public override bool IsAnimated => true;
+    public override PanelRenderMode RenderMode => PanelRenderMode.Stream;
 
     public MatrixRainPanel()
     {
