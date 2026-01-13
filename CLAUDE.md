@@ -193,28 +193,92 @@ The `test` command renders panels to JPEG files without requiring an LCD device.
 
 ## Available Panel Types
 
+For complete panel documentation with screenshots, see `docs/panels/README.md`.
+
+### System Monitoring Panels
+
 | Panel Type | Description |
 |------------|-------------|
+| `basic-info` | Hostname, OS, uptime summary |
+| `basic-usage-text` | Basic system usage as text |
 | `cpu-info` | CPU model and specifications |
+| `cpu-status` | CPU dashboard with usage bar, temperature, sparkline |
 | `cpu-usage-text` | CPU usage as text |
 | `cpu-usage-graphic` | CPU usage with visual bars |
-| `cpu-widget` | CPU info using responsive HTML widgets (new) |
-| `ram-info` | RAM specifications |
-| `ram-usage-text` | RAM usage as text |
-| `ram-usage-graphic` | RAM usage with visual bars |
+| `cpu-thermal-graphic` | CPU temperature gauge |
 | `gpu-info` | GPU model and specifications |
 | `gpu-usage-text` | GPU usage as text |
 | `gpu-usage-graphic` | GPU usage with visual bars |
-| `basic-info` | Hostname, OS, uptime summary |
-| `basic-usage-text` | Basic system usage as text |
+| `gpu-thermal-graphic` | GPU temperature gauge |
+| `ram-info` | RAM specifications |
+| `ram-usage-text` | RAM usage as text |
+| `ram-usage-graphic` | RAM usage with visual bars |
+| `system-thermal-graphic` | Combined CPU/GPU temperature display |
 | `network-info` | Network interfaces (smart layout, 1-4 widgets) |
+
+### Proxmox Panels
+
+| Panel Type | Description |
+|------------|-------------|
 | `proxmox-summary` | Proxmox cluster overview |
 | `proxmox-vms` | Proxmox VM/Container list |
+
+### Media Panels
+
+| Panel Type | Description |
+|------------|-------------|
 | `animated-gif:<path\|url>` | Animated GIF from file or URL |
 | `image-sequence:<folder>` | Folder of numbered images as animation |
 | `video:<path\|url>` | Video file, URL, or YouTube link |
 | `html:<path>` | Local HTML file rendered as web page |
 | `web:<url>` | Live website rendered from URL |
+
+### Screensaver Panels
+
+| Panel Type | Description |
+|------------|-------------|
+| `screensaver` | Random screensaver or cycle through all |
+| `clock` | Analog clock with smooth second hand |
+| `plasma` | Classic demoscene plasma effect |
+| `matrix-rain` | Digital rain effect (The Matrix) |
+| `starfield` | Classic starfield warp effect |
+| `warp-tunnel` | Flying through colorful warp tunnel |
+| `fire` | Classic demoscene fire effect |
+| `pipes` | 3D pipes growing in random directions |
+| `mystify` | Bouncing connected polygons with trails |
+| `bubbles` | Floating translucent bubbles |
+| `rain` | Falling raindrops with splash effects |
+| `noise` | TV static / white noise effect |
+| `spiral` | Hypnotic rotating spiral pattern |
+| `game-of-life` | Conway's cellular automaton |
+| `asteroids` | Asteroids game simulation |
+| `falling-blocks` | Tetris-style falling blocks |
+| `missile-command` | Defend cities from missiles |
+| `bouncing-logo` | DVD screensaver style bouncing text |
+
+## Available Themes
+
+For complete theme documentation, see `docs/themes/README.md`.
+
+| Theme | Category | Description |
+|-------|----------|-------------|
+| `cyberpunk` | Gamer | Neon cyan/magenta, glow effects (default) |
+| `rgb-gaming` | Gamer | Vibrant rainbow, bold colors |
+| `executive` | Corporate | Dark blue/gold, professional |
+| `clean` | Corporate | Light mode, minimal |
+
+### Theme Usage
+
+```bash
+# Set default theme
+lcdpossible config set-theme cyberpunk
+
+# List available themes
+lcdpossible config list-themes
+
+# Per-panel theme override
+lcdpossible show cpu-info|@theme=executive
+```
 
 ### Media Panel Examples
 

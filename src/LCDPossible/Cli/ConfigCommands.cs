@@ -745,7 +745,7 @@ EXAMPLES:
         Console.WriteLine("  * = current default theme");
         Console.WriteLine();
         Console.WriteLine("Set theme with: lcdpossible config set-theme <name>");
-        Console.WriteLine("Override per-panel with: cpu-widget|@theme=executive");
+        Console.WriteLine("Override per-panel with: cpu-info|@theme=executive");
 
         return 0;
     }

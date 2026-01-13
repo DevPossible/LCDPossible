@@ -332,7 +332,8 @@ public sealed class PanelRenderingTests : IDisposable
             ["HOME"] = _cli.TestDataDir
         };
 
-        var result = _cli.RunWithEnvironment(env, "test", "*");
+        // Use longer timeout - rendering all 40+ panels takes time
+        var result = _cli.RunWithEnvironment(env, TimeSpan.FromMinutes(3), "test", "*");
 
         result.ShouldSucceed();
         result.ShouldContainOutput("Rendered");
@@ -395,9 +396,10 @@ public sealed class PanelRenderingTests : IDisposable
         var result = _cli.RunWithEnvironment(env, "test", "basic-info,cpu-info,gpu-info");
 
         result.ShouldSucceed();
-        result.ShouldContainOutput("basic-info.jpg");
-        result.ShouldContainOutput("cpu-info.jpg");
-        result.ShouldContainOutput("gpu-info.jpg");
+        // Filenames include theme suffix: {panel-id}-{theme}.jpg
+        result.ShouldContainOutput("basic-info-");
+        result.ShouldContainOutput("cpu-info-");
+        result.ShouldContainOutput("gpu-info-");
         result.ShouldContainOutput("Rendered 3 panel(s)");
     }
 
@@ -453,10 +455,11 @@ public sealed class PanelRenderingTests : IDisposable
         result.ShouldSucceed();
         result.ShouldContainOutput("No panels specified, using default profile");
         result.ShouldContainOutput("Rendered 4 panel(s)");
-        result.ShouldContainOutput("basic-info.jpg");
-        result.ShouldContainOutput("cpu-usage-graphic.jpg");
-        result.ShouldContainOutput("gpu-usage-graphic.jpg");
-        result.ShouldContainOutput("ram-usage-graphic.jpg");
+        // Filenames include theme suffix: {panel-id}-{theme}.jpg
+        result.ShouldContainOutput("basic-info-");
+        result.ShouldContainOutput("cpu-usage-graphic-");
+        result.ShouldContainOutput("gpu-usage-graphic-");
+        result.ShouldContainOutput("ram-usage-graphic-");
     }
 
     #endregion

@@ -53,6 +53,14 @@ public sealed class CliRunner : IDisposable
     /// </summary>
     public CliResult RunWithEnvironment(Dictionary<string, string>? envVars, params string[] args)
     {
+        return RunWithEnvironment(envVars, TimeSpan.FromSeconds(60), args);
+    }
+
+    /// <summary>
+    /// Runs the CLI with custom environment variables and timeout.
+    /// </summary>
+    public CliResult RunWithEnvironment(Dictionary<string, string>? envVars, TimeSpan timeout, params string[] args)
+    {
         var startInfo = new ProcessStartInfo
         {
             FileName = _exePath,
@@ -105,7 +113,7 @@ public sealed class CliRunner : IDisposable
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
 
-        var completed = process.WaitForExit(TimeSpan.FromSeconds(60));
+        var completed = process.WaitForExit(timeout);
 
         if (!completed)
         {

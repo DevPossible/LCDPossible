@@ -313,7 +313,7 @@ THEMES:
 
     Set theme:          lcdpossible config set-theme <name>
     List themes:        lcdpossible config list-themes
-    Per-panel override: cpu-widget|@theme=executive
+    Per-panel override: cpu-info|@theme=executive
 
 PANELS:
     Use 'lcdpossible list-panels' for available panel types.
