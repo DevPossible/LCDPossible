@@ -618,8 +618,16 @@ static string? GetShowProfile(string[] args)
 
 static bool IsDebugMode(string[] args)
 {
-    return args.Any(a => a.Equals("--debug", StringComparison.OrdinalIgnoreCase) ||
-                         a.Equals("-D", StringComparison.OrdinalIgnoreCase));
+    var isDebug = args.Any(a => a.Equals("--debug", StringComparison.OrdinalIgnoreCase) ||
+                                a.Equals("-D", StringComparison.OrdinalIgnoreCase));
+
+    // Set environment variable so all components (HtmlPanel, etc.) can detect debug mode
+    if (isDebug)
+    {
+        Environment.SetEnvironmentVariable("LCDPOSSIBLE_DEBUG", "1");
+    }
+
+    return isDebug;
 }
 
 /// <summary>
@@ -968,7 +976,11 @@ static async Task<int> ShowPanels(string[] args)
     {
         foreach (var item in items)
         {
-            Console.WriteLine($"[DEBUG] Panel: Type={item.Type}, Source={item.Source}, Duration={item.DurationSeconds}s");
+            var extras = new List<string>();
+            if (!string.IsNullOrEmpty(item.Theme)) extras.Add($"Theme={item.Theme}");
+            if (!string.IsNullOrEmpty(item.PageEffect) && item.PageEffect != "none") extras.Add($"Effect={item.PageEffect}");
+            var extraStr = extras.Count > 0 ? $", {string.Join(", ", extras)}" : "";
+            Console.WriteLine($"[DEBUG] Panel: Type={item.Type}, Source={item.Source}, Duration={item.DurationSeconds}s{extraStr}");
         }
     }
 
@@ -1356,6 +1368,17 @@ static async Task<int> RenderPanelsToFiles(string[] args)
                     {
                         var fileInfo = new FileInfo(fullPath);
                         Console.WriteLine($"[DEBUG] Written: {fullPath} ({fileInfo.Length} bytes)");
+
+                        // Also save the HTML for HtmlPanel-based panels
+                        if (slideshow.CurrentPanel is LCDPossible.Sdk.HtmlPanel htmlPanel && htmlPanel.LastRenderedHtml != null)
+                        {
+                            var htmlFileName = themeId != null
+                                ? $"{safeFileName}-{themeId}.html"
+                                : $"{safeFileName}.html";
+                            var htmlPath = Path.Combine(outputDir, htmlFileName);
+                            await File.WriteAllTextAsync(htmlPath, htmlPanel.LastRenderedHtml);
+                            Console.WriteLine($"[DEBUG] Written: {Path.GetFullPath(htmlPath)} ({new FileInfo(htmlPath).Length} bytes)");
+                        }
                     }
                     else
                     {
@@ -1430,6 +1453,15 @@ static async Task<int> RenderPanelsToFiles(string[] args)
                         {
                             var fileInfo = new FileInfo(fullPath);
                             Console.WriteLine($"[DEBUG] Written: {fullPath} ({fileInfo.Length} bytes)");
+
+                            // Also save the HTML for HtmlPanel-based panels
+                            if (themedPanel is LCDPossible.Sdk.HtmlPanel htmlPanel && htmlPanel.LastRenderedHtml != null)
+                            {
+                                var htmlFileName = $"{safeFileName}-{themeId}.html";
+                                var htmlPath = Path.Combine(outputDir, htmlFileName);
+                                await File.WriteAllTextAsync(htmlPath, htmlPanel.LastRenderedHtml);
+                                Console.WriteLine($"[DEBUG] Written: {Path.GetFullPath(htmlPath)} ({new FileInfo(htmlPath).Length} bytes)");
+                            }
                         }
                         else
                         {

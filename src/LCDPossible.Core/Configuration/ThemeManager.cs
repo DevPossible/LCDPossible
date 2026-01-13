@@ -95,7 +95,15 @@ public static class ThemeManager
         GlassOpacity = 0.85f,
         BorderColor = "#00ffff33",
         BorderRadius = 4f,
-        BorderWidth = 1f
+        BorderWidth = 1f,
+        // Cyberpunk: Sleek arc gauges with glow effects
+        WidgetStyles = new()
+        {
+            ["gauge"] = "echarts:arc",
+            ["donut"] = "echarts:default",
+            ["sparkline"] = "echarts:area",
+            ["progress"] = "echarts:default"
+        }
     };
 
     /// <summary>
@@ -128,7 +136,15 @@ public static class ThemeManager
         GlassOpacity = 0.9f,
         BorderColor = "#ff005544",
         BorderRadius = 2f,
-        BorderWidth = 2f
+        BorderWidth = 2f,
+        // RGB Gaming: Bold ring gauges with speedometer style
+        WidgetStyles = new()
+        {
+            ["gauge"] = "echarts:ring",
+            ["donut"] = "daisy:lg",
+            ["sparkline"] = "echarts:line",
+            ["progress"] = "daisy:lg"
+        }
     };
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -165,7 +181,15 @@ public static class ThemeManager
         GlassOpacity = 0.92f,
         BorderColor = "#c9a22733",
         BorderRadius = 6f,
-        BorderWidth = 1f
+        BorderWidth = 1f,
+        // Executive: Clean, professional DaisyUI components
+        WidgetStyles = new()
+        {
+            ["gauge"] = "daisy:lg",
+            ["donut"] = "daisy:lg",
+            ["sparkline"] = "echarts:line",
+            ["progress"] = "daisy:lg"
+        }
     };
 
     /// <summary>
@@ -198,6 +222,14 @@ public static class ThemeManager
         GlassOpacity = 1f,
         BorderColor = "#0066cc22",
         BorderRadius = 8f,
-        BorderWidth = 1f
+        BorderWidth = 1f,
+        // Clean: Minimal, flat DaisyUI components
+        WidgetStyles = new()
+        {
+            ["gauge"] = "daisy:md",
+            ["donut"] = "daisy:md",
+            ["sparkline"] = "echarts:line",
+            ["progress"] = "daisy:md"
+        }
     };
 }

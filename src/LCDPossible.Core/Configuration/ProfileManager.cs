@@ -355,7 +355,8 @@ public sealed class ProfileManager
         int? defaultDuration = null,
         int? defaultUpdateInterval = null,
         string? defaultTransition = null,
-        int? defaultTransitionDuration = null)
+        int? defaultTransitionDuration = null,
+        string? defaultPageEffect = null)
     {
         var profile = LoadProfile(profileName);
 
@@ -387,6 +388,11 @@ public sealed class ProfileManager
         if (defaultTransitionDuration.HasValue)
         {
             profile.DefaultTransitionDurationMs = defaultTransitionDuration.Value;
+        }
+
+        if (!string.IsNullOrEmpty(defaultPageEffect))
+        {
+            profile.DefaultPageEffect = defaultPageEffect;
         }
 
         SaveProfile(profile, profileName);

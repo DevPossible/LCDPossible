@@ -1,4 +1,5 @@
 using LCDPossible.Core.Configuration;
+using LCDPossible.Core.Rendering;
 using PuppeteerSharp;
 using Scriban;
 using Scriban.Runtime;
@@ -43,7 +44,9 @@ public abstract class HtmlPanel : BasePanel
     private Template? _compiledTemplate;
     private Image<Rgba32>? _lastFrame;
     private DateTime _lastRender;
+    private DateTime _lastFrameTime; // For calculating deltaTime between frames (for animations)
     private bool _initialized;
+    private bool _pageLoaded; // True after first navigation - subsequent updates use JS injection
 
     /// <summary>
     /// How often to refresh the data model and re-render.
@@ -144,23 +147,101 @@ public abstract class HtmlPanel : BasePanel
     private static string? _echartsScript;
     private static string? _echartsComponentsScript;
     private static string? _daisyUiComponentsScript;
+    private static readonly Dictionary<string, string> _themeScriptCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, string> _effectScriptCache = new(StringComparer.OrdinalIgnoreCase);
     private Theme? _currentTheme;
+    private PageEffect? _currentPageEffect;
+    private PanelRenderMode? _renderModeOverride;
+
+    /// <summary>
+    /// Gets the rendering mode for this panel.
+    /// When a page effect requiring live mode is active, this returns Stream.
+    /// </summary>
+    public override PanelRenderMode RenderMode =>
+        _renderModeOverride ?? base.RenderMode;
+
+    /// <summary>
+    /// Gets the current theme applied to this panel.
+    /// </summary>
+    protected Theme? CurrentTheme => _currentTheme;
+
+    /// <summary>
+    /// Gets the current page effect applied to this panel.
+    /// </summary>
+    protected PageEffect? CurrentPageEffect => _currentPageEffect;
+
+    /// <summary>
+    /// Gets the last rendered HTML content (for debugging purposes).
+    /// </summary>
+    public string? LastRenderedHtml { get; private set; }
+
+    private bool _domReadyCalled;
 
     private static string LoadAssetFile(string subfolder, string filename, string fallback)
     {
+        var debug = Environment.GetEnvironmentVariable("LCDPOSSIBLE_DEBUG") == "1";
+        var pathsTried = new List<string>();
+
+        // Try 1: Assembly location (works for non-single-file publish)
         var assemblyDir = Path.GetDirectoryName(typeof(HtmlPanel).Assembly.Location) ?? ".";
         var filePath = Path.Combine(assemblyDir, "html_assets", subfolder, filename);
+        pathsTried.Add(filePath);
 
         if (File.Exists(filePath))
         {
-            return File.ReadAllText(filePath);
+            var content = File.ReadAllText(filePath);
+            if (debug) Console.Error.WriteLine($"[ASSET LOADED] {filename} from {filePath} ({content.Length} bytes)");
+            return content;
         }
 
-        // Fallback to current directory
-        filePath = Path.Combine(Environment.CurrentDirectory, "html_assets", subfolder, filename);
-        if (File.Exists(filePath))
+        // Try 2: Process executable directory (works for single-file publish on Linux)
+        var exeDir = Path.GetDirectoryName(Environment.ProcessPath) ?? ".";
+        if (exeDir != assemblyDir)
         {
-            return File.ReadAllText(filePath);
+            var exePath = Path.Combine(exeDir, "html_assets", subfolder, filename);
+            pathsTried.Add(exePath);
+
+            if (File.Exists(exePath))
+            {
+                var content = File.ReadAllText(exePath);
+                if (debug) Console.Error.WriteLine($"[ASSET LOADED] {filename} from {exePath} ({content.Length} bytes)");
+                return content;
+            }
+        }
+
+        // Try 3: Current directory
+        var cwdPath = Path.Combine(Environment.CurrentDirectory, "html_assets", subfolder, filename);
+        if (!pathsTried.Contains(cwdPath))
+        {
+            pathsTried.Add(cwdPath);
+
+            if (File.Exists(cwdPath))
+            {
+                var content = File.ReadAllText(cwdPath);
+                if (debug) Console.Error.WriteLine($"[ASSET LOADED] {filename} from {cwdPath} ({content.Length} bytes)");
+                return content;
+            }
+        }
+
+        // Try 4: /opt/lcdpossible (standard Linux install location)
+        var optPath = Path.Combine("/opt/lcdpossible", "html_assets", subfolder, filename);
+        if (!pathsTried.Contains(optPath))
+        {
+            pathsTried.Add(optPath);
+
+            if (File.Exists(optPath))
+            {
+                var content = File.ReadAllText(optPath);
+                if (debug) Console.Error.WriteLine($"[ASSET LOADED] {filename} from {optPath} ({content.Length} bytes)");
+                return content;
+            }
+        }
+
+        // Log when asset file isn't found (helps debug deployment issues)
+        Console.Error.WriteLine($"[ASSET NOT FOUND] {filename} - tried:");
+        foreach (var path in pathsTried)
+        {
+            Console.Error.WriteLine($"  {path}");
         }
 
         return fallback;
@@ -168,7 +249,7 @@ public abstract class HtmlPanel : BasePanel
 
     private static string GetAssetsPath()
     {
-        // Look for html_assets relative to the executing assembly
+        // Try 1: Assembly location (works for non-single-file publish)
         var assemblyDir = Path.GetDirectoryName(typeof(HtmlPanel).Assembly.Location) ?? ".";
         var assetsPath = Path.Combine(assemblyDir, "html_assets");
 
@@ -177,8 +258,26 @@ public abstract class HtmlPanel : BasePanel
             return Path.GetFullPath(assetsPath);
         }
 
-        // Fallback: look in current directory
+        // Try 2: Process executable directory (works for single-file publish on Linux)
+        var exeDir = Path.GetDirectoryName(Environment.ProcessPath) ?? ".";
+        if (exeDir != assemblyDir)
+        {
+            assetsPath = Path.Combine(exeDir, "html_assets");
+            if (Directory.Exists(assetsPath))
+            {
+                return Path.GetFullPath(assetsPath);
+            }
+        }
+
+        // Try 3: Current directory
         assetsPath = Path.Combine(Environment.CurrentDirectory, "html_assets");
+        if (Directory.Exists(assetsPath))
+        {
+            return Path.GetFullPath(assetsPath);
+        }
+
+        // Try 4: /opt/lcdpossible (standard Linux install location)
+        assetsPath = "/opt/lcdpossible/html_assets";
         if (Directory.Exists(assetsPath))
         {
             return Path.GetFullPath(assetsPath);
@@ -187,6 +286,110 @@ public abstract class HtmlPanel : BasePanel
         // Last resort: return relative path
         return "html_assets";
     }
+
+    /// <summary>
+    /// Gets the JavaScript content for a specific theme.
+    /// Looks for {themeId}.js in html_assets/js/themes/ folder.
+    /// Returns empty string if no theme JS exists.
+    /// </summary>
+    protected string GetThemeScript(string? themeId)
+    {
+        if (string.IsNullOrEmpty(themeId))
+            return GetDefaultThemeHooks();
+
+        // Check cache first
+        if (_themeScriptCache.TryGetValue(themeId, out var cached))
+            return cached;
+
+        // Check Theme.ScriptContent first (allows programmatic themes)
+        if (_currentTheme?.ScriptContent != null)
+        {
+            _themeScriptCache[themeId] = _currentTheme.ScriptContent;
+            return _currentTheme.ScriptContent;
+        }
+
+        // Try to load from file
+        var script = LoadAssetFile("js/themes", $"{themeId}.js", "");
+
+        // If no theme-specific file, provide default hooks structure
+        if (string.IsNullOrEmpty(script))
+        {
+            script = GetDefaultThemeHooks();
+        }
+
+        _themeScriptCache[themeId] = script;
+        return script;
+    }
+
+    /// <summary>
+    /// Gets the default theme hooks structure (no-op implementations).
+    /// </summary>
+    private static string GetDefaultThemeHooks() => """
+        // Default theme hooks (no-op)
+        window.LCDTheme = {
+            // Called after DOM is ready, before first frame capture
+            onDomReady: function() {},
+            // Called after transition animation completes
+            onTransitionEnd: function() {},
+            // Called before each frame render (for animations)
+            onBeforeRender: function() {}
+        };
+        """;
+
+    /// <summary>
+    /// Gets the JavaScript content for a specific page effect.
+    /// Looks for {effectId}.js in html_assets/js/effects/ folder.
+    /// Returns empty string if no effect JS exists.
+    /// </summary>
+    protected string GetPageEffectScript(string? effectId)
+    {
+        if (string.IsNullOrEmpty(effectId) || effectId == "none")
+            return GetDefaultEffectHooks();
+
+        // Check cache first
+        if (_effectScriptCache.TryGetValue(effectId, out var cached))
+            return cached;
+
+        // Check PageEffect.ScriptContent first (allows programmatic effects)
+        if (_currentPageEffect?.ScriptContent != null)
+        {
+            _effectScriptCache[effectId] = _currentPageEffect.ScriptContent;
+            return _currentPageEffect.ScriptContent;
+        }
+
+        // Try to load from file
+        var script = LoadAssetFile("js/effects", $"{effectId}.js", "");
+
+        // If no effect-specific file, provide default hooks structure
+        if (string.IsNullOrEmpty(script))
+        {
+            script = GetDefaultEffectHooks();
+        }
+
+        _effectScriptCache[effectId] = script;
+        return script;
+    }
+
+    /// <summary>
+    /// Gets the default page effect hooks structure (no-op implementations).
+    /// </summary>
+    private static string GetDefaultEffectHooks() => """
+        // Default page effect hooks (no-op)
+        window.LCDEffect = {
+            // Called once after DOM is ready
+            onInit: function(options) {},
+            // Called when any value changes (receives { element, oldValue, newValue })
+            onValueChange: function(change) {},
+            // Called before each frame render
+            onBeforeRender: function(deltaTime) {},
+            // Called after each frame render
+            onAfterRender: function(deltaTime) {},
+            // Called when widget enters warning/critical state
+            onWarning: function(element, level) {},
+            // Cleanup when effect is removed
+            onDestroy: function() {}
+        };
+        """;
 
     /// <summary>
     /// Converts a file system path to a proper file:// URI.
@@ -230,6 +433,71 @@ public abstract class HtmlPanel : BasePanel
     /// Returns null if no theme is explicitly set.
     /// </summary>
     protected string? CurrentThemeId => _currentTheme?.Id;
+
+    /// <summary>
+    /// Sets the page effect for this panel.
+    /// Page effects add visual enhancements like animations, transitions, and interactive elements.
+    /// When an effect requiring live mode is set, the panel automatically switches to Stream render mode.
+    /// </summary>
+    /// <param name="effect">The page effect to use, or null for no effect.</param>
+    public void SetPageEffect(PageEffect? effect)
+    {
+        _currentPageEffect = effect;
+        UpdateRenderModeForEffect(effect);
+    }
+
+    /// <summary>
+    /// Sets the page effect by ID, looking it up from PageEffectManager.
+    /// When an effect requiring live mode is set, the panel automatically switches to Stream render mode.
+    /// </summary>
+    /// <param name="effectId">The effect ID (e.g., "glow-on-change", "matrix-rain"), or null/empty/"none" for no effect.</param>
+    public void SetPageEffectById(string? effectId)
+    {
+        var debug = Environment.GetEnvironmentVariable("LCDPOSSIBLE_DEBUG") == "1";
+        var previousEffect = _currentPageEffect?.Id;
+
+        _currentPageEffect = PageEffectManager.Instance.GetEffect(effectId);
+        UpdateRenderModeForEffect(_currentPageEffect);
+
+        if (debug)
+        {
+            if (_currentPageEffect != null)
+            {
+                Console.WriteLine($"[DEBUG] [{PanelId}] Effect set: '{_currentPageEffect.Id}' ({_currentPageEffect.DisplayName})");
+                Console.WriteLine($"[DEBUG] [{PanelId}]   RequiresLiveMode: {_currentPageEffect.RequiresLiveMode}, RenderMode: {RenderMode}");
+            }
+            else if (!string.IsNullOrEmpty(previousEffect))
+            {
+                Console.WriteLine($"[DEBUG] [{PanelId}] Effect cleared (was: '{previousEffect}')");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Updates the render mode based on the page effect requirements.
+    /// </summary>
+    private void UpdateRenderModeForEffect(PageEffect? effect)
+    {
+        if (effect?.RequiresLiveMode == true)
+        {
+            _renderModeOverride = PanelRenderMode.Stream;
+            var debug = Environment.GetEnvironmentVariable("LCDPOSSIBLE_DEBUG") == "1";
+            if (debug)
+            {
+                Console.WriteLine($"[DEBUG] [{PanelId}] Page effect '{effect.Id}' requires live mode - switching to Stream render mode");
+            }
+        }
+        else
+        {
+            _renderModeOverride = null;
+        }
+    }
+
+    /// <summary>
+    /// Gets the current page effect ID.
+    /// Returns null if no page effect is set.
+    /// </summary>
+    protected string? CurrentPageEffectId => _currentPageEffect?.Id;
 
     #region Browser Management
 
@@ -366,6 +634,13 @@ public abstract class HtmlPanel : BasePanel
         // Add DaisyUI-based components
         scriptObject["daisyui_components_script"] = DaisyUiComponentsScript;
 
+        // Add theme-specific JavaScript (lifecycle hooks)
+        scriptObject["theme_script"] = GetThemeScript(_currentTheme?.Id);
+
+        // Add page effect JavaScript (lifecycle hooks)
+        scriptObject["page_effect_script"] = GetPageEffectScript(_currentPageEffect?.Id);
+        scriptObject["page_effect_id"] = _currentPageEffect?.Id ?? "none";
+
         // Add color scheme as CSS variables
         scriptObject["colors"] = CreateColorScriptObject();
         scriptObject["colors_css"] = GenerateColorsCss();
@@ -491,6 +766,41 @@ public abstract class HtmlPanel : BasePanel
         var browser = await GetOrCreateBrowserAsync();
         Page = await browser.NewPageAsync();
 
+        // Add console message handler for debugging
+        Page.Console += (sender, e) =>
+        {
+            var type = e.Message.Type.ToString().ToUpperInvariant();
+            var text = e.Message.Text;
+
+            // Always show errors and warnings
+            if (type == "ERROR" || type == "WARNING")
+            {
+                Console.Error.WriteLine($"[BROWSER {type}] [{PanelId}] {text}");
+            }
+            // In debug mode, also show effect-related console messages
+            else if (Environment.GetEnvironmentVariable("LCDPOSSIBLE_DEBUG") == "1")
+            {
+                // Show messages from effects (LCDEffect) or themes (LCDTheme)
+                if (text.Contains("LCDEffect") || text.Contains("LCDTheme") ||
+                    text.Contains("[EFFECT]") || text.Contains("[THEME]"))
+                {
+                    Console.WriteLine($"[BROWSER LOG] [{PanelId}] {text}");
+                }
+            }
+        };
+
+        // Add page error handler
+        Page.PageError += (sender, e) =>
+        {
+            Console.Error.WriteLine($"[BROWSER PAGE ERROR] [{PanelId}] {e.Message}");
+        };
+
+        // Add request failed handler for debugging resource loading
+        Page.RequestFailed += (sender, e) =>
+        {
+            Console.Error.WriteLine($"[BROWSER REQUEST FAILED] [{PanelId}] {e.Request.Url}");
+        };
+
         await Page.SetViewportAsync(new ViewPortOptions
         {
             Width = TargetWidth,
@@ -511,7 +821,9 @@ public abstract class HtmlPanel : BasePanel
             return;
         }
 
-        // If we have a URL, navigate to it
+        var debug = Environment.GetEnvironmentVariable("LCDPOSSIBLE_DEBUG") == "1";
+
+        // If we have a URL, navigate to it (URL panels don't support data injection)
         if (!string.IsNullOrEmpty(TemplateUrl))
         {
             var url = TemplateUrl;
@@ -525,13 +837,34 @@ public abstract class HtmlPanel : BasePanel
                 WaitUntil = [WaitUntilNavigation.Networkidle2],
                 Timeout = 30000
             });
+            _pageLoaded = true;
             return;
         }
 
-        // Otherwise, render template and navigate to temp file
-        // (Using GoToAsync instead of SetContentAsync so file:// URLs resolve correctly)
+        // Get fresh data and render template
         var dataModel = await GetDataModelAsync(cancellationToken);
         var html = RenderTemplate(dataModel);
+
+        // If page is already loaded, inject updated content via JavaScript instead of re-navigating
+        // This preserves JS state including running page effects
+        if (_pageLoaded)
+        {
+            // Still update LastRenderedHtml for debugging
+            LastRenderedHtml = html;
+
+            await InjectHtmlContentAsync(html, dataModel);
+            if (debug)
+            {
+                Console.WriteLine($"[DEBUG] [{PanelId}] Updated panel content via JS injection (preserving page effects)");
+            }
+            return;
+        }
+
+        // First render: navigate to temp file
+        // (Using GoToAsync instead of SetContentAsync so file:// URLs resolve correctly)
+
+        // Store the rendered HTML for debugging purposes
+        LastRenderedHtml = html;
 
         // Write HTML to temp file and navigate to it
         var tempHtmlPath = Path.Combine(Path.GetTempPath(), $"{PanelId}-debug.html");
@@ -544,11 +877,95 @@ public abstract class HtmlPanel : BasePanel
             WaitUntil = [WaitUntilNavigation.Networkidle0],
             Timeout = 10000
         });
+
+        _pageLoaded = true;
+        if (debug)
+        {
+            Console.WriteLine($"[DEBUG] [{PanelId}] Initial page loaded from {tempHtmlPath}");
+        }
+    }
+
+    /// <summary>
+    /// Injects updated HTML content into the page via JavaScript without re-navigating.
+    /// This preserves all JS state including running page effects.
+    /// </summary>
+    private async Task InjectHtmlContentAsync(string fullHtml, object dataModel)
+    {
+        if (Page == null) return;
+
+        try
+        {
+            // Extract the body content from the full HTML
+            var bodyContent = ExtractBodyContent(fullHtml);
+
+            // Inject the new body content and update panel data
+            await Page.EvaluateFunctionAsync(@"(bodyContent, data) => {
+                // Update the body's inner HTML with new widget content
+                // This preserves <script> elements that are already loaded
+                const body = document.body;
+                if (body) {
+                    // Find the main grid container and update only that
+                    const gridContainer = body.querySelector('.grid');
+                    if (gridContainer && bodyContent.includes('class=""grid')) {
+                        // Extract grid content from new HTML
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString('<body>' + bodyContent + '</body>', 'text/html');
+                        const newGrid = doc.body.querySelector('.grid');
+                        if (newGrid) {
+                            gridContainer.innerHTML = newGrid.innerHTML;
+                        }
+                    }
+                }
+
+                // Store the new data globally
+                window.panelData = data;
+
+                // Dispatch a custom event for components that listen for data changes
+                window.dispatchEvent(new CustomEvent('panelDataUpdated', { detail: data }));
+            }", bodyContent, dataModel);
+        }
+        catch (Exception ex)
+        {
+            var debug = Environment.GetEnvironmentVariable("LCDPOSSIBLE_DEBUG") == "1";
+            if (debug)
+            {
+                Console.Error.WriteLine($"[DEBUG] [{PanelId}] Failed to inject HTML content: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Extracts the body content from a full HTML document.
+    /// </summary>
+    private static string ExtractBodyContent(string fullHtml)
+    {
+        var bodyStartMatch = System.Text.RegularExpressions.Regex.Match(
+            fullHtml,
+            @"<body[^>]*>",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        if (!bodyStartMatch.Success)
+            return fullHtml;
+
+        var bodyStart = bodyStartMatch.Index + bodyStartMatch.Length;
+        var bodyEnd = fullHtml.LastIndexOf("</body>", StringComparison.OrdinalIgnoreCase);
+
+        if (bodyEnd < bodyStart)
+            return fullHtml;
+
+        return fullHtml[bodyStart..bodyEnd];
     }
 
     public override async Task<Image<Rgba32>> RenderFrameAsync(int width, int height, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+
+        // Early exit if disposed or no page (can happen during reload)
+        var page = Page;
+        if (page == null || _disposed)
+        {
+            return _lastFrame?.Clone() ?? new Image<Rgba32>(width, height, Color.Black);
+        }
 
         // Update viewport if dimensions changed
         if (width != TargetWidth || height != TargetHeight)
@@ -556,33 +973,79 @@ public abstract class HtmlPanel : BasePanel
             TargetWidth = width;
             TargetHeight = height;
 
-            if (Page != null)
+            try
             {
-                await Page.SetViewportAsync(new ViewPortOptions
+                await page.SetViewportAsync(new ViewPortOptions
                 {
                     Width = width,
                     Height = height,
                     DeviceScaleFactor = 1
                 });
             }
+            catch (ObjectDisposedException)
+            {
+                // Panel disposed during viewport update
+                return _lastFrame?.Clone() ?? new Image<Rgba32>(width, height, Color.Black);
+            }
         }
 
-        // Check if we need to refresh
+        // Check if we need to refresh DATA (not screenshot)
         var now = DateTime.UtcNow;
         var elapsed = now - _lastRender;
+        var isStreamMode = RenderMode == PanelRenderMode.Stream;
 
-        if (_lastFrame != null && elapsed < RefreshInterval)
+        // In non-stream mode, return cached frame if within refresh interval
+        // In stream mode, we always need a fresh screenshot (for animations)
+        var cachedFrame = _lastFrame;
+        if (!isStreamMode && cachedFrame != null && elapsed < RefreshInterval)
         {
-            return _lastFrame.Clone();
+            return cachedFrame.Clone();
         }
 
-        // Re-render template with fresh data
-        await RenderToPageAsync(cancellationToken);
-
-        // Take screenshot
-        if (Page != null)
+        // Re-render template with fresh data only at refresh interval
+        // (In stream mode, we still only refresh data periodically, but always capture screenshots)
+        var shouldRefreshData = elapsed >= RefreshInterval || !_pageLoaded;
+        if (shouldRefreshData)
         {
-            var screenshotData = await Page.ScreenshotDataAsync(new ScreenshotOptions
+            try
+            {
+                await RenderToPageAsync(cancellationToken);
+                _lastRender = now;
+            }
+            catch (ObjectDisposedException)
+            {
+                // Panel disposed during render
+                return _lastFrame?.Clone() ?? new Image<Rgba32>(width, height, Color.Black);
+            }
+        }
+
+        // Re-check page after async operation (could have been disposed)
+        page = Page;
+        if (page == null || _disposed)
+        {
+            return _lastFrame?.Clone() ?? new Image<Rgba32>(width, height, Color.Black);
+        }
+
+        try
+        {
+            // Call onDomReady hook once (before first frame)
+            if (!_domReadyCalled)
+            {
+                await CallThemeHookAsync("onDomReady");
+                await InitializePageEffectAsync();
+                _domReadyCalled = true;
+            }
+
+            // Calculate deltaTime for animation hooks
+            var frameNow = DateTime.UtcNow;
+            var deltaTime = _lastFrameTime == default ? 0.016 : (frameNow - _lastFrameTime).TotalSeconds;
+            _lastFrameTime = frameNow;
+
+            // Call onBeforeRender hooks before each screenshot (with deltaTime for animations)
+            await CallThemeHookAsync("onBeforeRender");
+            await CallPageEffectHookAsync("onBeforeRender", deltaTime);
+
+            var screenshotData = await page.ScreenshotDataAsync(new ScreenshotOptions
             {
                 Type = ScreenshotType.Png,
                 FullPage = false
@@ -590,12 +1053,121 @@ public abstract class HtmlPanel : BasePanel
 
             _lastFrame?.Dispose();
             _lastFrame = Image.Load<Rgba32>(screenshotData);
-            _lastRender = now;
+
+            // Call onAfterRender hook after screenshot
+            await CallPageEffectHookAsync("onAfterRender", deltaTime);
 
             return _lastFrame.Clone();
         }
+        catch (ObjectDisposedException)
+        {
+            // Panel disposed during screenshot
+            return _lastFrame?.Clone() ?? new Image<Rgba32>(width, height, Color.Black);
+        }
+    }
 
-        return new Image<Rgba32>(width, height, Color.Black);
+    /// <summary>
+    /// Calls a theme lifecycle hook if it exists.
+    /// </summary>
+    /// <param name="hookName">The hook name (onDomReady, onBeforeRender, onTransitionEnd)</param>
+    protected async Task CallThemeHookAsync(string hookName)
+    {
+        if (Page == null) return;
+
+        try
+        {
+            await Page.EvaluateFunctionAsync(@"(hookName) => {
+                if (window.LCDTheme && typeof window.LCDTheme[hookName] === 'function') {
+                    window.LCDTheme[hookName]();
+                }
+            }", hookName);
+        }
+        catch
+        {
+            // Ignore errors from theme hooks - they shouldn't break rendering
+        }
+    }
+
+    /// <summary>
+    /// Notifies the theme that a transition has completed.
+    /// Call this from slideshow managers after panel transitions.
+    /// </summary>
+    public async Task NotifyTransitionEndAsync()
+    {
+        await CallThemeHookAsync("onTransitionEnd");
+    }
+
+    /// <summary>
+    /// Calls a page effect lifecycle hook if it exists.
+    /// </summary>
+    /// <param name="hookName">The hook name (onInit, onValueChange, onBeforeRender, onAfterRender, onWarning, onDestroy)</param>
+    /// <param name="args">Optional arguments to pass to the hook.</param>
+    protected async Task CallPageEffectHookAsync(string hookName, object? args = null)
+    {
+        if (Page == null || _currentPageEffect == null) return;
+
+        try
+        {
+            if (args != null)
+            {
+                await Page.EvaluateFunctionAsync(@"(hookName, args) => {
+                    if (window.LCDEffect && typeof window.LCDEffect[hookName] === 'function') {
+                        window.LCDEffect[hookName](args);
+                    }
+                }", hookName, args);
+            }
+            else
+            {
+                await Page.EvaluateFunctionAsync(@"(hookName) => {
+                    if (window.LCDEffect && typeof window.LCDEffect[hookName] === 'function') {
+                        window.LCDEffect[hookName]();
+                    }
+                }", hookName);
+            }
+        }
+        catch
+        {
+            // Ignore errors from effect hooks - they shouldn't break rendering
+        }
+    }
+
+    /// <summary>
+    /// Initializes the page effect with optional configuration.
+    /// Called after DOM is ready.
+    /// </summary>
+    protected async Task InitializePageEffectAsync()
+    {
+        if (_currentPageEffect == null) return;
+
+        var debug = Environment.GetEnvironmentVariable("LCDPOSSIBLE_DEBUG") == "1";
+
+        var options = new Dictionary<string, object>
+        {
+            ["effectId"] = _currentPageEffect.Id,
+            ["effectName"] = _currentPageEffect.DisplayName
+        };
+
+        // Merge default options from effect definition
+        foreach (var kvp in _currentPageEffect.DefaultOptions)
+        {
+            options[kvp.Key] = kvp.Value;
+        }
+
+        if (debug)
+        {
+            Console.WriteLine($"[DEBUG] [{PanelId}] Calling effect onInit for '{_currentPageEffect.Id}'");
+            if (_currentPageEffect.DefaultOptions.Count > 0)
+            {
+                Console.WriteLine($"[DEBUG] [{PanelId}]   Options: {string.Join(", ", options.Select(kv => $"{kv.Key}={kv.Value}"))}");
+            }
+        }
+
+        await CallPageEffectHookAsync("onInit", options);
+
+        if (debug)
+        {
+            Console.WriteLine($"[DEBUG] [{PanelId}] Effect '{_currentPageEffect.Id}' initialized");
+        }
     }
 
     public override void Dispose()
@@ -607,6 +1179,8 @@ public abstract class HtmlPanel : BasePanel
 
         _lastFrame?.Dispose();
         _lastFrame = null;
+        _pageLoaded = false;
+        _domReadyCalled = false;
 
         if (Page != null)
         {

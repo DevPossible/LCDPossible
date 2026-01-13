@@ -4,8 +4,9 @@ using LCDPossible.Sdk;
 namespace LCDPossible.Plugins.Core.Panels;
 
 /// <summary>
-/// Demo panel showing the new ECharts and DaisyUI-based components.
-/// Tests all the new graphical controls with real system data.
+/// Demo panel showing semantic widget types that are resolved by themes.
+/// Uses abstract widget names (gauge, donut, sparkline, progress) that
+/// the theme system resolves to concrete implementations (echarts-* or daisy-*).
 /// </summary>
 public sealed class NewComponentsDemoPanel : WidgetPanel
 {
@@ -43,32 +44,31 @@ public sealed class NewComponentsDemoPanel : WidgetPanel
     {
         dynamic data = panelData;
 
-        // Row 1: ECharts gauge (3 cols), DaisyUI gauge (3 cols), ECharts donut (3 cols), DaisyUI donut (3 cols)
+        // Row 1: Semantic widgets - theme determines implementation
+        // Use "gauge" and "donut" (semantic) - theme picks echarts vs daisy
 
-        // ECharts gauge - arc style
-        yield return new WidgetDefinition("echarts-gauge", 3, 2, new
+        // Semantic gauge - theme determines implementation
+        yield return new WidgetDefinition("gauge", 3, 2, new
         {
             value = data.cpuUsage,
             max = 100,
             label = "CPU",
             unit = "%",
-            type = "usage",
-            style = "arc"
+            type = "usage"
         });
 
-        // DaisyUI gauge - uses radial-progress
-        yield return new WidgetDefinition("daisy-gauge", 3, 2, new
+        // Semantic gauge - theme determines implementation
+        yield return new WidgetDefinition("gauge", 3, 2, new
         {
             value = data.gpuUsage,
             max = 100,
             label = "GPU",
             unit = "%",
-            type = "usage",
-            size = "lg"
+            type = "usage"
         });
 
-        // ECharts donut
-        yield return new WidgetDefinition("echarts-donut", 3, 2, new
+        // Semantic donut - theme determines implementation
+        yield return new WidgetDefinition("donut", 3, 2, new
         {
             value = data.ramPercent,
             max = 100,
@@ -76,28 +76,26 @@ public sealed class NewComponentsDemoPanel : WidgetPanel
             type = "usage"
         });
 
-        // DaisyUI donut (CSS-based)
-        yield return new WidgetDefinition("daisy-donut", 3, 2, new
+        // Semantic donut - theme determines implementation
+        yield return new WidgetDefinition("donut", 3, 2, new
         {
             value = data.cpuUsage,
             max = 100,
             label = "LOAD",
-            type = "usage",
-            size = "lg"
+            type = "usage"
         });
 
-        // Row 2: ECharts sparkline (6 cols), ECharts progress (3 cols), DaisyUI progress (3 cols)
+        // Row 2: Semantic sparkline and progress
 
-        // ECharts sparkline
-        yield return new WidgetDefinition("echarts-sparkline", 6, 2, new
+        // Semantic sparkline - theme determines implementation
+        yield return new WidgetDefinition("sparkline", 6, 2, new
         {
             values = data.cpuHistory,
-            label = "CPU History",
-            style = "area"
+            label = "CPU History"
         });
 
-        // ECharts progress bar
-        yield return new WidgetDefinition("echarts-progress", 3, 2, new
+        // Semantic progress - theme determines implementation
+        yield return new WidgetDefinition("progress", 3, 2, new
         {
             value = data.ramPercent,
             max = 100,
@@ -105,15 +103,14 @@ public sealed class NewComponentsDemoPanel : WidgetPanel
             showPercent = true
         });
 
-        // DaisyUI progress bar
-        yield return new WidgetDefinition("daisy-progress", 3, 2, new
+        // Semantic progress - theme determines implementation
+        yield return new WidgetDefinition("progress", 3, 2, new
         {
             value = data.cpuUsage,
             max = 100,
             label = "CPU",
             showPercent = true,
-            type = "usage",
-            size = "lg"
+            type = "usage"
         });
     }
 }

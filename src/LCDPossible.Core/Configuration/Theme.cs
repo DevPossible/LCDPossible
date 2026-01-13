@@ -63,6 +63,43 @@ public sealed class Theme
     public Dictionary<string, string>? ControlRenderers { get; set; }
 
     /// <summary>
+    /// Optional JavaScript code to be injected into HTML panels.
+    /// Should define an LCDTheme object with lifecycle hooks:
+    /// - onDomReady(): Called after DOM is ready, before first frame capture
+    /// - onTransitionEnd(): Called after transition animation completes
+    /// - onBeforeRender(): Called before each frame render (for animations)
+    /// </summary>
+    public string? ScriptContent { get; set; }
+
+    /// <summary>
+    /// Widget style preferences for this theme.
+    /// Maps abstract widget types to preferred implementations/styles.
+    /// Keys: "gauge", "donut", "sparkline", "progress"
+    /// Values: Implementation-specific style configs (e.g., "echarts:arc", "daisy:lg", "echarts:ring")
+    /// </summary>
+    public Dictionary<string, string> WidgetStyles { get; set; } = new()
+    {
+        ["gauge"] = "echarts:arc",
+        ["donut"] = "echarts:default",
+        ["sparkline"] = "echarts:area",
+        ["progress"] = "daisy:default"
+    };
+
+    /// <summary>
+    /// Gets the preferred widget implementation for a widget type.
+    /// Returns (implementation, style) tuple.
+    /// </summary>
+    public (string Implementation, string Style) GetWidgetStyle(string widgetType)
+    {
+        if (WidgetStyles.TryGetValue(widgetType, out var value))
+        {
+            var parts = value.Split(':');
+            return (parts[0], parts.Length > 1 ? parts[1] : "default");
+        }
+        return ("echarts", "default");
+    }
+
+    /// <summary>
     /// Converts this theme to a ColorScheme for use with canvas panels.
     /// </summary>
     public ColorScheme ToColorScheme() => new()

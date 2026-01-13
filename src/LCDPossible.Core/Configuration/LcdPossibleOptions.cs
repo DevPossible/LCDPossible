@@ -218,6 +218,16 @@ public sealed class SlideshowItem
     /// Available themes: cyberpunk, rgb-gaming, executive, clean.
     /// </summary>
     public string? Theme { get; set; }
+
+    /// <summary>
+    /// Page effect for this specific slide.
+    /// Options: none, glow-on-change, flip-digits, slide-numbers, typewriter, particle-burst,
+    /// gentle-float, tilt-3d, shake-on-warning, bounce-in, wave, scanlines, matrix-rain,
+    /// particle-field, grid-pulse, hologram, vanna-white, pixel-mascot, robot-assistant,
+    /// warning-flash, spotlight, neon-trails, glitch, random.
+    /// Default is "none".
+    /// </summary>
+    public string PageEffect { get; set; } = "none";
 }
 
 /// <summary>

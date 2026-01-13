@@ -219,8 +219,8 @@ public abstract class WidgetPanel : HtmlPanel
     /// </summary>
     private ColorScheme GetCurrentColorScheme()
     {
-        // Try to get from current theme via reflection (HtmlPanel._currentTheme is private)
-        var themeField = typeof(HtmlPanel).GetField("_currentTheme",
+        // Try to get from current theme via reflection (HtmlPanel.CurrentTheme is private)
+        var themeField = typeof(HtmlPanel).GetField("CurrentTheme",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         var theme = themeField?.GetValue(this) as Theme;
 
@@ -237,36 +237,108 @@ public abstract class WidgetPanel : HtmlPanel
 </div>";
         }
 
+        // Handle semantic widget types that use theme preferences
+        var resolvedComponent = ResolveSemanticWidget(widget.Component, widget.Props);
+
+        // For semantic widgets, merge theme style into props
+        var propsToUse = widget.Component.ToLowerInvariant() is "gauge" or "donut" or "sparkline" or "progress"
+            ? MergeThemeStyle(widget.Component, widget.Props)
+            : widget.Props;
+
         // Delegate to component-specific renderers
         // Support both short names and lcd-prefixed names
         // Also support new echarts-* and daisy-* prefixed components
-        return widget.Component switch
+        return resolvedComponent switch
         {
             // Legacy/server-side rendered components
-            "stat" or "lcd-stat-card" => RenderStat(widget.Props),
-            "radial-progress" or "lcd-donut" => RenderRadialProgress(widget.Props),
-            "progress-bar" or "lcd-usage-bar" => RenderProgressBar(widget.Props),
-            "info-list" or "lcd-info-list" => RenderInfoList(widget.Props),
-            "temp-gauge" or "lcd-temp-gauge" => RenderTempGauge(widget.Props),
-            "card" => RenderCard(widget.Props),
-            "sparkline" or "lcd-sparkline" => RenderSparkline(widget.Props),
+            "stat" or "lcd-stat-card" => RenderStat(propsToUse),
+            "radial-progress" or "lcd-donut" => RenderRadialProgress(propsToUse),
+            "progress-bar" or "lcd-usage-bar" => RenderProgressBar(propsToUse),
+            "info-list" or "lcd-info-list" => RenderInfoList(propsToUse),
+            "temp-gauge" or "lcd-temp-gauge" => RenderTempGauge(propsToUse),
+            "card" => RenderCard(propsToUse),
+            "sparkline" or "lcd-sparkline" => RenderSparkline(propsToUse),
 
             // New ECharts-based web components (client-side rendered)
-            "echarts-gauge" => RenderEChartsComponent("lcd-echarts-gauge", widget.Props),
-            "echarts-donut" => RenderEChartsComponent("lcd-echarts-donut", widget.Props),
-            "echarts-sparkline" => RenderEChartsComponent("lcd-echarts-sparkline", widget.Props),
-            "echarts-progress" => RenderEChartsComponent("lcd-echarts-progress", widget.Props),
+            "echarts-gauge" => RenderEChartsComponent("lcd-echarts-gauge", propsToUse),
+            "echarts-donut" => RenderEChartsComponent("lcd-echarts-donut", propsToUse),
+            "echarts-sparkline" => RenderEChartsComponent("lcd-echarts-sparkline", propsToUse),
+            "echarts-progress" => RenderEChartsComponent("lcd-echarts-progress", propsToUse),
 
             // New DaisyUI-based web components (client-side rendered)
-            "daisy-gauge" => RenderDaisyComponent("lcd-daisy-gauge", widget.Props),
-            "daisy-progress" => RenderDaisyComponent("lcd-daisy-progress", widget.Props),
-            "daisy-stat" => RenderDaisyComponent("lcd-daisy-stat", widget.Props),
-            "daisy-donut" => RenderDaisyComponent("lcd-daisy-donut", widget.Props),
-            "daisy-sparkline" => RenderDaisyComponent("lcd-daisy-sparkline", widget.Props),
-            "daisy-info-list" => RenderDaisyComponent("lcd-daisy-info-list", widget.Props),
+            "daisy-gauge" => RenderDaisyComponent("lcd-daisy-gauge", propsToUse),
+            "daisy-progress" => RenderDaisyComponent("lcd-daisy-progress", propsToUse),
+            "daisy-stat" => RenderDaisyComponent("lcd-daisy-stat", propsToUse),
+            "daisy-donut" => RenderDaisyComponent("lcd-daisy-donut", propsToUse),
+            "daisy-sparkline" => RenderDaisyComponent("lcd-daisy-sparkline", propsToUse),
+            "daisy-info-list" => RenderDaisyComponent("lcd-daisy-info-list", propsToUse),
 
-            _ => RenderGenericCard(widget.Props)
+            _ => RenderGenericCard(propsToUse)
         };
+    }
+
+    /// <summary>
+    /// Resolves semantic widget types to concrete implementations based on theme preferences.
+    /// Semantic types: "gauge", "donut", "sparkline", "progress"
+    /// Returns the concrete component name.
+    /// </summary>
+    private string ResolveSemanticWidget(string component, object? props)
+    {
+        // Check if this is a semantic widget type
+        var semanticType = component.ToLowerInvariant();
+        if (semanticType is not ("gauge" or "donut" or "sparkline" or "progress"))
+        {
+            // Not a semantic type, return as-is
+            return component;
+        }
+
+        // Get theme preference
+        var (implementation, _) = CurrentTheme?.GetWidgetStyle(semanticType) ?? ("echarts", "default");
+
+        // Build the concrete component name
+        return $"{implementation}-{semanticType}";
+    }
+
+    /// <summary>
+    /// Merges theme widget style into props for semantic widgets.
+    /// </summary>
+    private Dictionary<string, object?> MergeThemeStyle(string component, object? props)
+    {
+        var propsDict = new Dictionary<string, object?>();
+
+        // Copy existing props
+        if (props != null)
+        {
+            var json = JsonSerializer.SerializeToElement(props);
+            foreach (var prop in json.EnumerateObject())
+            {
+                propsDict[prop.Name] = prop.Value.ValueKind switch
+                {
+                    JsonValueKind.String => prop.Value.GetString(),
+                    JsonValueKind.Number => prop.Value.GetDouble(),
+                    JsonValueKind.True => true,
+                    JsonValueKind.False => false,
+                    JsonValueKind.Null => null,
+                    _ => prop.Value.GetRawText()
+                };
+            }
+        }
+
+        // Check if this is a semantic widget type and style not already set
+        var semanticType = component.ToLowerInvariant();
+        if (semanticType is "gauge" or "donut" or "sparkline" or "progress")
+        {
+            if (!propsDict.ContainsKey("style"))
+            {
+                var (_, style) = CurrentTheme?.GetWidgetStyle(semanticType) ?? ("echarts", "default");
+                if (style != "default")
+                {
+                    propsDict["style"] = style;
+                }
+            }
+        }
+
+        return propsDict;
     }
 
     private static string RenderStat(object? props)
@@ -641,9 +713,9 @@ public abstract class WidgetPanel : HtmlPanel
     <script>{{{{ echarts_script }}}}</script>
 </head>
 <body class=""bg-base-100 text-base-content p-{PanelPadding / 4}"">
-    <div class=""grid grid-cols-{GridCols} grid-rows-{GridRows} gap-{GridGap / 4} h-full w-full"">
+    <div class=""lcd-widget-grid grid grid-cols-{GridCols} grid-rows-{GridRows} gap-{GridGap / 4} h-full w-full"">
         {{{{ for widget in data.widgets }}}}
-        <div class=""col-span-{{{{ widget.col_span }}}} row-span-{{{{ widget.row_span }}}}"">
+        <div class=""lcd-widget col-span-{{{{ widget.col_span }}}} row-span-{{{{ widget.row_span }}}}"">
             {{{{ widget.html }}}}
         </div>
         {{{{ end }}}}
@@ -651,6 +723,21 @@ public abstract class WidgetPanel : HtmlPanel
     <!-- Web Components (loaded after DOM) -->
     <script>{{{{ daisyui_components_script }}}}</script>
     <script>{{{{ echarts_components_script }}}}</script>
+    <!-- Theme-specific JavaScript with lifecycle hooks -->
+    <script>{{{{ theme_script }}}}</script>
+    <!-- Page effect JavaScript with lifecycle hooks -->
+    <script>{{{{ page_effect_script }}}}</script>
+    <script>
+        // Signal DOM ready for LCDPossible lifecycle
+        document.addEventListener('DOMContentLoaded', function() {{
+            // Allow components to initialize
+            requestAnimationFrame(function() {{
+                if (window.LCDTheme && typeof window.LCDTheme.onDomReady === 'function') {{
+                    window.LCDTheme.onDomReady();
+                }}
+            }});
+        }});
+    </script>
 </body>
 </html>";
 }
