@@ -280,6 +280,61 @@ lcdpossible config list-themes
 lcdpossible show cpu-info|@theme=executive
 ```
 
+## Available Page Effects
+
+For complete effects documentation, see `docs/effects/README.md`.
+
+Page effects are animated overlays applied to panels. Apply with `|@effect=<name>`.
+
+### Background Effects
+
+| Effect | Description |
+|--------|-------------|
+| `scanlines` | CRT/retro scanline overlay |
+| `matrix-rain` | Digital rain falling behind widgets |
+| `particle-field` | Floating particles in the background |
+| `grid-pulse` | Grid lines pulse outward from center |
+| `fireworks` | Colorful fireworks exploding |
+| `aurora` | Northern lights with flowing color ribbons |
+| `snow` | Gentle snowflakes drifting down |
+| `rain` | Rain drops falling with splash effects |
+| `bubbles` | Translucent bubbles floating upward |
+| `fireflies` | Glowing particles drifting randomly |
+| `stars-twinkle` | Stationary twinkling starfield |
+| `lava-lamp` | Blobby colored blobs floating |
+| `bokeh` | Out-of-focus light circles drifting |
+| `smoke` | Wispy smoke tendrils rising |
+| `waves` | Ocean waves flowing at bottom |
+| `confetti` | Colorful confetti falling |
+| `lightning` | Occasional lightning flashes |
+| `clouds` | Slow-moving clouds drifting |
+| `embers` | Glowing embers floating upward |
+| `breathing-glow` | Pulsing ambient glow around edges |
+
+### Overlay Effects
+
+| Effect | Description |
+|--------|-------------|
+| `vhs-static` | VHS tape noise/tracking lines |
+| `film-grain` | Old film grain texture overlay |
+| `lens-flare` | Moving lens flare effect |
+| `neon-border` | Glowing pulse around widget edges |
+| `chromatic-aberration` | RGB split/shift effect |
+| `crt-warp` | CRT screen edge warping |
+
+### Effect Usage
+
+```bash
+# Apply effect to panel
+lcdpossible show cpu-status|@effect=matrix-rain
+
+# Combine with theme
+lcdpossible show cpu-status|@effect=scanlines|@theme=cyberpunk
+
+# Random effect
+lcdpossible show cpu-status|@effect=random
+```
+
 ### Media Panel Examples
 
 ```bash

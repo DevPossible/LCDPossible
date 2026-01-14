@@ -1,25 +1,21 @@
 /**
- * Matrix Rain Effect
- * Digital rain falling behind widgets.
+ * Embers Effect
+ * Glowing embers floating upward.
  */
 window.LCDEffect = {
     _canvas: null,
     _ctx: null,
-    _columns: [],
-    _fontSize: 14,
-    _chars: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%^&*',
+    _embers: [],
     _animationId: null,
     _lastFrameTime: 0,
 
     onInit: function(options) {
-        console.log('[EFFECT] matrix-rain.onInit called', options);
+        console.log('[EFFECT] embers.onInit called', options);
 
-        this._fontSize = options.fontSize || 14;
-        if (options.chars) this._chars = options.chars;
+        var count = options.count || 60;
 
-        // Create canvas behind everything
         this._canvas = document.createElement('canvas');
-        this._canvas.id = 'effect-matrix-rain-canvas';
+        this._canvas.id = 'effect-embers-canvas';
         this._canvas.style.cssText = [
             'position: fixed',
             'top: 0',
@@ -27,33 +23,43 @@ window.LCDEffect = {
             'width: 100%',
             'height: 100%',
             'z-index: 1',
-            'opacity: 0.4'
+            'pointer-events: none'
         ].join(';');
         document.body.insertBefore(this._canvas, document.body.firstChild);
 
         this._ctx = this._canvas.getContext('2d');
         this._resize();
 
+        for (var i = 0; i < count; i++) {
+            this._embers.push(this._createEmber());
+        }
+
         this._resizeHandler = function() { this._resize(); }.bind(this);
         window.addEventListener('resize', this._resizeHandler);
 
-        // Start animation loop
         this._lastFrameTime = performance.now();
         this._animate();
+    },
+
+    _createEmber: function() {
+        var w = this._canvas.width || window.innerWidth;
+        var h = this._canvas.height || window.innerHeight;
+        return {
+            x: Math.random() * w,
+            y: h + Math.random() * 50,
+            size: 1 + Math.random() * 3,
+            speedY: -30 - Math.random() * 50,
+            speedX: (Math.random() - 0.5) * 30,
+            wobble: Math.random() * Math.PI * 2,
+            wobbleSpeed: 2 + Math.random() * 3,
+            life: 0.5 + Math.random() * 0.5,
+            hue: 15 + Math.random() * 30
+        };
     },
 
     _resize: function() {
         this._canvas.width = window.innerWidth;
         this._canvas.height = window.innerHeight;
-
-        var columnCount = Math.floor(this._canvas.width / this._fontSize);
-        this._columns = [];
-        for (var i = 0; i < columnCount; i++) {
-            this._columns.push({
-                y: Math.random() * this._canvas.height,
-                speed: 0.5 + Math.random() * 0.5
-            });
-        }
     },
 
     _animate: function() {
@@ -69,15 +75,20 @@ window.LCDEffect = {
     },
 
     _update: function(dt) {
+        var self = this;
+        var w = this._canvas.width;
         var h = this._canvas.height;
 
-        for (var i = 0; i < this._columns.length; i++) {
-            var col = this._columns[i];
-            col.y += this._fontSize * col.speed * dt * 12;
+        for (var i = 0; i < this._embers.length; i++) {
+            var e = this._embers[i];
+            e.wobble += e.wobbleSpeed * dt;
+            e.y += e.speedY * dt;
+            e.x += e.speedX * dt + Math.sin(e.wobble) * 20 * dt;
+            e.life -= 0.15 * dt;
+            e.size *= 0.998;
 
-            // Reset column when it goes off screen
-            if (col.y > h && Math.random() > 0.95) {
-                col.y = 0;
+            if (e.y < -20 || e.life <= 0 || e.size < 0.5) {
+                this._embers[i] = this._createEmber();
             }
         }
     },
@@ -87,25 +98,20 @@ window.LCDEffect = {
         var w = this._canvas.width;
         var h = this._canvas.height;
 
-        // Fade effect
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
-        ctx.fillRect(0, 0, w, h);
+        ctx.clearRect(0, 0, w, h);
 
-        ctx.font = this._fontSize + 'px monospace';
+        for (var i = 0; i < this._embers.length; i++) {
+            var e = this._embers[i];
+            var alpha = e.life;
 
-        for (var i = 0; i < this._columns.length; i++) {
-            var col = this._columns[i];
-            var char = this._chars[Math.floor(Math.random() * this._chars.length)];
-            var x = i * this._fontSize;
-
-            // Brighter leading character
-            ctx.fillStyle = '#fff';
-            ctx.fillText(char, x, col.y);
-
-            // Trail characters
-            ctx.fillStyle = 'rgba(0, 255, 70, 0.8)';
-            ctx.fillText(char, x, col.y - this._fontSize);
+            ctx.beginPath();
+            ctx.arc(e.x, e.y, e.size, 0, Math.PI * 2);
+            ctx.fillStyle = 'hsla(' + e.hue + ', 100%, 60%, ' + alpha + ')';
+            ctx.shadowColor = 'hsl(' + e.hue + ', 100%, 50%)';
+            ctx.shadowBlur = 10;
+            ctx.fill();
         }
+        ctx.shadowBlur = 0;
     },
 
     onBeforeRender: function(deltaTime) {},
