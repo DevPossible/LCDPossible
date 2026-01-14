@@ -6,6 +6,14 @@ namespace LCDPossible.Core.Rendering;
 /// <summary>
 /// Interface for display panels that can render content to the LCD.
 /// </summary>
+/// <remarks>
+/// <para><b>Render Modes:</b></para>
+/// <list type="bullet">
+///   <item><see cref="PanelRenderMode.Static"/> - Render once, content never updates</item>
+///   <item><see cref="PanelRenderMode.Interval"/> - Render at fixed intervals (default: 1 second)</item>
+///   <item><see cref="PanelRenderMode.Stream"/> - Continuous rendering at target FPS (default: 30 FPS)</item>
+/// </list>
+/// </remarks>
 public interface IDisplayPanel : IDisposable
 {
     /// <summary>
@@ -19,15 +27,35 @@ public interface IDisplayPanel : IDisposable
     string DisplayName { get; }
 
     /// <summary>
-    /// Indicates whether this panel shows live/updating content.
+    /// Gets the rendering mode for this panel.
+    /// Default is <see cref="PanelRenderMode.Interval"/> (update at fixed intervals).
     /// </summary>
-    bool IsLive { get; }
+    PanelRenderMode RenderMode => PanelRenderMode.Interval;
 
     /// <summary>
-    /// Indicates whether this panel manages its own frame timing (e.g., animated GIF, video).
+    /// Gets the interval between frame renders for <see cref="PanelRenderMode.Interval"/> mode.
+    /// Default is 1 second. Only used when <see cref="RenderMode"/> is <see cref="PanelRenderMode.Interval"/>.
+    /// </summary>
+    TimeSpan RenderInterval => TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// Gets the target frame rate for <see cref="PanelRenderMode.Stream"/> mode.
+    /// Default is 30 FPS. Only used when <see cref="RenderMode"/> is <see cref="PanelRenderMode.Stream"/>.
+    /// </summary>
+    int TargetFrameRate => 30;
+
+    /// <summary>
+    /// Indicates whether this panel shows live/updating content.
+    /// Computed from <see cref="RenderMode"/>: true unless mode is <see cref="PanelRenderMode.Static"/>.
+    /// </summary>
+    bool IsLive => RenderMode != PanelRenderMode.Static;
+
+    /// <summary>
+    /// Indicates whether this panel manages its own frame timing (continuous streaming).
+    /// Computed from <see cref="RenderMode"/>: true when mode is <see cref="PanelRenderMode.Stream"/>.
     /// Animated panels should not have their frames cached by the slideshow manager.
     /// </summary>
-    bool IsAnimated => false;
+    bool IsAnimated => RenderMode == PanelRenderMode.Stream;
 
     /// <summary>
     /// Initializes the panel. Called once before rendering begins.

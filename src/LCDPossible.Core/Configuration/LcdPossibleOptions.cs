@@ -35,6 +35,13 @@ public sealed class GeneralOptions
     public string ThemesDirectory { get; set; } = "themes";
 
     /// <summary>
+    /// Default theme ID for all panels (default: "cyberpunk").
+    /// Available themes: cyberpunk, rgb-gaming, executive, clean.
+    /// Can be overridden at the device level or per-panel.
+    /// </summary>
+    public string DefaultTheme { get; set; } = "cyberpunk";
+
+    /// <summary>
     /// JPEG encoding quality (1-100, default: 95).
     /// </summary>
     public int JpegQuality { get; set; } = 95;
@@ -204,6 +211,23 @@ public sealed class SlideshowItem
     /// Custom panel-specific settings (e.g., text=HELLO, color=red, size=large).
     /// </summary>
     public Dictionary<string, string>? Settings { get; set; }
+
+    /// <summary>
+    /// Theme override for this specific panel (optional).
+    /// If null, uses device theme or app default theme.
+    /// Available themes: cyberpunk, rgb-gaming, executive, clean.
+    /// </summary>
+    public string? Theme { get; set; }
+
+    /// <summary>
+    /// Page effect for this specific slide.
+    /// Options: none, glow-on-change, flip-digits, slide-numbers, typewriter, particle-burst,
+    /// gentle-float, tilt-3d, shake-on-warning, bounce-in, wave, scanlines, matrix-rain,
+    /// particle-field, grid-pulse, hologram, vanna-white, pixel-mascot, robot-assistant,
+    /// warning-flash, spotlight, neon-trails, glitch, random.
+    /// Default is "none".
+    /// </summary>
+    public string PageEffect { get; set; } = "none";
 }
 
 /// <summary>

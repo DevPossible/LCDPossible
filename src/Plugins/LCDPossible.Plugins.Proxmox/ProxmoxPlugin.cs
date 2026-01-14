@@ -126,8 +126,8 @@ public sealed class ProxmoxPlugin : IPanelPlugin
             DebugLog($"Creating DEMO panel (not configured): _client={((_client != null) ? "exists" : "null")}, Enabled={_options.Enabled}");
             return panelTypeId.ToLowerInvariant() switch
             {
-                "proxmox-summary" => new ProxmoxSummaryDemoPanel(),
-                "proxmox-vms" => new ProxmoxVmsDemoPanel(),
+                "proxmox-summary" => new ProxmoxSummaryWidgetDemoPanel(),
+                "proxmox-vms" => new ProxmoxVmsWidgetDemoPanel(),
                 _ => null
             };
         }
@@ -135,8 +135,8 @@ public sealed class ProxmoxPlugin : IPanelPlugin
         DebugLog($"Creating REAL panel for {panelTypeId}");
         return panelTypeId.ToLowerInvariant() switch
         {
-            "proxmox-summary" => new ProxmoxSummaryPanel(_client),
-            "proxmox-vms" => new ProxmoxVmsPanel(_client),
+            "proxmox-summary" => new ProxmoxSummaryWidgetPanel(_client),
+            "proxmox-vms" => new ProxmoxVmsWidgetPanel(_client),
             _ => null
         };
     }

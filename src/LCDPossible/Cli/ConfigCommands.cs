@@ -2,6 +2,9 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using LCDPossible.Core;
+using LCDPossible.Core.Configuration;
+using LCDPossible.Core.Ipc;
+using LCDPossible.Ipc;
 
 namespace LCDPossible.Cli;
 
@@ -42,6 +45,10 @@ public static class ConfigCommands
         {
             "set-proxmox" => SetProxmox(subArgs),
             "validate-proxmox" => ValidateProxmox(),
+            "set-theme" => SetTheme(subArgs),
+            "list-themes" or "themes" => ListThemes(),
+            "set-page-effect" or "set-effect" => SetPageEffect(subArgs),
+            "list-page-effects" or "list-effects" or "effects" => ListPageEffects(),
             "show" => ShowConfig(),
             "path" => ShowConfigPath(),
             "help" or "?" => ShowHelp(),
@@ -58,11 +65,36 @@ USAGE:
     lcdpossible config <command> [options]
 
 COMMANDS:
-    set-proxmox         Configure Proxmox API settings
-    validate-proxmox    Test Proxmox API connection
-    show                Show current configuration
-    path                Show configuration file path
-    help                Show this help message
+    set-theme <name>        Set the default display theme
+    list-themes             List available themes
+    set-page-effect <name>  Set the default page effect
+    list-page-effects       List available page effects
+    set-proxmox             Configure Proxmox API settings
+    validate-proxmox        Test Proxmox API connection
+    show                    Show current configuration
+    path                    Show configuration file path
+    help                    Show this help message
+
+THEME OPTIONS:
+    Available themes:
+      GAMER THEMES:
+        cyberpunk    - Neon cyan/magenta on deep black (default)
+        rgb-gaming   - Rainbow RGB with hot pink accents
+
+      CORPORATE THEMES:
+        executive    - Professional navy blue with gold accents
+        clean        - Minimal white/light theme
+
+    Themes can also be overridden per-panel in the profile using @theme=name
+
+PAGE EFFECT OPTIONS:
+    Available effects: none, glow-on-change, flip-digits, slide-numbers,
+    typewriter, particle-burst, gentle-float, tilt-3d, shake-on-warning,
+    bounce-in, wave, scanlines, matrix-rain, particle-field, grid-pulse,
+    hologram, vanna-white, pixel-mascot, robot-assistant, warning-flash,
+    spotlight, neon-trails, glitch, random
+
+    Effects can also be overridden per-panel in the profile using @effect=name
 
 SET-PROXMOX OPTIONS:
     --api-url <url>         Proxmox API URL (e.g., https://proxmox.local:8006)
@@ -77,25 +109,24 @@ SET-PROXMOX OPTIONS:
     Pass an empty string """" to clear a value.
 
 EXAMPLES:
+    # Set default theme to RGB Gaming
+    lcdpossible config set-theme rgb-gaming
+
+    # Set default page effect to hologram
+    lcdpossible config set-page-effect hologram
+
+    # List all available page effects
+    lcdpossible config list-page-effects
+
     # Configure Proxmox API (use / instead of ! to avoid shell escaping)
     lcdpossible config set-proxmox --api-url https://proxmox.local:8006 \
         --token-id monitor@pve/lcdpossible --token-secret xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-
-    # Clear API credentials (disable Proxmox)
-    lcdpossible config set-proxmox --api-url """" --token-id """" --token-secret """"
-
-    # Just enable/disable without changing credentials
-    lcdpossible config set-proxmox --enabled
-    lcdpossible config set-proxmox --disabled
 
     # Test Proxmox connection
     lcdpossible config validate-proxmox
 
     # Show current config
     lcdpossible config show
-
-    # Show config file location
-    lcdpossible config path
 ");
         return 0;
     }
@@ -674,6 +705,361 @@ EXAMPLES:
             Console.WriteLine();
             Console.Error.WriteLine($"Error: {ex.Message}");
             return 1;
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // THEME MANAGEMENT
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private static string GetAppConfigPath()
+    {
+        var configDir = PlatformPaths.GetUserDataDirectory();
+        return Path.Combine(configDir, "config.json");
+    }
+
+    private static int ListThemes()
+    {
+        Console.WriteLine("Available Display Themes\n");
+
+        var themes = ThemeManager.GetThemeList();
+        var currentTheme = GetCurrentTheme();
+
+        string? lastCategory = null;
+        foreach (var (id, name, category) in themes)
+        {
+            if (category != lastCategory)
+            {
+                Console.WriteLine($"  {category.ToUpperInvariant()} THEMES:");
+                lastCategory = category;
+            }
+
+            var isCurrent = id.Equals(currentTheme, StringComparison.OrdinalIgnoreCase);
+            var marker = isCurrent ? " *" : "";
+            var theme = ThemeManager.GetTheme(id);
+
+            Console.WriteLine($"    {id,-14} - {name}{marker}");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("  * = current default theme");
+        Console.WriteLine();
+        Console.WriteLine("Set theme with: lcdpossible config set-theme <name>");
+        Console.WriteLine("Override per-panel with: cpu-info|@theme=executive");
+
+        return 0;
+    }
+
+    private static int SetTheme(string[] args)
+    {
+        if (args.Length == 0)
+        {
+            Console.Error.WriteLine("Error: Theme name required.");
+            Console.Error.WriteLine("Usage: lcdpossible config set-theme <name>");
+            Console.Error.WriteLine("Use 'lcdpossible config list-themes' to see available themes.");
+            return 1;
+        }
+
+        var themeId = args[0].ToLowerInvariant();
+
+        // Validate theme exists
+        if (!ThemeManager.HasTheme(themeId))
+        {
+            Console.Error.WriteLine($"Error: Unknown theme '{themeId}'");
+            Console.Error.WriteLine();
+            Console.Error.WriteLine("Available themes:");
+            foreach (var (id, name, category) in ThemeManager.GetThemeList())
+            {
+                Console.Error.WriteLine($"  {id,-14} ({category})");
+            }
+            return 1;
+        }
+
+        // Load or create app config
+        var path = GetAppConfigPath();
+        JsonObject config;
+
+        if (File.Exists(path))
+        {
+            try
+            {
+                var json = File.ReadAllText(path);
+                config = JsonNode.Parse(json) as JsonObject ?? new JsonObject();
+            }
+            catch (JsonException)
+            {
+                Console.WriteLine("Warning: Existing config file is invalid, creating new one.");
+                config = new JsonObject();
+            }
+        }
+        else
+        {
+            config = new JsonObject();
+        }
+
+        // Ensure General section exists
+        if (!config.ContainsKey("General"))
+        {
+            config["General"] = new JsonObject();
+        }
+
+        // Set the theme
+        var general = config["General"] as JsonObject;
+        general!["DefaultTheme"] = themeId;
+
+        // Ensure directory exists
+        var directory = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+        {
+            try
+            {
+                Directory.CreateDirectory(directory);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error creating directory: {ex.Message}");
+                return 1;
+            }
+        }
+
+        // Write config
+        try
+        {
+            var options = new JsonSerializerOptions { WriteIndented = true };
+            var json = config.ToJsonString(options);
+            File.WriteAllText(path, json);
+
+            var theme = ThemeManager.GetTheme(themeId);
+            Console.WriteLine($"Default theme set to: {theme.Name} ({themeId})");
+            Console.WriteLine();
+            Console.WriteLine("Theme colors:");
+            Console.WriteLine($"  Background: {theme.Background}");
+            Console.WriteLine($"  Accent:     {theme.Accent}");
+            Console.WriteLine($"  Text:       {theme.TextPrimary}");
+            Console.WriteLine();
+            Console.WriteLine($"Configuration saved to: {path}");
+            Console.WriteLine();
+            Console.WriteLine("Note: Restart the service for changes to take effect:");
+            Console.WriteLine("  lcdpossible service restart");
+
+            return 0;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            Console.Error.WriteLine($"Error: Permission denied writing to {path}");
+            return 1;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error writing configuration: {ex.Message}");
+            return 1;
+        }
+    }
+
+    private static string GetCurrentTheme()
+    {
+        var path = GetAppConfigPath();
+        if (!File.Exists(path))
+        {
+            return "cyberpunk";
+        }
+
+        try
+        {
+            var json = File.ReadAllText(path);
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("General", out var general) &&
+                general.TryGetProperty("DefaultTheme", out var theme))
+            {
+                return theme.GetString() ?? "cyberpunk";
+            }
+        }
+        catch
+        {
+            // Ignore errors reading config
+        }
+
+        return "cyberpunk";
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PAGE EFFECT MANAGEMENT
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Available page effects with descriptions.
+    /// </summary>
+    private static readonly (string Id, string Name, string Category)[] PageEffects =
+    [
+        // None
+        ("none", "No effect", "Basic"),
+
+        // Value change effects
+        ("glow-on-change", "Glow on value change", "Value Change"),
+        ("flip-digits", "Flip digit animation", "Value Change"),
+        ("slide-numbers", "Sliding number animation", "Value Change"),
+        ("typewriter", "Typewriter text reveal", "Value Change"),
+
+        // Ambient effects
+        ("gentle-float", "Gentle floating animation", "Ambient"),
+        ("tilt-3d", "3D tilt perspective", "Ambient"),
+        ("wave", "Wave animation", "Ambient"),
+        ("scanlines", "CRT scanlines overlay", "Ambient"),
+
+        // Particle effects
+        ("particle-burst", "Particle burst on change", "Particles"),
+        ("particle-field", "Floating particle field", "Particles"),
+        ("matrix-rain", "Matrix digital rain", "Particles"),
+        ("neon-trails", "Neon light trails", "Particles"),
+
+        // Advanced effects
+        ("grid-pulse", "Pulsing grid background", "Advanced"),
+        ("hologram", "Hologram distortion", "Advanced"),
+        ("glitch", "Glitch/corruption effect", "Advanced"),
+        ("spotlight", "Moving spotlight", "Advanced"),
+
+        // Character effects
+        ("vanna-white", "Vanna White letter reveal", "Character"),
+        ("pixel-mascot", "Animated pixel mascot", "Character"),
+        ("robot-assistant", "Robot assistant character", "Character"),
+
+        // Alert effects
+        ("bounce-in", "Bounce in animation", "Alert"),
+        ("shake-on-warning", "Shake on warning values", "Alert"),
+        ("warning-flash", "Flash on critical values", "Alert"),
+
+        // Special
+        ("random", "Random effect per panel", "Special")
+    ];
+
+    private static int ListPageEffects()
+    {
+        Console.WriteLine("Available Page Effects\n");
+
+        var currentEffect = GetCurrentPageEffect();
+
+        string? lastCategory = null;
+        foreach (var (id, name, category) in PageEffects)
+        {
+            if (category != lastCategory)
+            {
+                Console.WriteLine($"  {category.ToUpperInvariant()}:");
+                lastCategory = category;
+            }
+
+            var isCurrent = id.Equals(currentEffect, StringComparison.OrdinalIgnoreCase);
+            var marker = isCurrent ? " *" : "";
+
+            Console.WriteLine($"    {id,-18} - {name}{marker}");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("  * = current default effect");
+        Console.WriteLine();
+        Console.WriteLine("Set effect with: lcdpossible config set-page-effect <name>");
+        Console.WriteLine("Override per-panel with: cpu-usage-graphic|@effect=hologram");
+
+        return 0;
+    }
+
+    private static int SetPageEffect(string[] args)
+    {
+        if (args.Length == 0)
+        {
+            Console.Error.WriteLine("Error: Page effect name required.");
+            Console.Error.WriteLine("Usage: lcdpossible config set-page-effect <name>");
+            Console.Error.WriteLine("Use 'lcdpossible config list-page-effects' to see available effects.");
+            return 1;
+        }
+
+        var effectId = args[0].ToLowerInvariant();
+
+        // Validate effect exists
+        var validEffect = PageEffects.Any(e => e.Id.Equals(effectId, StringComparison.OrdinalIgnoreCase));
+        if (!validEffect)
+        {
+            Console.Error.WriteLine($"Error: Unknown page effect '{effectId}'");
+            Console.Error.WriteLine();
+            Console.Error.WriteLine("Available effects:");
+            foreach (var (id, name, _) in PageEffects)
+            {
+                Console.Error.WriteLine($"  {id,-18} - {name}");
+            }
+            return 1;
+        }
+
+        // Update the active profile's default page effect (not config.json)
+        var manager = new ProfileManager();
+
+        try
+        {
+            // Pass only the page effect to SetDefaults
+            manager.SetDefaults(
+                profileName: null, // Use active profile
+                defaultPageEffect: effectId);
+
+            var effect = PageEffects.FirstOrDefault(e => e.Id.Equals(effectId, StringComparison.OrdinalIgnoreCase));
+            var profilePath = ProfileManager.GetProfilePath(null);
+            Console.WriteLine($"Default page effect set to: {effect.Name} ({effectId})");
+            Console.WriteLine();
+            Console.WriteLine($"Profile updated: {profilePath}");
+
+            // Notify service to reload
+            NotifyServiceReload();
+
+            return 0;
+        }
+        catch (FileNotFoundException)
+        {
+            Console.Error.WriteLine($"Error: Profile not found: {ProfileManager.GetProfilePath(null)}");
+            return 1;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error updating profile: {ex.Message}");
+            return 1;
+        }
+    }
+
+    private static string GetCurrentPageEffect()
+    {
+        try
+        {
+            var manager = new ProfileManager();
+            var profile = manager.LoadProfile(null); // Load active profile
+            return profile.DefaultPageEffect ?? "none";
+        }
+        catch
+        {
+            // Profile doesn't exist or error loading
+            return "none";
+        }
+    }
+
+    /// <summary>
+    /// Synchronously notifies the service to reload (helper for non-async methods).
+    /// </summary>
+    private static void NotifyServiceReload()
+    {
+        if (!IpcPaths.IsServiceRunning())
+        {
+            Console.WriteLine();
+            Console.WriteLine("Note: Service is not running. Start with: lcdpossible serve");
+            return;
+        }
+
+        try
+        {
+            var response = IpcClientHelper.SendCommandAsync("reload").GetAwaiter().GetResult();
+            if (response.Success)
+            {
+                Console.WriteLine();
+                Console.WriteLine("Service reloaded with new settings.");
+            }
+        }
+        catch
+        {
+            // Ignore errors - service might not be running
         }
     }
 }

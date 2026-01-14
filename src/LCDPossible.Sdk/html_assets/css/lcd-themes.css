@@ -1,0 +1,275 @@
+/*
+ * LCDPossible DaisyUI Custom Themes
+ * Maps our color schemes to DaisyUI theme format (OKLCH for DaisyUI 4.x)
+ * Use: <html data-theme="lcd-cyberpunk">
+ */
+
+/* === LCD CYBERPUNK THEME (Default) === */
+/* Using html selector for higher specificity to override DaisyUI defaults */
+html[data-theme="lcd-cyberpunk"],
+[data-theme="lcd-cyberpunk"] {
+  color-scheme: dark;
+  --p: 90.5% 0.171 194.77;        /* Primary: Cyan */
+  --pf: 77% 0.152 194.77;         /* Primary focus */
+  --pc: 0% 0 0;                   /* Primary content: Black */
+
+  --s: 70.2% 0.273 328.36;        /* Secondary: Magenta */
+  --sf: 58% 0.23 328.36;
+  --sc: 100% 0 0;                 /* Secondary content: White */
+
+  --a: 87.1% 0.201 142.5;         /* Accent: Green */
+  --af: 74% 0.17 142.5;
+  --ac: 0% 0 0;
+
+  --n: 23% 0.025 255;             /* Neutral */
+  --nf: 17% 0.020 255;
+  --nc: 83% 0.020 240;
+
+  --b1: 11% 0.020 270;            /* Base 100 - darkest */
+  --b2: 17% 0.025 265;            /* Base 200 */
+  --b3: 22% 0.025 255;            /* Base 300 */
+  --bc: 92% 0.015 240;            /* Base content */
+
+  --in: 80% 0.16 220;             /* Info */
+  --su: 87.1% 0.201 142.5;        /* Success */
+  --wa: 80% 0.17 70;              /* Warning */
+  --er: 65% 0.25 15;              /* Error */
+
+  --rounded-box: 0.5rem;
+  --rounded-btn: 0.25rem;
+  --rounded-badge: 0.25rem;
+  --animation-btn: 0.2s;
+  --animation-input: 0.2s;
+  --btn-focus-scale: 0.98;
+  --border-btn: 1px;
+  --tab-border: 1px;
+  --tab-radius: 0.25rem;
+}
+
+/* === LCD RGB GAMING THEME === */
+html[data-theme="lcd-rgb-gaming"],
+[data-theme="lcd-rgb-gaming"] {
+  color-scheme: dark;
+  --p: 72% 0.22 303;              /* Primary: Purple */
+  --pf: 60% 0.20 303;
+  --pc: 100% 0 0;
+
+  --s: 68% 0.25 345;              /* Secondary: Pink */
+  --sf: 55% 0.22 345;
+  --sc: 100% 0 0;
+
+  --a: 87.1% 0.201 142.5;         /* Accent: Green */
+  --af: 74% 0.17 142.5;
+  --ac: 0% 0 0;
+
+  --n: 20% 0.020 290;
+  --nf: 15% 0.015 290;
+  --nc: 88% 0.015 290;
+
+  --b1: 12% 0.025 285;
+  --b2: 17% 0.022 280;
+  --b3: 22% 0.020 275;
+  --bc: 92% 0.012 280;
+
+  --in: 78% 0.16 230;
+  --su: 87.1% 0.201 142.5;
+  --wa: 82% 0.17 75;
+  --er: 62% 0.27 25;
+
+  --rounded-box: 0.5rem;
+  --rounded-btn: 0.25rem;
+}
+
+/* === LCD EXECUTIVE THEME (Dark Corporate) === */
+html[data-theme="lcd-executive"],
+[data-theme="lcd-executive"] {
+  color-scheme: dark;
+  --p: 58% 0.14 240;              /* Primary: Blue */
+  --pf: 48% 0.12 240;
+  --pc: 100% 0 0;
+
+  --s: 50% 0.06 230;              /* Secondary: Slate */
+  --sf: 40% 0.05 230;
+  --sc: 100% 0 0;
+
+  --a: 82% 0.19 85;               /* Accent: Gold */
+  --af: 70% 0.16 85;
+  --ac: 0% 0 0;
+
+  --n: 26% 0.020 245;
+  --nf: 20% 0.015 245;
+  --nc: 82% 0.015 240;
+
+  --b1: 15% 0.022 250;
+  --b2: 20% 0.020 248;
+  --b3: 25% 0.018 246;
+  --bc: 90% 0.012 245;
+
+  --in: 72% 0.12 230;
+  --su: 65% 0.14 155;
+  --wa: 78% 0.16 70;
+  --er: 60% 0.20 20;
+
+  --rounded-box: 0.375rem;
+  --rounded-btn: 0.25rem;
+}
+
+/* === LCD CLEAN THEME (Light Mode) === */
+html[data-theme="lcd-clean"],
+[data-theme="lcd-clean"] {
+  color-scheme: light;
+  --p: 55% 0.18 245;              /* Primary: Blue */
+  --pf: 45% 0.16 245;
+  --pc: 100% 0 0;
+
+  --s: 58% 0.04 230;              /* Secondary: Gray */
+  --sf: 48% 0.04 230;
+  --sc: 100% 0 0;
+
+  --a: 62% 0.15 175;              /* Accent: Teal */
+  --af: 52% 0.13 175;
+  --ac: 100% 0 0;
+
+  --n: 35% 0.015 240;
+  --nf: 28% 0.012 240;
+  --nc: 100% 0 0;
+
+  --b1: 98.5% 0.003 240;          /* Light backgrounds */
+  --b2: 95% 0.008 240;
+  --b3: 92% 0.010 240;
+  --bc: 22% 0.025 240;
+
+  --in: 75% 0.15 235;
+  --su: 62% 0.14 160;
+  --wa: 80% 0.17 75;
+  --er: 60% 0.22 20;
+
+  --rounded-box: 0.5rem;
+  --rounded-btn: 0.375rem;
+}
+
+/* === SIGNAGE-OPTIMIZED OVERRIDES === */
+/* Large fonts for distance viewing */
+[data-theme^="lcd-"] {
+  --text-xs: clamp(1rem, 2.5vmin, 1.25rem);
+  --text-sm: clamp(1.125rem, 3vmin, 1.5rem);
+  --text-base: clamp(1.25rem, 4vmin, 1.75rem);
+  --text-lg: clamp(1.5rem, 5vmin, 2rem);
+  --text-xl: clamp(1.75rem, 6vmin, 2.5rem);
+  --text-2xl: clamp(2rem, 8vmin, 3rem);
+  --text-3xl: clamp(2.5rem, 10vmin, 4rem);
+  --text-4xl: clamp(3rem, 14vmin, 5rem);
+  --text-5xl: clamp(4rem, 18vmin, 7rem);
+}
+
+/* === SYSTEM FONTS (No remote dependencies) === */
+/* Using system font stack for best cross-platform support */
+
+/* === KIOSK MODE === */
+html, body {
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.font-mono {
+  font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+}
+
+/* === CUSTOM UTILITIES === */
+.text-glow {
+  text-shadow: 0 0 10px currentColor, 0 0 20px currentColor;
+}
+
+.text-glow-sm {
+  text-shadow: 0 0 5px currentColor;
+}
+
+.box-glow {
+  box-shadow: 0 0 15px oklch(var(--p) / 0.3), 0 0 30px oklch(var(--p) / 0.15);
+}
+
+.border-glow {
+  border-color: oklch(var(--p));
+  box-shadow: 0 0 10px oklch(var(--p) / 0.5);
+}
+
+/* Animated gradient for accent borders */
+.gradient-border {
+  position: relative;
+}
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, oklch(var(--p)), oklch(var(--s)), oklch(var(--a)), oklch(var(--p)));
+  background-size: 300% 100%;
+  animation: gradient-shift 4s linear infinite;
+  z-index: -1;
+  opacity: 0.6;
+}
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 300% 50%; }
+}
+
+/* Radial progress enhancements */
+.radial-progress {
+  --thickness: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+}
+
+/* Stats card enhancements */
+.stats {
+  border-color: oklch(var(--p) / 0.2);
+}
+.stat-value {
+  font-weight: 700;
+  text-decoration: none !important;
+  text-decoration-line: none !important;
+}
+.stat-title {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+/* Progress bar enhancements */
+.progress {
+  height: 1.5rem;
+}
+
+/* Card with subtle glow on dark themes */
+[data-theme="lcd-cyberpunk"] .card,
+[data-theme="lcd-rgb-gaming"] .card,
+[data-theme="lcd-executive"] .card {
+  box-shadow:
+    0 4px 6px -1px oklch(0 0% 0% / 0.3),
+    0 0 20px oklch(var(--p) / 0.1);
+  border: 1px solid oklch(var(--p) / 0.15);
+}
+
+/* Scanline effect DISABLED - interferes with text readability on LCD screens
+[data-theme="lcd-cyberpunk"] body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    oklch(var(--p) / 0.008) 3px,
+    oklch(var(--p) / 0.008) 4px
+  );
+  z-index: 9999;
+}
+*/

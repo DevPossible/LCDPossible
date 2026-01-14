@@ -31,6 +31,8 @@ namespace LCDPossible.Cli;
 ///   @interval=N  - Update interval in seconds
 ///   @background=path - Background image path
 ///   @path=path   - Image source path (for type=image)
+///   @theme=name  - Theme override (cyberpunk, rgb-gaming, executive, clean)
+///   @effect=name - Page effect (hologram, matrix-rain, glow-on-change, etc.)
 ///
 /// Custom parameters (no @ prefix, passed to panel plugin):
 ///   Any key=value pair without @ is treated as a custom panel setting.
@@ -46,7 +48,9 @@ public static class InlineProfileParser
         "background",
         "path",
         "transition",
-        "transition_duration"
+        "transition_duration",
+        "theme",
+        "effect"
     };
 
     /// <summary>
@@ -121,6 +125,16 @@ public static class InlineProfileParser
         if (systemParams.TryGetValue("background", out var background))
         {
             item.BackgroundImage = background;
+        }
+
+        if (systemParams.TryGetValue("theme", out var theme))
+        {
+            item.Theme = theme;
+        }
+
+        if (systemParams.TryGetValue("effect", out var effect))
+        {
+            item.PageEffect = effect;
         }
 
         // For image type, also check "path" as source

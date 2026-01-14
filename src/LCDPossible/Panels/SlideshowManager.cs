@@ -1,6 +1,7 @@
 using LCDPossible.Core.Configuration;
 using LCDPossible.Core.Rendering;
 using LCDPossible.Core.Transitions;
+using LCDPossible.Sdk;
 using Microsoft.Extensions.Logging;
 using SixLabors.Fonts;
 using SixLabors.ImageSharp;
@@ -23,6 +24,7 @@ public sealed class SlideshowManager : IDisposable
     private readonly Dictionary<string, (Image<Rgba32> Frame, DateTime LastUpdate)> _panelFrameCache = [];
     private readonly HashSet<int> _failedPanelIndices = [];
     private readonly Dictionary<int, (Image<Rgba32> ErrorFrame, string ErrorMessage)> _errorFrameCache = [];
+    private readonly HashSet<int> _configuredPanelIndices = []; // Track panels that have theme/effect already applied
 
     private int _currentIndex;
     private DateTime _slideStartTime;
@@ -76,6 +78,23 @@ public sealed class SlideshowManager : IDisposable
     public string? CurrentPanelId => CurrentItem?.Source;
 
     /// <summary>
+    /// Gets the current panel instance (for debugging purposes).
+    /// </summary>
+    public IDisplayPanel? CurrentPanel
+    {
+        get
+        {
+            if (_currentIndex < 0 || _currentIndex >= _items.Count)
+                return null;
+            var item = _items[_currentIndex];
+            if (item.Type != "panel")
+                return null;
+            var itemIndex = _items.Where(i => i.Type == "panel").ToList().IndexOf(item);
+            return itemIndex >= 0 && itemIndex < _panels.Count ? _panels[itemIndex] : null;
+        }
+    }
+
+    /// <summary>
     /// Gets the time remaining on the current slide.
     /// </summary>
     public TimeSpan TimeRemaining
@@ -93,6 +112,7 @@ public sealed class SlideshowManager : IDisposable
 
     /// <summary>
     /// Initializes all panels in the slideshow.
+    /// Uses parallel initialization for faster startup.
     /// </summary>
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
@@ -103,55 +123,123 @@ public sealed class SlideshowManager : IDisposable
 
         _logger?.LogInformation("Initializing slideshow with {Count} items", _items.Count);
 
-        foreach (var item in _items)
+        var startTime = DateTime.UtcNow;
+
+        // Phase 1: Create all panels (fast, synchronous)
+        var panelTasks = new List<(int Index, IDisplayPanel Panel, Task InitTask)>();
+        var errorPanels = new List<(int Index, IDisplayPanel Panel)>();
+        var imageItems = new List<(int Index, SlideshowItem Item)>();
+
+        for (int i = 0; i < _items.Count; i++)
         {
+            var item = _items[i];
             if (item.Type == "panel")
             {
                 var result = _panelFactory.TryCreatePanel(item.Source, item.Settings);
                 if (result.Panel != null)
                 {
-                    await result.Panel.InitializeAsync(cancellationToken);
-                    _panels.Add(result.Panel);
-                    if (_debug) Console.WriteLine($"[DEBUG] SlideshowManager: Initialized panel '{result.Panel.PanelId}'");
-                    _logger?.LogDebug("Initialized panel: {PanelId}", result.Panel.PanelId);
+                    // Apply theme and effect BEFORE initialization (so template includes correct scripts)
+                    if (result.Panel is HtmlPanel htmlPanel)
+                    {
+                        _configuredPanelIndices.Add(i);
+
+                        // Apply theme override if specified
+                        if (!string.IsNullOrEmpty(item.Theme))
+                        {
+                            var theme = ThemeManager.GetTheme(item.Theme);
+                            htmlPanel.SetTheme(theme);
+                            if (_debug)
+                            {
+                                Console.WriteLine($"[DEBUG] SlideshowManager: Pre-init applied theme '{item.Theme}' to panel '{result.Panel.PanelId}'");
+                            }
+                        }
+
+                        // Apply page effect
+                        if (!string.IsNullOrEmpty(item.PageEffect) && item.PageEffect != "none")
+                        {
+                            htmlPanel.SetPageEffectById(item.PageEffect);
+                            if (_debug)
+                            {
+                                Console.WriteLine($"[DEBUG] SlideshowManager: Pre-init applied page effect '{item.PageEffect}' to panel '{result.Panel.PanelId}'");
+                            }
+                        }
+                    }
+
+                    // Start initialization but don't await yet
+                    var initTask = result.Panel.InitializeAsync(cancellationToken);
+                    panelTasks.Add((i, result.Panel, initTask));
+                    if (_debug) Console.WriteLine($"[DEBUG] SlideshowManager: Starting initialization of panel '{result.Panel.PanelId}'");
                 }
                 else
                 {
-                    // Create an error panel for unknown/failed panel types
-                    // This keeps _panels in sync with _items and shows a helpful error message
+                    // Create error panel (will initialize after parallel phase)
                     var errorMessage = result.ErrorMessage ?? "Unknown error";
                     if (_debug) Console.WriteLine($"[DEBUG] SlideshowManager: Failed to create panel '{item.Source}': {errorMessage}");
                     _logger?.LogWarning("Failed to create panel '{Source}': {Error}", item.Source, errorMessage);
                     var availablePanels = _panelFactory.AvailablePanels;
                     if (_debug) Console.WriteLine($"[DEBUG] SlideshowManager: Available panels: {string.Join(", ", availablePanels)}");
                     _logger?.LogDebug("Available panels: {Panels}", string.Join(", ", availablePanels));
-                    var errorPanel = new ErrorPanel(
-                        item.Source,
-                        errorMessage,
-                        availablePanels);
-                    await errorPanel.InitializeAsync(cancellationToken);
-                    _panels.Add(errorPanel);
+                    var errorPanel = new ErrorPanel(item.Source, errorMessage, availablePanels);
+                    errorPanels.Add((i, errorPanel));
                 }
             }
             else if (item.Type == "image" && !string.IsNullOrEmpty(item.Source))
             {
-                if (File.Exists(item.Source) && !_imageCache.ContainsKey(item.Source))
+                imageItems.Add((i, item));
+            }
+        }
+
+        // Phase 2: Wait for all panel initializations in parallel
+        if (panelTasks.Count > 0)
+        {
+            if (_debug) Console.WriteLine($"[DEBUG] SlideshowManager: Waiting for {panelTasks.Count} panels to initialize in parallel...");
+            await Task.WhenAll(panelTasks.Select(p => p.InitTask));
+            if (_debug) Console.WriteLine($"[DEBUG] SlideshowManager: All panels initialized");
+        }
+
+        // Phase 3: Initialize error panels (typically fast)
+        foreach (var (_, errorPanel) in errorPanels)
+        {
+            await errorPanel.InitializeAsync(cancellationToken);
+        }
+
+        // Phase 4: Load images
+        foreach (var (_, item) in imageItems)
+        {
+            if (File.Exists(item.Source) && !_imageCache.ContainsKey(item.Source))
+            {
+                try
                 {
-                    try
-                    {
-                        _imageCache[item.Source] = Image.Load<Rgba32>(item.Source);
-                        _logger?.LogDebug("Loaded image: {Path}", item.Source);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger?.LogWarning(ex, "Failed to load image: {Path}", item.Source);
-                    }
+                    _imageCache[item.Source] = Image.Load<Rgba32>(item.Source);
+                    _logger?.LogDebug("Loaded image: {Path}", item.Source);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to load image: {Path}", item.Source);
                 }
             }
         }
 
+        // Phase 5: Assemble panels list in correct order
+        var allPanels = panelTasks.Select(p => (p.Index, p.Panel))
+            .Concat(errorPanels)
+            .OrderBy(p => p.Index)
+            .Select(p => p.Panel)
+            .ToList();
+        _panels.AddRange(allPanels);
+
+        foreach (var panel in _panels)
+        {
+            if (_debug) Console.WriteLine($"[DEBUG] SlideshowManager: Initialized panel '{panel.PanelId}'");
+            _logger?.LogDebug("Initialized panel: {PanelId}", panel.PanelId);
+        }
+
         _slideStartTime = DateTime.UtcNow;
         _initialized = true;
+
+        var elapsed = DateTime.UtcNow - startTime;
+        _logger?.LogInformation("Slideshow initialization completed in {Elapsed:F1}s", elapsed.TotalSeconds);
+        if (_debug) Console.WriteLine($"[DEBUG] SlideshowManager: Initialization completed in {elapsed.TotalSeconds:F1}s");
 
         if (IsSinglePanelMode)
         {
@@ -344,6 +432,36 @@ public sealed class SlideshowManager : IDisposable
         if (panel == null)
         {
             return null;
+        }
+
+        // Apply theme override and page effect if this is an HtmlPanel (only once per panel)
+        if (panel is HtmlPanel htmlPanel && !_configuredPanelIndices.Contains(panelIndex))
+        {
+            _configuredPanelIndices.Add(panelIndex);
+
+            // Apply theme override if specified
+            if (!string.IsNullOrEmpty(item.Theme))
+            {
+                var theme = ThemeManager.GetTheme(item.Theme);
+                htmlPanel.SetTheme(theme);
+                if (_debug)
+                {
+                    Console.WriteLine($"[DEBUG] SlideshowManager: Applied theme '{item.Theme}' to panel '{panel.PanelId}'");
+                }
+            }
+
+            // Apply page effect
+            var previousRenderMode = htmlPanel.RenderMode;
+            htmlPanel.SetPageEffectById(item.PageEffect);
+
+            if (_debug && !string.IsNullOrEmpty(item.PageEffect) && item.PageEffect != "none")
+            {
+                Console.WriteLine($"[DEBUG] SlideshowManager: Applied page effect '{item.PageEffect}' to panel '{panel.PanelId}'");
+                if (htmlPanel.RenderMode != previousRenderMode)
+                {
+                    Console.WriteLine($"[DEBUG] SlideshowManager: Render mode changed from {previousRenderMode} to {htmlPanel.RenderMode}");
+                }
+            }
         }
 
         // If this panel has previously failed, return the cached error frame
@@ -692,5 +810,6 @@ public sealed class SlideshowManager : IDisposable
         }
         _errorFrameCache.Clear();
         _failedPanelIndices.Clear();
+        _configuredPanelIndices.Clear();
     }
 }

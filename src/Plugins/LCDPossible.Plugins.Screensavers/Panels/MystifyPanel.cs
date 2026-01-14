@@ -4,12 +4,13 @@ using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
+using LCDPossible.Core.Rendering;
 namespace LCDPossible.Plugins.Screensavers.Panels;
 
 /// <summary>
 /// Classic Mystify screensaver - bouncing connected polygons with color trails.
 /// </summary>
-public sealed class MystifyPanel : BaseLivePanel
+public sealed class MystifyPanel : CanvasPanel
 {
     private const int PolygonCount = 2;
     private const int VerticesPerPolygon = 4;
@@ -25,7 +26,7 @@ public sealed class MystifyPanel : BaseLivePanel
 
     public override string PanelId => "mystify";
     public override string DisplayName => "Mystify";
-    public override bool IsAnimated => true;
+    public override PanelRenderMode RenderMode => PanelRenderMode.Stream;
 
     public MystifyPanel()
     {

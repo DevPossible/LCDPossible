@@ -5,12 +5,13 @@ using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
+using LCDPossible.Core.Rendering;
 namespace LCDPossible.Plugins.Screensavers.Panels;
 
 /// <summary>
 /// Floating, bouncing translucent bubbles.
 /// </summary>
-public sealed class BubblesPanel : BaseLivePanel
+public sealed class BubblesPanel : CanvasPanel
 {
     private const int BubbleCount = 15;
     private const float MinRadius = 20f;
@@ -26,7 +27,7 @@ public sealed class BubblesPanel : BaseLivePanel
 
     public override string PanelId => "bubbles";
     public override string DisplayName => "Bubbles";
-    public override bool IsAnimated => true;
+    public override PanelRenderMode RenderMode => PanelRenderMode.Stream;
 
     public BubblesPanel()
     {

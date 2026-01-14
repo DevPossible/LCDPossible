@@ -93,6 +93,7 @@ DA DB DC DD 02 00 00 00 [width LE 2B] [height LE 2B] 02 00 00 00 [length LE 4B] 
 | VideoLAN.LibVLC.Windows | LibVLC native binaries (Windows only, see Platform Notes) |
 | YoutubeExplode | YouTube stream URL extraction |
 | PuppeteerSharp | Headless browser for HTML/Web panels |
+| Scriban | Template engine for HTML panels |
 | Microsoft.Extensions.Hosting | Service hosting |
 | LibreHardwareMonitorLib | Windows hardware monitoring |
 
@@ -138,35 +139,201 @@ The `LCDPossible` executable handles both service and CLI modes:
 | `serve` or `run` | Start the LCD service (foreground) |
 | `serve --service` | Run as Windows Service |
 | `list` | List connected LCD devices |
-| `test` | Display a test pattern |
+| `test <panels>` | Render panels to JPEG files (no LCD required) |
+| `test-pattern` | Display a test pattern on the LCD |
 | `set-image -p <file>` | Send an image to the LCD |
 | `profile` | Show current display profile |
 | `generate-profile` | Generate sample YAML profile |
 | `--help` | Show all available commands |
 
+## Testing Panels with the `test` Verb
+
+The `test` command renders panels to JPEG files without requiring an LCD device. Use this to verify panels render correctly with valid data before deploying.
+
+**Key flags:**
+- `--debug` - Show detailed output including full file paths and sizes
+- `-r WxH` or `--resolution WxH` - Set target resolution (default: 1280x480)
+- `-o <path>` or `--output <path>` - Output directory (default: user home)
+- `-w <seconds>` or `--wait <seconds>` - Wait N seconds before capture (useful for HTML/widget panels that need browser init time, or animated panels)
+
+**Examples:**
+
+```bash
+# Render a single panel
+./start-app.ps1 test cpu-info --debug
+
+# Render with debug output (shows full path and file size)
+./start-app.ps1 test cpu-widget --debug
+# Output: [DEBUG] Written: C:\Users\richa\cpu-widget.jpg (10211 bytes)
+
+# Render at a different resolution
+./start-app.ps1 test cpu-info -r 800x480
+
+# Render all CPU panels using wildcard
+./start-app.ps1 test cpu-* --debug
+
+# Render ALL panels
+./start-app.ps1 test * --debug
+
+# Wait for HTML/widget panel to fully initialize (browser + components)
+./start-app.ps1 test cpu-widget -w 2
+
+# Render animated panel after letting it run for 3 seconds
+./start-app.ps1 test animated-gif:demo.gif -w 3
+
+# Save output to specific directory
+./start-app.ps1 test cpu-info -o ./test-output
+```
+
+**When to use the test verb:**
+1. After implementing a new panel - verify it renders without errors
+2. After modifying panel layouts - check visual appearance
+3. Before deploying to LCD - confirm panels show correct data
+4. Debugging rendering issues - use `--debug` to see detailed output
+
 ## Available Panel Types
+
+For complete panel documentation with screenshots, see `docs/panels/README.md`.
+
+### System Monitoring Panels
 
 | Panel Type | Description |
 |------------|-------------|
+| `basic-info` | Hostname, OS, uptime summary |
+| `basic-usage-text` | Basic system usage as text |
 | `cpu-info` | CPU model and specifications |
+| `cpu-status` | CPU dashboard with usage bar, temperature, sparkline |
 | `cpu-usage-text` | CPU usage as text |
 | `cpu-usage-graphic` | CPU usage with visual bars |
-| `ram-info` | RAM specifications |
-| `ram-usage-text` | RAM usage as text |
-| `ram-usage-graphic` | RAM usage with visual bars |
+| `cpu-thermal-graphic` | CPU temperature gauge |
 | `gpu-info` | GPU model and specifications |
 | `gpu-usage-text` | GPU usage as text |
 | `gpu-usage-graphic` | GPU usage with visual bars |
-| `basic-info` | Hostname, OS, uptime summary |
-| `basic-usage-text` | Basic system usage as text |
+| `gpu-thermal-graphic` | GPU temperature gauge |
+| `ram-info` | RAM specifications |
+| `ram-usage-text` | RAM usage as text |
+| `ram-usage-graphic` | RAM usage with visual bars |
+| `system-thermal-graphic` | Combined CPU/GPU temperature display |
 | `network-info` | Network interfaces (smart layout, 1-4 widgets) |
+
+### Proxmox Panels
+
+| Panel Type | Description |
+|------------|-------------|
 | `proxmox-summary` | Proxmox cluster overview |
 | `proxmox-vms` | Proxmox VM/Container list |
+
+### Media Panels
+
+| Panel Type | Description |
+|------------|-------------|
 | `animated-gif:<path\|url>` | Animated GIF from file or URL |
 | `image-sequence:<folder>` | Folder of numbered images as animation |
 | `video:<path\|url>` | Video file, URL, or YouTube link |
 | `html:<path>` | Local HTML file rendered as web page |
 | `web:<url>` | Live website rendered from URL |
+
+### Screensaver Panels
+
+| Panel Type | Description |
+|------------|-------------|
+| `screensaver` | Random screensaver or cycle through all |
+| `clock` | Analog clock with smooth second hand |
+| `plasma` | Classic demoscene plasma effect |
+| `matrix-rain` | Digital rain effect (The Matrix) |
+| `starfield` | Classic starfield warp effect |
+| `warp-tunnel` | Flying through colorful warp tunnel |
+| `fire` | Classic demoscene fire effect |
+| `pipes` | 3D pipes growing in random directions |
+| `mystify` | Bouncing connected polygons with trails |
+| `bubbles` | Floating translucent bubbles |
+| `rain` | Falling raindrops with splash effects |
+| `noise` | TV static / white noise effect |
+| `spiral` | Hypnotic rotating spiral pattern |
+| `game-of-life` | Conway's cellular automaton |
+| `asteroids` | Asteroids game simulation |
+| `falling-blocks` | Tetris-style falling blocks |
+| `missile-command` | Defend cities from missiles |
+| `bouncing-logo` | DVD screensaver style bouncing text |
+
+## Available Themes
+
+For complete theme documentation, see `docs/themes/README.md`.
+
+| Theme | Category | Description |
+|-------|----------|-------------|
+| `cyberpunk` | Gamer | Neon cyan/magenta, glow effects (default) |
+| `rgb-gaming` | Gamer | Vibrant rainbow, bold colors |
+| `executive` | Corporate | Dark blue/gold, professional |
+| `clean` | Corporate | Light mode, minimal |
+
+### Theme Usage
+
+```bash
+# Set default theme
+lcdpossible config set-theme cyberpunk
+
+# List available themes
+lcdpossible config list-themes
+
+# Per-panel theme override
+lcdpossible show cpu-info|@theme=executive
+```
+
+## Available Page Effects
+
+For complete effects documentation, see `docs/effects/README.md`.
+
+Page effects are animated overlays applied to panels. Apply with `|@effect=<name>`.
+
+### Background Effects
+
+| Effect | Description |
+|--------|-------------|
+| `scanlines` | CRT/retro scanline overlay |
+| `matrix-rain` | Digital rain falling behind widgets |
+| `particle-field` | Floating particles in the background |
+| `grid-pulse` | Grid lines pulse outward from center |
+| `fireworks` | Colorful fireworks exploding |
+| `aurora` | Northern lights with flowing color ribbons |
+| `snow` | Gentle snowflakes drifting down |
+| `rain` | Rain drops falling with splash effects |
+| `bubbles` | Translucent bubbles floating upward |
+| `fireflies` | Glowing particles drifting randomly |
+| `stars-twinkle` | Stationary twinkling starfield |
+| `lava-lamp` | Blobby colored blobs floating |
+| `bokeh` | Out-of-focus light circles drifting |
+| `smoke` | Wispy smoke tendrils rising |
+| `waves` | Ocean waves flowing at bottom |
+| `confetti` | Colorful confetti falling |
+| `lightning` | Occasional lightning flashes |
+| `clouds` | Slow-moving clouds drifting |
+| `embers` | Glowing embers floating upward |
+| `breathing-glow` | Pulsing ambient glow around edges |
+
+### Overlay Effects
+
+| Effect | Description |
+|--------|-------------|
+| `vhs-static` | VHS tape noise/tracking lines |
+| `film-grain` | Old film grain texture overlay |
+| `lens-flare` | Moving lens flare effect |
+| `neon-border` | Glowing pulse around widget edges |
+| `chromatic-aberration` | RGB split/shift effect |
+| `crt-warp` | CRT screen edge warping |
+
+### Effect Usage
+
+```bash
+# Apply effect to panel
+lcdpossible show cpu-status|@effect=matrix-rain
+
+# Combine with theme
+lcdpossible show cpu-status|@effect=scanlines|@theme=cyberpunk
+
+# Random effect
+lcdpossible show cpu-status|@effect=random
+```
 
 ### Media Panel Examples
 
@@ -220,100 +387,184 @@ public interface IDisplayPanel : IDisposable
 
 When implementing new display panels, choose the appropriate base class based on the panel's content type.
 
+### Panel Base Class Hierarchy
+
+```
+IDisplayPanel (interface)
+    │
+    └── BasePanel (abstract - color scheme, lifecycle)
+            │
+            ├── HtmlPanel (abstract - Scriban templates + PuppeteerSharp)
+            │       │
+            │       └── WidgetPanel (abstract - 12-column grid + web components)
+            │               │
+            │               └── CpuWidgetPanel, NetworkWidgetPanel, etc.
+            │
+            └── CanvasPanel (abstract - ImageSharp direct drawing)
+                    │
+                    └── PlasmaPanel, MatrixRainPanel, etc. (screensavers)
+```
+
 ### Panel Base Class Decision
 
 | Content Type | Base Class | Examples |
 |--------------|------------|----------|
-| Single fixed layout | `BaseLivePanel` | cpu-info, ram-usage-text, gpu-usage-graphic |
-| Variable item count (0-N items) | `SmartLayoutPanel<T>` | network-info, storage-info, sensors-info |
+| System info with widgets | `WidgetPanel` | cpu-widget, ram-widget, network-widget |
+| Custom HTML layout | `HtmlPanel` | custom dashboards, web-based panels |
+| Screensaver/effects | `CanvasPanel` | plasma, matrix, starfield, warp-tunnel |
 | Media/animation | Plugin via `IPanelPlugin` | animated-gif, video, web |
-| Screensaver/effects | Plugin via `IPanelPlugin` | plasma, matrix, starfield |
 
-### SmartLayoutPanel (Variable Items)
+### WidgetPanel (Recommended for Info Panels)
 
-Use `SmartLayoutPanel<T>` when the panel displays **0 or more items** that should adapt to available space. The layout system automatically:
-- Determines optimal widget count (1-4) based on item count
-- Scales fonts proportionally based on widget size
-- Handles empty state (0 items) with customizable message
-- Shows overflow indicator when items exceed 4
-
-**Key features:**
-- **Resolution-agnostic**: All calculations use percentages, not hardcoded pixels
-- **Font scaling**: Based on widget height relative to 480px reference
-- **Empty state**: Override `GetEmptyStateMessage()` to customize
+Use `WidgetPanel` for panels displaying system information. It provides:
+- **12-column CSS grid** for flexible layouts
+- **Responsive web components** that scale across display resolutions
+- **Automatic refresh** with configurable interval
+- **Color scheme injection** as CSS variables
 
 ```csharp
-public sealed class NetworkInfoPanel : SmartLayoutPanel<NetworkInterfaceInfo>
+public sealed class CpuWidgetPanel : WidgetPanel
 {
-    public override string PanelId => "network-info";
-    public override string DisplayName => "Network Interfaces";
+    public override string PanelId => "cpu-widget";
+    public override string DisplayName => "CPU Info (Widget)";
 
-    // Return items to display (0 or more)
-    protected override Task<IReadOnlyList<NetworkInterfaceInfo>> GetItemsAsync(CancellationToken ct)
-        => _provider.GetNetworkInterfacesAsync(ct);
-
-    // Render single item into widget area (fonts/bounds are pre-scaled)
-    protected override void RenderWidget(
-        IImageProcessingContext ctx,
-        WidgetRenderContext widget,
-        NetworkInterfaceInfo item)
+    // Provide data for the panel
+    protected override async Task<object> GetPanelDataAsync(CancellationToken ct)
     {
-        DrawText(ctx, item.Name, widget.ContentX, widget.ContentY,
-                 widget.Fonts.Title, widget.Colors.Accent);
-        // ... render item details using widget.Fonts and widget.Bounds
+        var metrics = await _provider.GetMetricsAsync(ct);
+        return new {
+            name = metrics?.Cpu?.Name ?? "Unknown",
+            usage = metrics?.Cpu?.UsagePercent ?? 0,
+            temperature = metrics?.Cpu?.TemperatureCelsius
+        };
     }
 
-    // Optional: customize empty state message
-    protected override string GetEmptyStateMessage() => "No network interfaces detected";
-}
-```
-
-**Widget layout patterns:**
-
-| Items | Layout | Font Scale |
-|-------|--------|------------|
-| 0 | Empty state message | N/A |
-| 1 | Full panel (100%) | 1.0× |
-| 2 | Side-by-side (50% each) | 0.85× |
-| 3 | Left large + right stack | 0.85× / 0.7× |
-| 4 | 2×2 grid (25% each) | 0.7× |
-| 5+ | 3 widgets + "+N more" | 0.7× |
-
-See `docs/Smart-Widget-Layout-Plan.md` for detailed implementation specifications.
-
-### BaseLivePanel (Fixed Layout)
-
-Use `BaseLivePanel` for panels with a **single fixed layout** that always displays the same structure regardless of content.
-
-```csharp
-public sealed class CpuInfoPanel : BaseLivePanel
-{
-    public override string PanelId => "cpu-info";
-    public override string DisplayName => "CPU Info";
-
-    public override async Task<Image<Rgba32>> RenderFrameAsync(int width, int height, CancellationToken ct)
+    // Define widgets using the data
+    protected override IEnumerable<WidgetDefinition> DefineWidgets(object panelData)
     {
-        var image = CreateBaseImage(width, height);
-        var metrics = await _provider.GetMetricsAsync(ct);
+        dynamic data = panelData;
 
-        image.Mutate(ctx =>
-        {
-            // Fixed layout using TitleFont, ValueFont, LabelFont, SmallFont
-            DrawText(ctx, "CPU", 20, 20, TitleFont!, AccentColor, width - 40);
-            // ...
+        yield return new WidgetDefinition("lcd-stat-card", 6, 1, new {
+            title = "CPU",
+            value = data.name,
+            size = "small"
         });
 
-        return image;
+        yield return new WidgetDefinition("lcd-usage-bar", 6, 1, new {
+            value = data.usage,
+            label = "Usage",
+            showPercent = true
+        });
+
+        if (data.temperature != null)
+        {
+            yield return new WidgetDefinition("lcd-temp-gauge", 4, 2, new {
+                value = data.temperature,
+                label = "Temp"
+            });
+        }
     }
 }
 ```
+
+**Available Web Components:**
+
+| Component | Purpose | Key Props |
+|-----------|---------|-----------|
+| `lcd-stat-card` | Value with title/unit | title, value, unit, status, size |
+| `lcd-usage-bar` | Progress bar | value, max, label, orientation, showPercent |
+| `lcd-temp-gauge` | Temperature donut | value, max, label |
+| `lcd-donut` | Circular percentage | value, max, label, color |
+| `lcd-info-list` | Label/value pairs | items: [{label, value, color}] |
+| `lcd-sparkline` | Mini line chart | values, label, color |
+| `lcd-status-dot` | Status indicator | status, label |
+
+**Grid Layout:**
+- 12 columns, 4 rows by default
+- `ColSpan`: 1-12 (widget width)
+- `RowSpan`: 1-4 (widget height)
+- Helper methods: `WidgetDefinition.FullWidth()`, `.HalfWidth()`, `.ThirdWidth()`, `.QuarterWidth()`
+
+### CanvasPanel (Screensavers/Custom Drawing)
+
+Use `CanvasPanel` for panels requiring direct pixel manipulation (screensavers, visualizers):
+
+```csharp
+public sealed class PlasmaPanel : CanvasPanel
+{
+    public override string PanelId => "plasma";
+    public override string DisplayName => "Plasma Effect";
+    public override bool IsAnimated => true;
+
+    public override Task<Image<Rgba32>> RenderFrameAsync(int width, int height, CancellationToken ct)
+    {
+        UpdateTiming(); // Updates ElapsedSeconds, DeltaSeconds
+        var image = CreateBaseImage(width, height);
+
+        image.Mutate(ctx => {
+            // Direct pixel drawing using ImageSharp
+            // Use ElapsedSeconds for animation timing
+        });
+
+        return Task.FromResult(image);
+    }
+}
+```
+
+**Available utilities in CanvasPanel:**
+- `CreateBaseImage()` - Create image with background color
+- `DrawText()`, `DrawCenteredText()` - Text rendering
+- `DrawProgressBar()`, `DrawVerticalBar()` - Bar charts
+- `GetUsageColor()`, `GetTemperatureColor()` - Status colors
+- `ElapsedSeconds`, `DeltaSeconds` - Animation timing
+
+### HtmlPanel (Custom HTML Templates)
+
+Use `HtmlPanel` for custom HTML layouts with Scriban templating:
+
+```csharp
+public sealed class CustomDashboard : HtmlPanel
+{
+    protected override string TemplatePath => "templates/dashboard.html";
+    // Or use TemplateContent for inline templates
+    // Or use TemplateUrl for remote pages
+
+    protected override async Task<object> GetDataModelAsync(CancellationToken ct)
+    {
+        return new { title = "Dashboard", items = await GetItemsAsync(ct) };
+    }
+}
+```
+
+Template variables available:
+- `{{ data }}` - Your data model
+- `{{ assets_path }}` - Path to html_assets folder
+- `{{ colors }}` - Color scheme object
+- `{{ colors_css }}` - CSS variables for color scheme
 
 ### Panel Registration
 
-Register new panels in `PanelFactory.cs`:
+Register new panels in the plugin's `PanelTypes` dictionary and `CreatePanel` method:
+
 ```csharp
-{ "network-info", new PanelMetadata("Network Interfaces", "System", true, false) },
+// In CorePlugin.cs PanelTypes
+["cpu-widget"] = new PanelTypeInfo {
+    TypeId = "cpu-widget",
+    DisplayName = "CPU Info (Widget)",
+    Category = "System",
+    IsLive = true
+}
+
+// In CorePlugin.cs CreatePanel
+"cpu-widget" => new CpuWidgetPanel(provider),
 ```
+
+### Legacy Base Classes (Deprecated)
+
+| Class | Status | Replacement |
+|-------|--------|-------------|
+| `BaseLivePanel` | Deprecated | Use `CanvasPanel` for drawing, `WidgetPanel` for info |
+| `SmartLayoutPanel<T>` | Deprecated | Use `WidgetPanel` with `GetItemsAsync()` + `DefineItemWidget()` |
 
 ## Platform-Specific Notes
 

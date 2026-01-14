@@ -266,6 +266,16 @@ try {
             }
         }
 
+        # Copy html_assets folder (needed for HTML panel rendering - CSS, JS, etc.)
+        $buildAssetsDir = Join-Path $buildOutputDir 'html_assets'
+        $publishAssetsDir = Join-Path $outputDir 'html_assets'
+        if (Test-Path $buildAssetsDir) {
+            Copy-Item -Path $buildAssetsDir -Destination $publishAssetsDir -Recurse -Force
+            Write-Host "  Copied html_assets for panel rendering" -ForegroundColor Gray
+        } else {
+            Write-Host "  [WARN] html_assets directory not found: $buildAssetsDir" -ForegroundColor Yellow
+        }
+
         # Rename executable to lowercase for Linux/macOS (case-sensitive filesystems)
         if ($runtime -notlike 'win-*') {
             $exePath = Join-Path $outputDir 'LCDPossible'

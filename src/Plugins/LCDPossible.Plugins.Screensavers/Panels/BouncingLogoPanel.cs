@@ -6,12 +6,13 @@ using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
+using LCDPossible.Core.Rendering;
 namespace LCDPossible.Plugins.Screensavers.Panels;
 
 /// <summary>
 /// Classic bouncing logo screensaver (DVD-style) with configurable options.
 /// </summary>
-public sealed class BouncingLogoPanel : BaseLivePanel
+public sealed class BouncingLogoPanel : CanvasPanel
 {
     /// <summary>
     /// Color mode for the bouncing text.
@@ -92,7 +93,7 @@ public sealed class BouncingLogoPanel : BaseLivePanel
 
     public override string PanelId => "bouncing-logo";
     public override string DisplayName => "Bouncing Logo";
-    public override bool IsAnimated => true;
+    public override PanelRenderMode RenderMode => PanelRenderMode.Stream;
 
     public BouncingLogoPanel()
     {

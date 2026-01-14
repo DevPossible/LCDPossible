@@ -2,12 +2,13 @@ using LCDPossible.Sdk;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
+using LCDPossible.Core.Rendering;
 namespace LCDPossible.Plugins.Screensavers.Panels;
 
 /// <summary>
 /// Classic demoscene plasma effect using sine wave interference patterns.
 /// </summary>
-public sealed class PlasmaPanel : BaseLivePanel
+public sealed class PlasmaPanel : CanvasPanel
 {
     private const int ScaleFactor = 4; // Render at lower resolution for performance
 
@@ -18,7 +19,7 @@ public sealed class PlasmaPanel : BaseLivePanel
 
     public override string PanelId => "plasma";
     public override string DisplayName => "Plasma";
-    public override bool IsAnimated => true;
+    public override PanelRenderMode RenderMode => PanelRenderMode.Stream;
 
     public PlasmaPanel()
     {

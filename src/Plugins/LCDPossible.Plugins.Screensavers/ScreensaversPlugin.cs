@@ -240,9 +240,9 @@ public sealed class ScreensaversPlugin : IPanelPlugin
 
     private static void ApplyColorScheme(IDisplayPanel? panel, PanelCreationContext context)
     {
-        if (panel is LCDPossible.Sdk.BaseLivePanel livePanel && context.ColorScheme != null)
+        if (panel is LCDPossible.Sdk.BasePanel basePanel && context.ColorScheme != null)
         {
-            livePanel.SetColorScheme(context.ColorScheme);
+            basePanel.SetColorScheme(context.ColorScheme);
         }
     }
 

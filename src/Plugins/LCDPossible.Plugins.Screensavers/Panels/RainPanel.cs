@@ -4,12 +4,13 @@ using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
+using LCDPossible.Core.Rendering;
 namespace LCDPossible.Plugins.Screensavers.Panels;
 
 /// <summary>
 /// Falling raindrops with splash effects.
 /// </summary>
-public sealed class RainPanel : BaseLivePanel
+public sealed class RainPanel : CanvasPanel
 {
     private const int DropCount = 150;
     private const int MaxSplashes = 20;
@@ -25,7 +26,7 @@ public sealed class RainPanel : BaseLivePanel
 
     public override string PanelId => "rain";
     public override string DisplayName => "Rain";
-    public override bool IsAnimated => true;
+    public override PanelRenderMode RenderMode => PanelRenderMode.Stream;
 
     public RainPanel()
     {

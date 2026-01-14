@@ -5,408 +5,254 @@ description: |
   Use when: creating a new panel, adding display panel, implementing panel type,
   new LCD screen content, new monitoring panel, new info panel.
   Guides through plugin vs core decision, consistent styling, and registration.
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
-# Create Panel Skill
+# Creating Display Panels for LCDPossible
 
-Guide for creating new display panels in LCDPossible with consistent styling and proper architecture.
+This skill guides the creation of new display panels for the LCDPossible LCD controller.
 
-## Decision: Plugin vs Core
+## Panel Type Decision
 
-Before creating a panel, determine where it should live:
+| Content Type | Base Class | Location |
+|--------------|------------|----------|
+| System info widgets | `WidgetPanel` | Core plugin |
+| Variable item count (0-N) | `WidgetPanel` with `GetItemsAsync` | Core plugin |
+| External service data | `WidgetPanel` | Separate plugin |
+| Custom canvas drawing | `CanvasPanel` | Screensavers plugin |
+| Animated effects | `CanvasPanel` | Screensavers plugin |
 
-### Create as Plugin When:
-- Panel requires **external dependencies** (NuGet packages, native libraries)
-- Panel is **optional functionality** most users won't need
-- Panel integrates with **external services** (APIs, databases, specific hardware)
-- Example: Video playback (LibVLC), Web rendering (PuppeteerSharp), Proxmox integration
+**Prefer WidgetPanel** for new info panels - it uses HTML/CSS rendering with responsive web components.
 
-### Add to Core Plugin When:
-- Panel uses only **standard .NET libraries** (System.*, no extra NuGet)
-- Panel is **generally useful** to most users
-- Panel displays **system information** available on all platforms
-- Example: CPU info, RAM usage, Network info, Disk usage
-
-## File Locations
-
-### Core Plugin Panel
-```
-src/Plugins/LCDPossible.Plugins.Core/Panels/{PanelName}Panel.cs
-```
-
-### New Plugin (for external dependencies)
-```
-src/Plugins/LCDPossible.Plugins.{PluginName}/
-├── {PluginName}Plugin.cs          # IPanelPlugin implementation
-├── Panels/
-│   └── {PanelName}Panel.cs        # Panel implementation
-└── LCDPossible.Plugins.{PluginName}.csproj
-```
-
-## Panel Implementation Template
+## WidgetPanel Structure
 
 ```csharp
 using LCDPossible.Sdk;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
 
-namespace LCDPossible.Plugins.{PluginName}.Panels;
+namespace LCDPossible.Plugins.Core.Panels;
 
-/// <summary>
-/// {Description of what this panel displays}.
-/// </summary>
-public sealed class {PanelName}Panel : BaseLivePanel
+public sealed class MyNewPanel : WidgetPanel
 {
-    // Inject dependencies via constructor if needed
-    private readonly ISystemInfoProvider? _provider;
+    public override string PanelId => "my-panel";       // URL-safe slug
+    public override string DisplayName => "My Panel";   // Human-readable
 
-    public override string PanelId => "{panel-id}";  // lowercase-with-hyphens
-    public override string DisplayName => "{Panel Display Name}";
-
-    // Set to true only if panel manages its own frame timing (GIF, video)
-    public override bool IsAnimated => false;
-
-    public {PanelName}Panel(/* dependencies */)
+    // Panel-level data (timestamp, totals, etc.)
+    protected override Task<object> GetPanelDataAsync(CancellationToken ct)
     {
-        // Initialize fields
+        return Task.FromResult<object>(new
+        {
+            timestamp = DateTime.Now.ToString("HH:mm:ss"),
+            total_count = 42
+        });
     }
 
-    public override Task<Image<Rgba32>> RenderFrameAsync(
-        int width, int height,
-        CancellationToken cancellationToken = default)
+    // Static widgets from panel data
+    protected override IEnumerable<WidgetDefinition> DefineWidgets(object panelData)
     {
-        var image = CreateBaseImage(width, height);
+        // Cast or use dynamic
+        dynamic data = panelData;
 
-        image.Mutate(ctx =>
+        yield return new WidgetDefinition("lcd-stat-card", 6, 2, new
         {
-            if (!FontsLoaded)
-            {
-                DrawCenteredText(ctx, "Loading...", width / 2f, height / 2f,
-                    TitleFont!, SecondaryTextColor);
-                return;
-            }
-
-            // Render panel content here
-            // See "Standard Layout Patterns" below
+            title = "Total",
+            value = data.total_count.ToString(),
+            status = "success"
         });
-
-        return Task.FromResult(image);
     }
 }
 ```
 
-## Standard Layout Patterns
+## Variable Item Panels
 
-### Single Column Info Panel
-```
-┌─────────────────────────────────────────────────────┐
-│  TITLE                                              │  <- AccentColor, TitleFont
-│  Subtitle or description                            │  <- SecondaryTextColor, SmallFont
-│                                                     │
-│  Label: Value                                       │  <- Label: SecondaryTextColor
-│  Label: Value                                       │  <- Value: PrimaryTextColor
-│  Label: Value                                       │
-│                                                     │
-│  [Progress Bar ████████░░░░░░░░░░░░░░░]            │
-│                                                     │
-│                                          HH:MM:SS  │  <- DrawTimestamp()
-└─────────────────────────────────────────────────────┘
-```
+For panels displaying 0-N items (network interfaces, VMs, sensors):
 
-### Multi-Column Layout (2-3 columns)
-```
-┌─────────────────────────────────────────────────────┐
-│  SECTION 1          │  SECTION 2          │  SEC 3 │
-│  ──────────         │  ──────────         │  ───── │
-│  Value              │  Value              │  Value │
-│  [Bar]              │  [Bar]              │  [Bar] │
-└─────────────────────────────────────────────────────┘
-```
-
-Code for multi-column:
 ```csharp
-var colWidth = (width - 40) / 3;  // 3 columns with margins
-var col1X = 20;
-var col2X = 20 + colWidth;
-var col3X = 20 + colWidth * 2;
+public sealed class MyItemsPanel : WidgetPanel
+{
+    public override string PanelId => "my-items";
+    public override string DisplayName => "My Items";
+
+    protected override Task<object> GetPanelDataAsync(CancellationToken ct)
+        => Task.FromResult<object>(new { timestamp = DateTime.Now.ToString("HH:mm:ss") });
+
+    // Return items to display
+    protected override Task<IReadOnlyList<object>> GetItemsAsync(CancellationToken ct)
+    {
+        var items = GetMyItems(); // Your data source
+        return Task.FromResult<IReadOnlyList<object>>(items.Cast<object>().ToList());
+    }
+
+    // Customize empty state message
+    protected override string GetEmptyStateMessage() => "No items found";
+
+    // Render each item as a widget
+    protected override WidgetDefinition? DefineItemWidget(object item, int index, int totalItems)
+    {
+        var myItem = (MyItemType)item;
+
+        // Auto-layout based on item count (1-4 items)
+        var (colSpan, rowSpan) = WidgetLayouts.GetAutoLayout(index, totalItems);
+
+        return new WidgetDefinition("lcd-info-list", colSpan, rowSpan, new
+        {
+            title = myItem.Name,
+            items = new[]
+            {
+                new { label = "Status", value = myItem.Status },
+                new { label = "Value", value = myItem.Value }
+            }
+        });
+    }
+}
 ```
 
-### Graphic Panel with Large Value
-```
-┌─────────────────────────────────────────────────────┐
-│                                                     │
-│                      72%                            │  <- ValueFont, GetUsageColor()
-│                    42°C                             │  <- TitleFont, GetTemperatureColor()
-│                                                     │
-│  [═══════════════════════████████████████████]     │  <- DrawProgressBar()
-│                                                     │
-└─────────────────────────────────────────────────────┘
-```
+## Available Web Components
 
-## Available Drawing Methods (from BaseLivePanel)
+| Component | Props | Use For |
+|-----------|-------|---------|
+| `lcd-stat-card` | title, value, unit, subtitle, status, size | Single value display |
+| `lcd-usage-bar` | value, max, label, color, orientation | Progress bars |
+| `lcd-info-list` | title, subtitle, items, status | Key-value pairs |
+| `lcd-temp-gauge` | value, max, label | Temperature gauges |
+| `lcd-sparkline` | values, color, label | Time-series charts |
+| `lcd-status-dot` | status, label | Status indicators |
+| `lcd-donut` | value, max, label, color | Circular percentage |
 
-### Text Drawing
-```csharp
-// Left-aligned text
-DrawText(ctx, "Text", x, y, Font, Color, maxWidth);
+### Component Status Values
 
-// Center-aligned text
-DrawCenteredText(ctx, "Text", centerX, y, Font, Color);
+`success` (green), `warning` (yellow), `critical` (red), `info` (blue), `neutral` (gray)
 
-// Truncate long text
-var truncated = TruncateText(longText, maxChars);
-```
+## Widget Layout
 
-### Progress Bars
-```csharp
-// Horizontal progress bar (auto-colors by percentage)
-DrawProgressBar(ctx, percentage, x, y, width, height);
-DrawProgressBar(ctx, percentage, x, y, width, height, customColor);
+The grid is 12 columns wide. Common patterns:
 
-// Vertical bar
-DrawVerticalBar(ctx, percentage, x, y, width, height);
-```
+| ColSpan | Meaning |
+|---------|---------|
+| 12 | Full width |
+| 6 | Half width (2 per row) |
+| 4 | Third width (3 per row) |
+| 3 | Quarter width (4 per row) |
 
-### Color Helpers
-```csharp
-// Usage-based color (green -> yellow -> red)
-var color = GetUsageColor(percentage);  // 0-100
+### Auto-Layout for Variable Items
 
-// Temperature-based color (cool -> warm -> hot)
-var color = GetTemperatureColor(celsius);
+Use `WidgetLayouts.GetAutoLayout(index, totalItems)` for responsive layouts:
 
-// Timestamp in bottom-right corner
-DrawTimestamp(ctx, width, height);
-```
-
-### Available Fonts
-| Font | Size | Use For |
-|------|------|---------|
-| `TitleFont` | 36pt Bold | Section headers, labels |
-| `ValueFont` | 72pt Bold | Large percentage values |
-| `LabelFont` | 24pt Regular | Field labels, descriptions |
-| `SmallFont` | 18pt Regular | Secondary info, timestamps |
-
-### Available Colors (from ColorScheme)
-| Property | Use For |
-|----------|---------|
-| `PrimaryTextColor` | Main text, values |
-| `SecondaryTextColor` | Labels, descriptions |
-| `AccentColor` | Headers, highlights |
-| `WarningColor` | Warning states (70-90%) |
-| `CriticalColor` | Critical states (>90%) |
-| `SuccessColor` | Good/success states |
-| `BackgroundColor` | Panel background |
+| Items | Layout |
+|-------|--------|
+| 1 | Full width (12, 4) |
+| 2 | Half each (6, 4) |
+| 3 | First half (6, 4), second + third quarter (6, 2) |
+| 4 | 2x2 grid (6, 2) |
 
 ## Registration Checklist
 
-> **CRITICAL**: All 4 registration steps must be completed. Missing any step will cause the panel to fail silently!
+### 1. Add PanelTypeInfo to Plugin
 
-### 1. Add to plugin.json Manifest (REQUIRED with Full Metadata)
-In `{PluginName}/plugin.json`, add to the `panelTypes` array:
+In the plugin class (e.g., `CorePlugin.cs`):
 
-```json
+```csharp
+public IReadOnlyDictionary<string, PanelTypeInfo> PanelTypes { get; } = new Dictionary<string, PanelTypeInfo>
 {
-  "typeId": "{panel-id}",
-  "displayName": "{Panel Name}",
-  "description": "{Brief description}",
-  "category": "System|CPU|GPU|Memory|Network|Storage|Thermal|Proxmox|Media|Web|Screensaver",
-  "isLive": true,
-  "isAnimated": false,
-  "helpText": "Detailed help text explaining:\n- What the panel displays\n- Features and capabilities\n- Any configuration options\n- Platform requirements",
-  "examples": [
+    // ... existing panels ...
+    ["my-panel"] = new PanelTypeInfo
     {
-      "command": "lcdpossible show {panel-id}",
-      "description": "Display the panel"
-    },
-    {
-      "command": "lcdpossible show {panel-id}|@duration=30",
-      "description": "Display for 30 seconds"
+        TypeId = "my-panel",
+        DisplayName = "My Panel",
+        Description = "Description for panel list",
+        Category = "System",  // System, Network, Thermal, etc.
+        IsLive = true
     }
-  ],
-  "parameters": [
-    {
-      "name": "{param-name}",
-      "description": "Description of this parameter",
-      "required": false,
-      "defaultValue": "{default}",
-      "exampleValues": ["value1", "value2"]
-    }
-  ],
-  "dependencies": ["Optional list of NuGet packages or features required"]
-}
+};
 ```
 
-> **Why this is critical**: The plugin manager reads panel types from `plugin.json` to discover available panels. The help system uses this metadata to display panel information via `lcdpossible list-panels` and `lcdpossible help-panel {id}`.
+### 2. Add CreatePanel Case
 
-### Required Metadata Fields
-| Field | Required | Description |
-|-------|----------|-------------|
-| `typeId` | Yes | Panel identifier (lowercase-with-hyphens) |
-| `displayName` | Yes | Human-readable name |
-| `description` | Yes | One-line description (shown in list-panels) |
-| `category` | Yes | Grouping category for organization |
-| `isLive` | Yes | true if panel updates in real-time |
-| `isAnimated` | No | true if panel manages own frame timing (GIF, video) |
-| `helpText` | Yes | Multi-line detailed help (shown in help-panel) |
-| `examples` | Yes | At least one usage example |
-| `parameters` | Conditional | Required for parameterized panels (prefix:value format) |
-| `dependencies` | No | External dependencies for documentation |
+In the plugin's `CreatePanel` method:
 
-### Parameterized Panel Pattern
-For panels that accept arguments (like `video:path`, `web:url`):
+```csharp
+IDisplayPanel? panel = panelTypeId.ToLowerInvariant() switch
+{
+    // ... existing cases ...
+    "my-panel" => new MyNewPanel(),
+    _ => null
+};
+```
+
+### 3. Update plugin.json
+
+Add detailed metadata for CLI help:
 
 ```json
 {
-  "typeId": "{panel-id}",
-  "prefixPattern": "{panel-id}:",
-  "parameters": [
+  "typeId": "my-panel",
+  "displayName": "My Panel",
+  "description": "Brief description",
+  "category": "System",
+  "isLive": true,
+  "dependencies": ["PuppeteerSharp"],
+  "helpText": "Detailed description for help command",
+  "examples": [
     {
-      "name": "source",
-      "description": "Path to file, URL, or other source",
-      "required": true,
-      "exampleValues": ["C:\\path\\file.ext", "https://example.com/resource"]
+      "command": "lcdpossible show my-panel",
+      "description": "Display my panel"
     }
   ]
 }
 ```
 
-### 2. Add PanelTypeInfo to Plugin Class
-In `{PluginName}Plugin.cs`, add to `PanelTypes` dictionary:
+## Testing
 
-```csharp
-["{panel-id}"] = new PanelTypeInfo
-{
-    TypeId = "{panel-id}",
-    DisplayName = "{Panel Name}",
-    Description = "{Brief description for CLI help}",
-    Category = "{System|Thermal|Media|Network|Custom}",
-    IsLive = true  // true for real-time data panels
-}
+```bash
+# Render to file
+./start-app.ps1 test my-panel --debug
+
+# Check output
+# [DEBUG] Written: C:\Users\...\my-panel.jpg (XXXX bytes)
 ```
 
-### 3. Add Case to CreatePanel
-In `{PluginName}Plugin.cs`, add to `CreatePanel` switch:
+## Template Syntax
 
-```csharp
-"{panel-id}" => new {PanelName}Panel(/* dependencies */),
-```
+WidgetPanel uses Scriban templates internally. If you need custom templates, see the `scriban-templates` skill for escaping rules.
 
-### 4. Update Default Profile (if appropriate)
-In `DisplayProfile.CreateDefault()`, add new slide:
+Key rule: Web components are generated automatically - you don't write Scriban templates for standard WidgetPanels.
 
-```csharp
-new SlideDefinition { Panel = "{panel-id}" }
-```
+## Files to Create/Modify
 
-### 5. Update Documentation
+| File | Action |
+|------|--------|
+| `Panels/MyNewPanel.cs` | Create - panel implementation |
+| `CorePlugin.cs` or plugin class | Modify - PanelTypes + CreatePanel |
+| `plugin.json` | Modify - add panel metadata |
 
-Update `CLAUDE.md` Available Panel Types table:
-```markdown
-| `{panel-id}` | {Brief description} |
-```
+## Visual Appeal Standards
 
-## Creating a New Plugin
+**IMPORTANT:** All panels must comply with the visual appeal rules in `.claude/rules/panel-visual-appeal.md`.
 
-If the panel needs external dependencies, create a new plugin:
+Key requirements:
+- **Container Filling:** Widgets should fill their space (no tiny text in large boxes)
+- **Typography Hierarchy:** Values larger than labels (text-3xl+ for values, text-lg for labels)
+- **Centering:** Content centered unless there's a reason not to
+- **Color Contrast:** High contrast for LCD viewing distance (3-6 feet)
+- **Theme Compliance:** Use DaisyUI classes, not hardcoded colors
+- **Empty States:** Handle missing data gracefully
 
-### 1. Create Project Structure
-```powershell
-mkdir src/Plugins/LCDPossible.Plugins.{Name}
-mkdir src/Plugins/LCDPossible.Plugins.{Name}/Panels
-```
+### Widget Sizing Guide
 
-### 2. Create .csproj
-```xml
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
+| Widget Content | Recommended ColSpan | Value Size |
+|----------------|---------------------|------------|
+| Single large value | 3-4 | text-4xl to text-5xl |
+| Value with label | 4-6 | text-2xl to text-3xl |
+| Info list (2-4 items) | 4-5 | text-xl values |
+| Donut/gauge | 3-4 | text-3xl to text-4xl |
+| Sparkline | 6-8 | N/A |
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\LCDPossible.Sdk\LCDPossible.Sdk.csproj" />
-    <ProjectReference Include="..\..\LCDPossible.Core\LCDPossible.Core.csproj" />
-  </ItemGroup>
+After creating a panel, validate with: `/ensure-panelvisualappeal <panel-id>`
 
-  <ItemGroup>
-    <!-- Add external NuGet dependencies here -->
-  </ItemGroup>
-</Project>
-```
+## Common Mistakes
 
-### 3. Create Plugin Class
-```csharp
-using LCDPossible.Core.Plugins;
-using LCDPossible.Core.Rendering;
-
-namespace LCDPossible.Plugins.{Name};
-
-public sealed class {Name}Plugin : IPanelPlugin
-{
-    public string PluginId => "lcdpossible.{name}";
-    public string DisplayName => "{Name} Panels";
-    public Version Version => new(1, 0, 0);
-    public string Author => "LCDPossible Team";
-    public Version MinimumSdkVersion => new(1, 0, 0);
-
-    public IReadOnlyDictionary<string, PanelTypeInfo> PanelTypes { get; } =
-        new Dictionary<string, PanelTypeInfo>
-    {
-        // Panel type definitions
-    };
-
-    public Task InitializeAsync(IPluginContext context, CancellationToken ct = default)
-    {
-        // Initialize plugin resources
-        return Task.CompletedTask;
-    }
-
-    public IDisplayPanel? CreatePanel(string panelTypeId, PanelCreationContext context)
-    {
-        return panelTypeId.ToLowerInvariant() switch
-        {
-            // Panel creation
-            _ => null
-        };
-    }
-
-    public void Dispose() { }
-}
-```
-
-### 4. Add to Solution
-```powershell
-dotnet sln src/LCDPossible.sln add src/Plugins/LCDPossible.Plugins.{Name}
-```
-
-### 5. Reference from Main Project
-Add to `src/LCDPossible/LCDPossible.csproj`:
-```xml
-<ProjectReference Include="..\Plugins\LCDPossible.Plugins.{Name}\LCDPossible.Plugins.{Name}.csproj" />
-```
-
-## Workflow Summary
-
-1. **Ask**: Plugin or Core? (based on dependencies)
-2. **Create**: Panel class extending `BaseLivePanel`
-3. **Implement**: `RenderFrameAsync` with consistent styling
-4. **Register** (ALL REQUIRED):
-   - Add to `plugin.json` manifest (**CRITICAL** - panel discovery depends on this!)
-   - Add to plugin's `PanelTypes` dictionary in code
-   - Add case to `CreatePanel` switch statement
-5. **Document**: Update CLAUDE.md panel table
-6. **Test**: Build and verify with `./start-app.ps1 show {panel-id}`
-7. **Profile**: Optionally add to default profile
-
-## Example Panels for Reference
-
-| Panel | Location | Pattern |
-|-------|----------|---------|
-| BasicInfoPanel | Core/Panels/BasicInfoPanels.cs | 3-column layout |
-| CpuUsageGraphicPanel | Core/Panels/CpuPanels.cs | Large value + bars |
-| NetworkInfoPanel | Core/Panels/NetworkInfoPanel.cs | 2-column info |
-| VideoPanel | Video/Panels/VideoPanel.cs | Animated media |
+1. **Forgetting registration** - Panel exists but isn't in PanelTypes dictionary
+2. **Wrong PanelId format** - Use lowercase with hyphens: `my-panel` not `MyPanel`
+3. **Missing CreatePanel case** - Panel registered but not instantiated
+4. **Not casting panelData** - Use `dynamic data = panelData;` or explicit cast
+5. **Text too small** - Use `size = "large"` for stat cards in 4+ column spans
+6. **Hardcoded colors** - Use `text-primary`, `text-success`, not `#00d4ff`

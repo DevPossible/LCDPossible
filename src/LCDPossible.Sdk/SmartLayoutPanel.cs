@@ -12,7 +12,25 @@ namespace LCDPossible.Sdk;
 /// Automatically calculates optimal layout (1-4 widgets) based on item count and scales fonts proportionally.
 /// </summary>
 /// <typeparam name="TItem">The type of item to display in each widget.</typeparam>
-public abstract class SmartLayoutPanel<TItem> : BaseLivePanel
+/// <remarks>
+/// <para>
+/// <b>DEPRECATED:</b> Use <see cref="WidgetPanel"/> instead for new panel development.
+/// WidgetPanel provides a declarative HTML/CSS approach with responsive web components
+/// that automatically scale across different display resolutions.
+/// </para>
+/// <para>
+/// Migration guide:
+/// <list type="bullet">
+///   <item>Extend <see cref="WidgetPanel"/> instead of SmartLayoutPanel</item>
+///   <item>Override <see cref="WidgetPanel.GetItemsAsync"/> for variable items</item>
+///   <item>Override <see cref="WidgetPanel.DefineItemWidget"/> to define widgets for each item</item>
+///   <item>Use web components like lcd-stat-card, lcd-usage-bar, lcd-info-list</item>
+/// </list>
+/// </para>
+/// </remarks>
+[Obsolete("Use WidgetPanel for HTML-based rendering with responsive web components. " +
+          "SmartLayoutPanel is maintained for backward compatibility but will be removed in a future version.")]
+public abstract class SmartLayoutPanel<TItem> : CanvasPanel
 {
     private FontFamily? _fontFamily;
 

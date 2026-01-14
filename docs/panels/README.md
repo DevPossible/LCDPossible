@@ -2,6 +2,10 @@
 
 This directory contains documentation and screenshots for all available display panels.
 
+**Related Documentation:**
+- [Themes](../themes/README.md) - Available color themes and customization
+- [Page Effects](../effects/README.md) - Animated overlays and backgrounds
+
 ## Panel Categories
 
 ### CPU
@@ -9,6 +13,7 @@ This directory contains documentation and screenshots for all available display 
 | Panel | Description | Plugin |
 |-------|-------------|--------|
 | [CPU Info](core/panels/cpu-info/cpu-info.md) | Detailed CPU information including model, usage, temperature, frequency, and power | core |
+| [CPU Status](core/panels/cpu-status/cpu-status.md) | CPU dashboard with usage bar, temperature gauge, and per-core sparkline | core |
 | [CPU Usage Graphic](core/panels/cpu-usage-graphic/cpu-usage-graphic.md) | CPU usage with graphical bars including per-core breakdown | core |
 | [CPU Usage Text](core/panels/cpu-usage-text/cpu-usage-text.md) | CPU usage displayed as large text percentage | core |
 

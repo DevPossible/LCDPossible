@@ -1,0 +1,829 @@
+/*
+ * LCDPossible Theme CSS
+ * NEON COMMAND CENTER - Cyberpunk HUD Aesthetic
+ * Optimized for 1280x480 LCD signage viewed from 3-6 feet
+ */
+
+/* === System Fonts (No remote dependencies) === */
+
+/* === Kiosk Mode: Fixed Viewport, No Scroll === */
+html, body {
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+    font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+    background: var(--color-background);
+}
+
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* === CYBERPUNK COLOR SCHEME === */
+:root {
+    /* Deep space backgrounds */
+    --color-background: #050508;
+    --color-background-secondary: rgba(10, 15, 25, 0.9);
+    --color-bar-background: rgba(20, 30, 50, 0.6);
+    --color-bar-border: rgba(0, 255, 255, 0.15);
+
+    /* Text hierarchy */
+    --color-text-primary: #ffffff;
+    --color-text-secondary: #88aacc;
+    --color-text-muted: #446688;
+
+    /* NEON accent colors */
+    --color-accent: #00ffff;
+    --color-accent-secondary: #ff00aa;
+    --color-success: #00ff88;
+    --color-warning: #ffaa00;
+    --color-critical: #ff2244;
+    --color-info: #00aaff;
+
+    /* Usage level colors (neon variants) */
+    --color-usage-low: #00ff88;
+    --color-usage-medium: #ffff00;
+    --color-usage-high: #ff8800;
+    --color-usage-critical: #ff2244;
+
+    /* Temperature colors */
+    --color-temp-cool: #00ffff;
+    --color-temp-warm: #ffaa00;
+    --color-temp-hot: #ff2244;
+
+    /* Glass/Surface effects */
+    --glass-blur: blur(20px);
+    --glass-bg: rgba(8, 12, 20, 0.85);
+    --glass-border: rgba(0, 255, 255, 0.12);
+    --glass-shadow: 0 0 40px rgba(0, 0, 0, 0.8), inset 0 0 60px rgba(0, 255, 255, 0.03);
+
+    /* Glow intensities */
+    --glow-soft: 0 0 10px;
+    --glow-medium: 0 0 20px;
+    --glow-strong: 0 0 40px;
+    --glow-intense: 0 0 60px;
+
+    /* Font families (system fonts - no remote dependencies) */
+    --font-display: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-data: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
+}
+
+/* === ANIMATED BACKGROUND EFFECTS === */
+/* Scanline effect DISABLED - interferes with text readability on LCD screens
+body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+        repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 2px,
+            rgba(0, 255, 255, 0.015) 2px,
+            rgba(0, 255, 255, 0.015) 4px
+        ),
+        linear-gradient(90deg, rgba(0, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(rgba(0, 255, 255, 0.02) 1px, transparent 1px);
+    background-size: 100% 4px, 80px 80px, 80px 80px;
+    pointer-events: none;
+    z-index: 1000;
+    animation: scanline 8s linear infinite;
+}
+
+@keyframes scanline {
+    0% { background-position: 0 0, 0 0, 0 0; }
+    100% { background-position: 0 100%, 0 0, 0 0; }
+}
+*/
+
+/* Ambient corner glows */
+body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+        radial-gradient(ellipse at 0% 0%, rgba(0, 255, 255, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 100% 100%, rgba(255, 0, 170, 0.06) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 999;
+}
+
+/* === SEMANTIC COLOR CLASSES === */
+.bg-panel { background-color: var(--color-background); }
+.bg-panel-secondary { background-color: var(--color-background-secondary); }
+.bg-bar { background-color: var(--color-bar-background); }
+
+.text-primary { color: var(--color-text-primary); }
+.text-secondary { color: var(--color-text-secondary); }
+.text-muted { color: var(--color-text-muted); }
+.text-accent { color: var(--color-accent); text-shadow: var(--glow-soft) var(--color-accent); }
+.text-success { color: var(--color-success); text-shadow: var(--glow-soft) var(--color-success); }
+.text-warning { color: var(--color-warning); text-shadow: var(--glow-soft) var(--color-warning); }
+.text-critical { color: var(--color-critical); text-shadow: var(--glow-soft) var(--color-critical); }
+
+.border-bar { border-color: var(--color-bar-border); }
+
+/* === WIDGET CONTAINER (Glassmorphism + Neon) === */
+.widget {
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 1rem;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--glass-shadow);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Neon edge glow */
+.widget::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    background: linear-gradient(135deg, rgba(0, 255, 255, 0.2) 0%, transparent 30%, transparent 70%, rgba(255, 0, 170, 0.15) 100%);
+    pointer-events: none;
+    z-index: -1;
+}
+
+/* Corner accent */
+.widget::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 30px;
+    height: 30px;
+    border-top: 2px solid var(--color-accent);
+    border-left: 2px solid var(--color-accent);
+    border-radius: 8px 0 0 0;
+    box-shadow: -2px -2px 10px rgba(0, 255, 255, 0.3);
+}
+
+.widget-title {
+    font-family: var(--font-display);
+    font-size: clamp(1.3rem, 3.75vmin, 1.5rem);
+    font-weight: 600;
+    color: var(--color-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    text-shadow: var(--glow-soft) var(--color-accent);
+}
+
+.widget-value {
+    font-family: var(--font-data);
+    font-size: clamp(3rem, 12vmin, 5.25rem);
+    font-weight: 700;
+    color: var(--color-text-primary);
+    line-height: 1;
+    text-shadow: var(--glow-medium) rgba(255, 255, 255, 0.3);
+}
+
+.widget-unit {
+    font-size: clamp(1.3rem, 4.5vmin, 1.875rem);
+    color: var(--color-text-secondary);
+    margin-left: 0.25rem;
+}
+
+.widget-subtitle {
+    font-size: clamp(0.94rem, 3vmin, 1.3rem);
+    color: var(--color-text-muted);
+    margin-top: 0.25rem;
+}
+
+/* === UTILITY CLASSES === */
+.flex-1 { flex: 1; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.gap-2 { gap: 0.5rem; }
+.gap-4 { gap: 1rem; }
+.p-2 { padding: 0.5rem; }
+.p-4 { padding: 1rem; }
+.rounded { border-radius: 4px; }
+.rounded-lg { border-radius: 8px; }
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.font-bold { font-weight: 700; }
+.font-semibold { font-weight: 600; }
+
+/* === SIGNAGE-OPTIMIZED FONT SIZES === */
+/* For 1280x480 @ 6.5" x 2.5" viewed from 3-6 feet */
+/* vmin = 480/100 = 4.8px, so 10vmin = 48px */
+/* ENLARGED 50% for better distance readability */
+.text-xs { font-size: clamp(1.125rem, 3.75vmin, 1.5rem); }
+.text-sm { font-size: clamp(1.3rem, 4.5vmin, 1.7rem); }
+.text-base { font-size: clamp(1.5rem, 5.25vmin, 1.875rem); }
+.text-lg { font-size: clamp(1.7rem, 6vmin, 2.25rem); }
+.text-xl { font-size: clamp(1.875rem, 7.5vmin, 2.625rem); }
+.text-2xl { font-size: clamp(2.25rem, 9vmin, 3.375rem); }
+.text-3xl { font-size: clamp(2.8rem, 12vmin, 4.5rem); }
+.text-4xl { font-size: clamp(3.375rem, 15vmin, 6rem); }
+.text-5xl { font-size: clamp(4.5rem, 21vmin, 7.5rem); }
+
+/* ================================================================
+   COMPONENT STYLES - CYBERPUNK HUD
+   Optimized for distance viewing with intense neon effects
+   ================================================================ */
+
+/* === USAGE BAR COMPONENT === */
+.lcd-usage-bar-horizontal {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(0.375rem, 1.5vmin, 0.75rem);
+    width: 100%;
+    height: 100%;
+    justify-content: center;
+}
+
+.lcd-usage-bar-vertical {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: clamp(0.375rem, 1.5vmin, 0.75rem);
+    height: 100%;
+    width: 100%;
+}
+
+.lcd-bar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+}
+
+.lcd-bar-label {
+    font-family: var(--font-display);
+    font-size: clamp(1.3rem, 4.5vmin, 1.875rem);
+    font-weight: 600;
+    color: var(--color-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    text-shadow: var(--glow-soft) var(--color-accent);
+}
+
+.lcd-bar-value {
+    font-family: var(--font-data);
+    font-size: clamp(1.875rem, 7.5vmin, 3rem);
+    font-weight: 700;
+    color: var(--color-text-primary);
+    text-shadow: var(--glow-medium) rgba(255, 255, 255, 0.4);
+}
+
+.lcd-bar-value-center {
+    font-family: var(--font-data);
+    font-size: clamp(1.875rem, 7.5vmin, 3rem);
+    font-weight: 700;
+    color: var(--color-text-primary);
+    text-align: center;
+    text-shadow: var(--glow-medium) rgba(255, 255, 255, 0.4);
+}
+
+.lcd-bar-track-h {
+    width: 100%;
+    height: clamp(1.875rem, 9vmin, 3.75rem);
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--glass-border);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* Track grid overlay */
+.lcd-bar-track-h::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+        90deg,
+        transparent,
+        transparent 10%,
+        rgba(0, 255, 255, 0.05) 10%,
+        rgba(0, 255, 255, 0.05) 10.5%
+    );
+    pointer-events: none;
+}
+
+.lcd-bar-fill-h {
+    height: 100%;
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 3px;
+    position: relative;
+    /* Gradient will be applied inline based on color */
+}
+
+/* Animated glow sweep */
+.lcd-bar-fill-h::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.4) 45%,
+        rgba(255, 255, 255, 0.6) 50%,
+        rgba(255, 255, 255, 0.4) 55%,
+        transparent 100%
+    );
+    animation: bar-sweep 2.5s ease-in-out infinite;
+}
+
+@keyframes bar-sweep {
+    0% { transform: translateX(-150%); }
+    100% { transform: translateX(250%); }
+}
+
+.lcd-bar-track-v {
+    flex: 1;
+    width: 100%;
+    max-width: clamp(2.5rem, 10vmin, 5rem);
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--glass-border);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.lcd-bar-fill-v {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    transition: height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 3px;
+}
+
+/* === STAT CARD COMPONENT === */
+.lcd-stat-card {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center; /* Center content vertically */
+    align-items: center; /* Center content horizontally */
+    text-align: center;
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: clamp(0.75rem, 3vmin, 1.5rem);
+    box-shadow: var(--glass-shadow);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Neon corner accent */
+.lcd-stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 25%;
+    height: 3px;
+    background: linear-gradient(90deg, var(--color-accent), transparent);
+    box-shadow: 0 0 15px var(--color-accent);
+}
+
+.lcd-stat-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 3px;
+    height: 25%;
+    background: linear-gradient(180deg, var(--color-accent), transparent);
+    box-shadow: 0 0 15px var(--color-accent);
+}
+
+.lcd-stat-title {
+    font-family: var(--font-display);
+    font-size: clamp(1.125rem, 3.75vmin, 1.5rem);
+    font-weight: 700;
+    color: var(--color-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: clamp(0.375rem, 2.25vmin, 0.75rem);
+    text-shadow: var(--glow-soft) var(--color-accent);
+}
+
+.lcd-stat-value-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+}
+
+.lcd-stat-value {
+    font-family: var(--font-data);
+    font-size: clamp(2.625rem, 12vmin, 6rem);
+    font-weight: 700;
+    line-height: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-text-primary);
+}
+
+.lcd-stat-card-small .lcd-stat-value {
+    font-size: clamp(1.5rem, 6vmin, 2.625rem);
+}
+
+.lcd-stat-card-large .lcd-stat-value {
+    font-size: clamp(3.75rem, 18vmin, 9rem);
+}
+
+.lcd-stat-card-xlarge .lcd-stat-value {
+    font-size: clamp(4.5rem, 24vmin, 12rem);
+}
+
+.lcd-stat-card-hero .lcd-stat-value {
+    font-size: clamp(6rem, 30vmin, 15rem);
+}
+
+.lcd-stat-unit {
+    font-family: var(--font-display);
+    font-size: clamp(1.3rem, 4.5vmin, 2.25rem);
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    margin-left: clamp(0.375rem, 1.5vmin, 0.75rem);
+}
+
+.lcd-stat-subtitle {
+    font-family: var(--font-data);
+    font-size: clamp(0.94rem, 3vmin, 1.3rem);
+    color: var(--color-text-muted);
+    margin-top: clamp(0.19rem, 1.125vmin, 0.375rem);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* === TEMPERATURE GAUGE COMPONENT === */
+.lcd-temp-gauge {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(0.5rem, 2vmin, 1rem);
+}
+
+.lcd-gauge-label {
+    font-family: var(--font-display);
+    font-size: clamp(1.125rem, 3.75vmin, 1.5rem);
+    font-weight: 700;
+    color: var(--color-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: clamp(0.375rem, 2.25vmin, 0.75rem);
+    text-shadow: var(--glow-soft) var(--color-accent);
+}
+
+.lcd-gauge-container {
+    position: relative;
+    width: min(85%, 85vh); /* Use smaller of width or height */
+    max-width: none; /* Remove max-width constraint to fill container */
+    aspect-ratio: 1;
+}
+
+.lcd-gauge-svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+    filter: drop-shadow(0 0 8px currentColor);
+}
+
+.lcd-gauge-svg circle:first-child {
+    stroke: rgba(0, 255, 255, 0.1);
+}
+
+.lcd-gauge-fill {
+    transition: stroke-dashoffset 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    filter: drop-shadow(0 0 12px currentColor);
+}
+
+.lcd-gauge-value {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-data);
+    font-size: clamp(2.25rem, 12vmin, 4.5rem);
+    font-weight: 700;
+}
+
+/* === INFO LIST COMPONENT === */
+.lcd-info-list {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: clamp(0.75rem, 3vmin, 1.25rem);
+    box-shadow: var(--glass-shadow);
+}
+
+.lcd-info-title {
+    font-family: var(--font-display);
+    font-size: clamp(1.125rem, 3.75vmin, 1.5rem);
+    font-weight: 700;
+    color: var(--color-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: clamp(0.375rem, 2vmin, 0.75rem);
+    text-shadow: var(--glow-soft) var(--color-accent);
+}
+
+.lcd-info-items {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: clamp(0.25rem, 1vmin, 0.5rem);
+}
+
+.lcd-info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: clamp(0.25rem, 1vmin, 0.5rem) 0;
+    border-bottom: 1px solid rgba(0, 255, 255, 0.08);
+}
+
+.lcd-info-item:last-child {
+    border-bottom: none;
+}
+
+.lcd-info-label {
+    font-family: var(--font-display);
+    font-size: clamp(1.125rem, 3.75vmin, 1.5rem);
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.lcd-info-value {
+    font-family: var(--font-data);
+    font-size: clamp(1.3rem, 4.5vmin, 1.875rem);
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+/* Info list size variants */
+.lcd-info-list-small .lcd-info-label {
+    font-size: clamp(0.875rem, 3vmin, 1.125rem);
+}
+.lcd-info-list-small .lcd-info-value {
+    font-size: clamp(1rem, 3.5vmin, 1.5rem);
+}
+
+.lcd-info-list-large .lcd-info-label {
+    font-size: clamp(1.3rem, 4.5vmin, 1.875rem);
+}
+.lcd-info-list-large .lcd-info-value {
+    font-size: clamp(1.875rem, 7.5vmin, 3rem);
+}
+
+/* === SPARKLINE COMPONENT === */
+.lcd-sparkline {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: clamp(0.75rem, 3vmin, 1.25rem);
+    box-shadow: var(--glass-shadow);
+}
+
+.lcd-sparkline-empty {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text-muted);
+    font-family: var(--font-display);
+    font-size: clamp(1.125rem, 3.75vmin, 1.5rem);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.lcd-sparkline-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: clamp(0.375rem, 2.25vmin, 0.75rem);
+}
+
+.lcd-sparkline-label {
+    font-family: var(--font-display);
+    font-size: clamp(1.125rem, 3.75vmin, 1.5rem);
+    font-weight: 600;
+    color: var(--color-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    text-shadow: var(--glow-soft) var(--color-accent);
+}
+
+.lcd-sparkline-value {
+    font-family: var(--font-data);
+    font-size: clamp(1.5rem, 6vmin, 2.25rem);
+    font-weight: 700;
+    color: var(--color-text-primary);
+    text-shadow: var(--glow-medium) rgba(255, 255, 255, 0.3);
+}
+
+.lcd-sparkline-chart {
+    flex: 1;
+    min-height: 0;
+}
+
+.lcd-sparkline-svg {
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 0 6px var(--color-accent));
+}
+
+.lcd-sparkline-svg polyline {
+    filter: drop-shadow(0 0 4px currentColor);
+}
+
+/* === STATUS DOT COMPONENT === */
+.lcd-status-dot {
+    display: flex;
+    align-items: center;
+    gap: clamp(0.375rem, 1.5vmin, 0.75rem);
+}
+
+.lcd-dot {
+    width: clamp(0.94rem, 3.75vmin, 1.5rem);
+    height: clamp(0.94rem, 3.75vmin, 1.5rem);
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+    animation: dot-pulse 2s ease-in-out infinite;
+}
+
+@keyframes dot-pulse {
+    0%, 100% {
+        box-shadow: 0 0 8px currentColor, 0 0 16px currentColor;
+        transform: scale(1);
+    }
+    50% {
+        box-shadow: 0 0 16px currentColor, 0 0 32px currentColor;
+        transform: scale(1.1);
+    }
+}
+
+.lcd-dot-label {
+    font-family: var(--font-data);
+    font-size: clamp(1.3rem, 4.5vmin, 1.875rem);
+    font-weight: 500;
+    color: var(--color-text-primary);
+}
+
+/* === DONUT COMPONENT === */
+.lcd-donut {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.lcd-donut-container {
+    position: relative;
+    width: min(85%, 85vh); /* Use smaller of width or height */
+    max-width: none; /* Remove max-width constraint to fill container */
+    aspect-ratio: 1;
+}
+
+.lcd-donut-svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.lcd-donut-svg circle:first-child {
+    stroke: rgba(0, 255, 255, 0.1);
+}
+
+.lcd-donut-fill {
+    transition: stroke-dashoffset 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    filter: drop-shadow(0 0 12px currentColor);
+}
+
+.lcd-donut-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.lcd-donut-value {
+    font-family: var(--font-data);
+    font-size: clamp(1.875rem, 10.5vmin, 3.75rem);
+    font-weight: 700;
+}
+
+.lcd-donut-label {
+    font-family: var(--font-display);
+    font-size: clamp(0.75rem, 3vmin, 1.125rem);
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+/* === NEON GLOW UTILITIES === */
+.neon-cyan {
+    color: var(--color-accent);
+    text-shadow: var(--glow-medium) var(--color-accent);
+}
+.neon-magenta {
+    color: var(--color-accent-secondary);
+    text-shadow: var(--glow-medium) var(--color-accent-secondary);
+}
+.neon-green {
+    color: var(--color-success);
+    text-shadow: var(--glow-medium) var(--color-success);
+}
+.neon-orange {
+    color: var(--color-warning);
+    text-shadow: var(--glow-medium) var(--color-warning);
+}
+.neon-red {
+    color: var(--color-critical);
+    text-shadow: var(--glow-medium) var(--color-critical);
+}
+
+/* Critical state animation */
+.critical-pulse {
+    animation: critical-pulse 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes critical-pulse {
+    0% {
+        filter: brightness(1);
+        text-shadow: 0 0 10px var(--color-critical);
+    }
+    100% {
+        filter: brightness(1.3);
+        text-shadow: 0 0 30px var(--color-critical), 0 0 60px var(--color-critical);
+    }
+}
+
+/* === RGB BORDER EFFECT (Optional) === */
+.rgb-border {
+    position: relative;
+}
+
+.rgb-border::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    background: linear-gradient(
+        90deg,
+        #ff0044, #ff8800, #ffff00, #00ff88, #00ffff, #0088ff, #8800ff, #ff0044
+    );
+    background-size: 400% 100%;
+    animation: rgb-flow 6s linear infinite;
+    z-index: -1;
+    opacity: 0.7;
+    filter: blur(6px);
+}
+
+@keyframes rgb-flow {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 400% 50%; }
+}
+
+/* === HEXAGON ACCENT (Decorative) === */
+.hex-accent::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: -15px;
+    transform: translateY(-50%);
+    width: 30px;
+    height: 30px;
+    background: var(--color-accent);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    opacity: 0.15;
+}

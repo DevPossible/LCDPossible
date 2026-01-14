@@ -141,8 +141,24 @@ public sealed class CorePlugin : IPanelPlugin
         {
             TypeId = "network-info",
             DisplayName = "Network Info",
-            Description = "Network configuration: hostname, IP, gateway, DNS",
+            Description = "Network interfaces with IP, gateway, speed",
+            Category = "Network",
+            IsLive = true
+        },
+        ["cpu-status"] = new PanelTypeInfo
+        {
+            TypeId = "cpu-status",
+            DisplayName = "CPU Status",
+            Description = "CPU status with usage, temperature, frequency, and core info",
             Category = "System",
+            IsLive = true
+        },
+        ["new-components-demo"] = new PanelTypeInfo
+        {
+            TypeId = "new-components-demo",
+            DisplayName = "New Components Demo",
+            Description = "Demo panel for ECharts and DaisyUI components",
+            Category = "Demo",
             IsLive = true
         }
     };
@@ -175,6 +191,7 @@ public sealed class CorePlugin : IPanelPlugin
             "cpu-info" => new CpuInfoPanel(provider),
             "cpu-usage-text" => new CpuUsageTextPanel(provider),
             "cpu-usage-graphic" => new CpuUsageGraphicPanel(provider),
+            "cpu-status" => new CpuStatusPanel(provider),
             "ram-info" => new RamInfoPanel(provider),
             "ram-usage-text" => new RamUsageTextPanel(provider),
             "ram-usage-graphic" => new RamUsageGraphicPanel(provider),
@@ -186,13 +203,15 @@ public sealed class CorePlugin : IPanelPlugin
             "cpu-thermal-graphic" => new CpuThermalGraphicPanel(provider),
             "gpu-thermal-graphic" => new GpuThermalGraphicPanel(provider),
             "system-thermal-graphic" => new SystemThermalGraphicPanel(provider),
-            "network-info" => new NetworkInfoPanel(),
+            "network-info" => new NetworkWidgetPanel(),
+            "new-components-demo" => new NewComponentsDemoPanel(provider),
             _ => null
         };
 
-        if (panel != null && context.ColorScheme != null && panel is LCDPossible.Sdk.BaseLivePanel livePanel)
+        // Set color scheme for all BasePanel-derived panels
+        if (panel != null && context.ColorScheme != null && panel is LCDPossible.Sdk.BasePanel basePanel)
         {
-            livePanel.SetColorScheme(context.ColorScheme);
+            basePanel.SetColorScheme(context.ColorScheme);
         }
 
         return panel;

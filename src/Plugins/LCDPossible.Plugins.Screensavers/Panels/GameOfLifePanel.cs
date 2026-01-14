@@ -2,12 +2,13 @@ using LCDPossible.Sdk;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
+using LCDPossible.Core.Rendering;
 namespace LCDPossible.Plugins.Screensavers.Panels;
 
 /// <summary>
 /// Conway's Game of Life cellular automaton.
 /// </summary>
-public sealed class GameOfLifePanel : BaseLivePanel
+public sealed class GameOfLifePanel : CanvasPanel
 {
     private const int CellSize = 4;
     private const float ResetInterval = 60f; // Reset after 60 seconds of stagnation
@@ -24,7 +25,7 @@ public sealed class GameOfLifePanel : BaseLivePanel
 
     public override string PanelId => "game-of-life";
     public override string DisplayName => "Game of Life";
-    public override bool IsAnimated => true;
+    public override PanelRenderMode RenderMode => PanelRenderMode.Stream;
 
     public GameOfLifePanel()
     {

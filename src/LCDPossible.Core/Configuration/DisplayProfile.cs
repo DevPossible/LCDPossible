@@ -50,6 +50,17 @@ public sealed class DisplayProfile
     public int DefaultTransitionDurationMs { get; set; } = 1500;
 
     /// <summary>
+    /// Default page effect for panels.
+    /// Options: none, glow-on-change, flip-digits, slide-numbers, typewriter, particle-burst,
+    /// gentle-float, tilt-3d, shake-on-warning, bounce-in, wave, scanlines, matrix-rain,
+    /// particle-field, grid-pulse, hologram, vanna-white, pixel-mascot, robot-assistant,
+    /// warning-flash, spotlight, neon-trails, glitch, random.
+    /// Default is "none".
+    /// </summary>
+    [YamlMember(Alias = "default_page_effect")]
+    public string DefaultPageEffect { get; set; } = "none";
+
+    /// <summary>
     /// Color scheme for panel rendering.
     /// </summary>
     [YamlMember(Alias = "colors")]
@@ -87,7 +98,8 @@ public sealed class DisplayProfile
                 UpdateIntervalSeconds = slide.UpdateInterval ?? DefaultUpdateIntervalSeconds,
                 BackgroundImage = slide.Background,
                 Transition = transitionType,
-                TransitionDurationMs = transitionDuration
+                TransitionDurationMs = transitionDuration,
+                PageEffect = slide.PageEffect ?? DefaultPageEffect
             });
         }
 
@@ -217,4 +229,14 @@ public sealed class SlideDefinition
     /// </summary>
     [YamlMember(Alias = "transition_duration")]
     public int? TransitionDurationMs { get; set; }
+
+    /// <summary>
+    /// Page effect for this slide (overrides profile default).
+    /// Options: none, glow-on-change, flip-digits, slide-numbers, typewriter, particle-burst,
+    /// gentle-float, tilt-3d, shake-on-warning, bounce-in, wave, scanlines, matrix-rain,
+    /// particle-field, grid-pulse, hologram, vanna-white, pixel-mascot, robot-assistant,
+    /// warning-flash, spotlight, neon-trails, glitch, random.
+    /// </summary>
+    [YamlMember(Alias = "page_effect")]
+    public string? PageEffect { get; set; }
 }
