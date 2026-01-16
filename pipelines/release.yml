@@ -14,7 +14,7 @@ trigger:
 pr: none
 
 variables:
-  - group: lcdpossible-secrets
+  - group: kv-devpossible-secrets
   - name: DOTNET_NOLOGO
     value: 'true'
   - name: DOTNET_SKIP_FIRST_TIME_EXPERIENCE

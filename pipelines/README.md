@@ -13,11 +13,9 @@ This directory contains Azure DevOps pipeline definitions for LCDPossible.
 
 ### 1. Variable Group
 
-Create a variable group named `lcdpossible-secrets` with the following variables:
+Uses the shared organization variable group `kv-devpossible-secrets` (already exists).
 
-| Variable | Description | Secret |
-|----------|-------------|--------|
-| `GITHUB_PAT` | GitHub Personal Access Token with `repo` scope | Yes |
+> **Note:** GitHub access is handled via service connection, not a variable.
 
 ### 2. Service Connections
 
