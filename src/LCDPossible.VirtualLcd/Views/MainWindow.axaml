@@ -1,0 +1,91 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:LCDPossible.VirtualLcd.ViewModels"
+        xmlns:views="using:LCDPossible.VirtualLcd.Views"
+        x:Class="LCDPossible.VirtualLcd.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="{Binding WindowTitle}"
+        Background="Black"
+        MinWidth="400"
+        MinHeight="200">
+
+    <Grid>
+        <!-- LCD Display -->
+        <views:LcdDisplayControl x:Name="LcdDisplay"
+                                  DisplayWidth="{Binding DisplayWidth}"
+                                  DisplayHeight="{Binding DisplayHeight}"
+                                  Stretch="Uniform" />
+
+        <!-- Stats Overlay (top-left) -->
+        <Border IsVisible="{Binding ShowStats}"
+                Background="#80000000"
+                CornerRadius="0,0,8,0"
+                Padding="12,8"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top">
+            <StackPanel>
+                <TextBlock Text="{Binding ProtocolName}"
+                           Foreground="White"
+                           FontWeight="SemiBold"
+                           FontSize="12" />
+                <TextBlock Text="{Binding DisplayWidth, StringFormat='{}{0}x'}"
+                           Foreground="#AAAAAA"
+                           FontSize="11">
+                    <TextBlock.Text>
+                        <MultiBinding StringFormat="{}{0}x{1}">
+                            <Binding Path="DisplayWidth" />
+                            <Binding Path="DisplayHeight" />
+                        </MultiBinding>
+                    </TextBlock.Text>
+                </TextBlock>
+                <Separator Margin="0,4" Background="#444" />
+                <TextBlock Foreground="#00FF00"
+                           FontFamily="Consolas"
+                           FontSize="14">
+                    <TextBlock.Text>
+                        <Binding Path="Fps" StringFormat="FPS: {0:F1}" />
+                    </TextBlock.Text>
+                </TextBlock>
+                <TextBlock Foreground="#AAAAAA"
+                           FontFamily="Consolas"
+                           FontSize="11">
+                    <TextBlock.Text>
+                        <Binding Path="FramesReceived" StringFormat="Frames: {0:N0}" />
+                    </TextBlock.Text>
+                </TextBlock>
+                <TextBlock Foreground="#AAAAAA"
+                           FontFamily="Consolas"
+                           FontSize="11">
+                    <TextBlock.Text>
+                        <Binding Path="PacketsReceived" StringFormat="Packets: {0:N0}" />
+                    </TextBlock.Text>
+                </TextBlock>
+                <TextBlock Foreground="#AAAAAA"
+                           FontFamily="Consolas"
+                           FontSize="11">
+                    <TextBlock.Text>
+                        <Binding Path="BytesPerSecond" StringFormat="Rate: {0:N0} B/s" />
+                    </TextBlock.Text>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
+        <!-- Status Bar (bottom) -->
+        <Border Background="#CC1a1a1a"
+                VerticalAlignment="Bottom"
+                Padding="8,4">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="{Binding StatusText}"
+                           Foreground="#888888"
+                           FontSize="11"
+                           VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1"
+                           Text="{Binding ListenEndpoint, StringFormat='UDP {0}'}"
+                           Foreground="#666666"
+                           FontSize="11"
+                           VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+    </Grid>
+
+</Window>

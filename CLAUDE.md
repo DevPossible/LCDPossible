@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **LCDPossible** is a cross-platform .NET 10 LCD controller service for HID-based LCD screens such as the Thermalright Trofeo Vision 360 ARGB (1280x480 LCD). The project uses a plugin-based driver architecture to support multiple devices and aims to be an open-source alternative to vendor-specific Windows-only software.
 
-**Current State:** Phase 1-2 complete. Core infrastructure and Trofeo Vision LCD driver implemented and verified working.
+**Current State:** Core infrastructure complete with plugin-based driver architecture. Trofeo Vision LCD driver implemented and verified working. VirtualLcd simulator available for testing without hardware.
 
 ## Key Documentation
 
@@ -38,15 +38,20 @@ LCDPossible/
 │   ├── LCDPossible.sln            # Solution file
 │   ├── LCDPossible.Core/          # Core library (net10.0)
 │   │   ├── Devices/               # Device abstraction & drivers
+│   │   ├── Plugins/               # Device plugin interfaces & manager
 │   │   ├── Rendering/             # Image encoding (JPEG, RGB565)
 │   │   └── Usb/                   # USB HID layer (HidSharp)
-│   └── LCDPossible/               # Main executable - service + CLI (net10.0)
-│       ├── Cli/                   # CLI commands (debug, etc.)
-│       ├── Monitoring/            # Hardware monitoring providers
-│       ├── Panels/                # Display panel implementations
-│       └── Rendering/             # System info rendering
+│   ├── LCDPossible/               # Main executable - service + CLI (net10.0)
+│   │   ├── Cli/                   # CLI commands (debug, etc.)
+│   │   ├── Monitoring/            # Hardware monitoring providers
+│   │   ├── Panels/                # Display panel implementations
+│   │   └── Rendering/             # System info rendering
+│   ├── LCDPossible.VirtualLcd/    # Virtual LCD simulator (Avalonia GUI)
+│   │   └── Protocols/             # Protocol handlers for simulator
+│   └── Plugins/
+│       └── LCDPossible.Plugins.Thermalright/  # Thermalright device drivers
 ├── tests/
-│   └── LCDPossible.Core.Tests/    # Unit tests (20 tests passing)
+│   └── LCDPossible.Core.Tests/    # Unit tests
 ├── build.ps1                      # Build script (auto-installs tools)
 ├── package.ps1                    # Package for distribution
 ├── start-app.ps1                  # Run service
@@ -341,7 +346,94 @@ public interface IDisplayPanel : IDisposable
     Task InitializeAsync(CancellationToken ct);
     Task<Image<Rgba32>> RenderFrameAsync(int width, int height, CancellationToken ct);
 }
+
+// Device plugin interface (for driver plugins)
+public interface IDevicePlugin : IDisposable
+{
+    string PluginId { get; }
+    string DisplayName { get; }
+    IReadOnlyList<SupportedDeviceInfo> SupportedDevices { get; }
+    IReadOnlyList<DeviceProtocolInfo> Protocols { get; }
+    ILcdDevice? CreatePhysicalDevice(HidDeviceInfo hidInfo, IDeviceEnumerator enumerator);
+    IVirtualDeviceHandler? CreateSimulatorHandler(string protocolId);
+}
 ```
+
+## Device Driver Plugin Architecture
+
+Device drivers are organized into plugins by manufacturer (e.g., `LCDPossible.Plugins.Thermalright`). Each plugin can provide:
+
+- **Physical device drivers** - For real USB HID devices
+- **Virtual device handlers** - For the VirtualLcd simulator to decode protocols
+
+### Plugin Structure
+
+```
+src/Plugins/LCDPossible.Plugins.{Manufacturer}/
+├── {Manufacturer}Plugin.cs     # IDevicePlugin implementation
+├── Drivers/
+│   └── {Device}Driver.cs       # Physical HID driver
+├── Handlers/
+│   └── {Device}Handler.cs      # Simulator handler (IVirtualDeviceHandler)
+└── plugin.json                 # Plugin manifest
+```
+
+### Creating a New Device Plugin
+
+1. Create a new class library project in `src/Plugins/`
+2. Reference `LCDPossible.Core`
+3. Implement `IDevicePlugin` interface
+4. Create a `plugin.json` manifest with `"type": "device"`
+
+```json
+{
+  "id": "lcdpossible.devices.{manufacturer}",
+  "type": "device",
+  "name": "{Manufacturer} LCD Devices",
+  "version": "1.0.0",
+  "assemblyName": "LCDPossible.Plugins.{Manufacturer}.dll"
+}
+```
+
+## VirtualLcd Simulator
+
+The VirtualLcd simulator (`src/LCDPossible.VirtualLcd/`) is an Avalonia GUI application that simulates LCD hardware for testing without physical devices. It:
+
+- Receives HID packets over UDP
+- Decodes frames using plugin-provided protocol handlers
+- Displays the decoded images in a window
+
+### Running the Simulator
+
+```bash
+# Build and run (from solution root)
+dotnet run --project src/LCDPossible.VirtualLcd -- --help
+
+# Start with default protocol (Trofeo Vision)
+dotnet run --project src/LCDPossible.VirtualLcd
+
+# Start with specific protocol
+dotnet run --project src/LCDPossible.VirtualLcd -- -d trofeo-vision -p 5302
+
+# List available protocols
+dotnet run --project src/LCDPossible.VirtualLcd -- --list-drivers
+
+# Window options
+dotnet run --project src/LCDPossible.VirtualLcd -- --always-on-top --borderless --scale 0.5
+```
+
+### Simulator CLI Options
+
+| Option | Description |
+|--------|-------------|
+| `-d, --driver` | Protocol to simulate (default: trofeo-vision) |
+| `-p, --port` | UDP port to listen on (default: auto 5302-5399) |
+| `-b, --bind` | IP address to bind to (default: 0.0.0.0) |
+| `--stats` | Show statistics overlay |
+| `--always-on-top` | Keep window above other windows |
+| `--borderless` | Hide window decorations |
+| `--scale` | Window scale factor (0.1-10.0) |
+| `--list-drivers` | List available protocols and exit |
 
 ## Creating New Panels
 

@@ -7,6 +7,7 @@ using LCDPossible.Core.Plugins;
 using LCDPossible.Core.Rendering;
 using LCDPossible.Core.Transitions;
 using LCDPossible.Core.Usb;
+using LCDPossible.Core.Usb.Discovery;
 using LCDPossible;
 using LCDPossible.Cli;
 using LCDPossible.Ipc;
@@ -90,14 +91,25 @@ static async Task<int> RunServiceAsync(string[] args)
             new PluginManager(sp.GetService<ILoggerFactory>(), sp));
 
         // Register core services
+        // Use CompositeDeviceEnumerator to discover both real HID devices and virtual LCD instances
         builder.Services.AddSingleton<IDeviceEnumerator>(sp =>
-            new HidSharpEnumerator(sp.GetService<ILoggerFactory>()));
+        {
+            var loggerFactory = sp.GetService<ILoggerFactory>();
+            var hidEnumerator = new HidSharpEnumerator(loggerFactory);
+            var compositeEnumerator = new CompositeDeviceEnumerator(hidEnumerator);
+
+            // Discover virtual devices at startup (async, but we'll block briefly)
+            // This allows the service to find VirtualLCD instances on the network
+            compositeEnumerator.RefreshVirtualDevicesAsync().GetAwaiter().GetResult();
+
+            return compositeEnumerator;
+        });
 
         builder.Services.AddSingleton<DeviceManager>(sp =>
         {
             var enumerator = sp.GetRequiredService<IDeviceEnumerator>();
             var loggerFactory = sp.GetService<ILoggerFactory>();
-            var manager = new DeviceManager(enumerator, loggerFactory);
+            var manager = new DeviceManager(enumerator, pluginManager: null, loggerFactory: loggerFactory);
 
             // Register all known drivers
             DriverRegistry.RegisterAllDrivers(manager, enumerator, loggerFactory);
@@ -174,6 +186,7 @@ static async Task<int> RunCliAsync(string[] args)
         "profile" => ProfileCommands.Run(args),
         "service" => ServiceCommands.Run(args),
         "config" => ConfigCommands.Run(args),
+        "list-drivers" or "drivers" => ListDrivers(),
         "help" or "h" or "?" => ShowHelp(),
         "version" or "v" => ShowVersion(),
         "stop" => StopService(),
@@ -204,6 +217,7 @@ SERVICE COMMANDS:
 
 CLI COMMANDS:
     list                    List connected LCD devices
+    list-drivers, drivers   List available LCD drivers and VirtualLCD simulator options
     list-panels, panels     List all available panel types with descriptions
     help-panel <type>       Show detailed help for a specific panel type
     status                  Show status of connected devices and configuration
@@ -399,6 +413,23 @@ static int ListPanels()
     }
 
     Console.WriteLine("Use 'lcdpossible help-panel <panel-type>' for detailed help on a specific panel.");
+    return 0;
+}
+
+static int ListDrivers()
+{
+    Console.WriteLine("Available LCD drivers:\n");
+
+    foreach (var device in DriverRegistry.SupportedDevices)
+    {
+        Console.WriteLine($"  {device.DriverName,-25} {device.DeviceName}");
+        Console.WriteLine($"                            VID:PID: 0x{device.VendorId:X4}:0x{device.ProductId:X4}");
+        Console.WriteLine();
+    }
+
+    Console.WriteLine("Use 'lcdpossible list' to see connected devices.");
+    Console.WriteLine("Use VirtualLCD with '--driver <name>' to simulate a device.");
+
     return 0;
 }
 
@@ -984,8 +1015,8 @@ static async Task<int> ShowPanels(string[] args)
         }
     }
 
-    // Find device
-    using var enumerator = new HidSharpEnumerator();
+    // Find device (including virtual devices)
+    using var enumerator = await CreateEnumeratorWithVirtualDiscoveryAsync();
     using var deviceManager = new DeviceManager(enumerator);
     DriverRegistry.RegisterAllDrivers(deviceManager, enumerator);
 
@@ -1591,11 +1622,24 @@ static string ExpandWildcards(string profile, string[] availablePanels, bool deb
     return string.Join(",", expandedParts);
 }
 
+/// <summary>
+/// Creates a CompositeDeviceEnumerator that discovers both real HID devices and virtual LCD instances.
+/// Virtual devices are discovered first and listed before real devices.
+/// </summary>
+static async Task<CompositeDeviceEnumerator> CreateEnumeratorWithVirtualDiscoveryAsync()
+{
+    var hidEnumerator = new HidSharpEnumerator();
+    var compositeEnumerator = new CompositeDeviceEnumerator(hidEnumerator);
+    await compositeEnumerator.RefreshVirtualDevicesAsync();
+    return compositeEnumerator;
+}
+
 static int ListDevices()
 {
-    Console.WriteLine("Scanning for LCD devices...\n");
+    Console.WriteLine("Scanning for LCD devices (including virtual)...\n");
 
-    using var enumerator = new HidSharpEnumerator();
+    // Use composite enumerator to find both real and virtual devices
+    using var enumerator = CreateEnumeratorWithVirtualDiscoveryAsync().GetAwaiter().GetResult();
     using var deviceManager = new DeviceManager(enumerator);
 
     DriverRegistry.RegisterAllDrivers(deviceManager, enumerator);
@@ -1610,6 +1654,7 @@ static int ListDevices()
         {
             Console.WriteLine($"  - {supported.DeviceName} (VID:0x{supported.VendorId:X4} PID:0x{supported.ProductId:X4})");
         }
+        Console.WriteLine("\nTip: Start VirtualLCD to test without hardware.");
         return 0;
     }
 
@@ -1617,11 +1662,20 @@ static int ListDevices()
     for (var i = 0; i < devices.Count; i++)
     {
         var device = devices[i];
-        Console.WriteLine($"[{i}] {device.Info.Name}");
+        var isVirtual = device.Info.DevicePath?.StartsWith("virtual://", StringComparison.OrdinalIgnoreCase) ?? false;
+        var typeLabel = isVirtual ? "[Virtual]" : "[HID]";
+
+        Console.WriteLine($"[{i}] {device.Info.Name} {typeLabel}");
         Console.WriteLine($"    Manufacturer: {device.Info.Manufacturer}");
         Console.WriteLine($"    VID:PID:      0x{device.Info.VendorId:X4}:0x{device.Info.ProductId:X4}");
         Console.WriteLine($"    Resolution:   {device.Capabilities.Width}x{device.Capabilities.Height}");
         Console.WriteLine($"    Driver:       {device.Info.DriverName}");
+        if (isVirtual)
+        {
+            // Extract port from device path (virtual://host:port)
+            var path = device.Info.DevicePath ?? "";
+            Console.WriteLine($"    Endpoint:     {path.Replace("virtual://", "")}");
+        }
         Console.WriteLine();
     }
 
@@ -1657,7 +1711,8 @@ static async Task<int> SetImage(string[] args)
 
     Console.WriteLine($"Loading image: {imagePath}");
 
-    using var enumerator = new HidSharpEnumerator();
+    // Include virtual devices in discovery
+    using var enumerator = CreateEnumeratorWithVirtualDiscoveryAsync().GetAwaiter().GetResult();
     using var deviceManager = new DeviceManager(enumerator);
 
     DriverRegistry.RegisterAllDrivers(deviceManager, enumerator);
@@ -1710,7 +1765,8 @@ static async Task<int> TestPattern(int deviceIndex)
 {
     Console.WriteLine("Generating test pattern...");
 
-    using var enumerator = new HidSharpEnumerator();
+    // Include virtual devices in discovery
+    using var enumerator = await CreateEnumeratorWithVirtualDiscoveryAsync();
     using var deviceManager = new DeviceManager(enumerator);
 
     DriverRegistry.RegisterAllDrivers(deviceManager, enumerator);

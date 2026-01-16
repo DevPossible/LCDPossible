@@ -1,0 +1,35 @@
+{
+  "id": "lcdpossible.devices.thermalright",
+  "type": "device",
+  "name": "Thermalright LCD Devices",
+  "version": "1.0.0",
+  "author": "LCDPossible Team",
+  "description": "Device drivers for Thermalright LCD products including Trofeo Vision 360 ARGB",
+  "minimumSdkVersion": "1.0.0",
+  "assemblyName": "LCDPossible.Plugins.Thermalright.dll",
+  "devices": [
+    {
+      "vendorId": "0x0416",
+      "productId": "0x5302",
+      "name": "Thermalright Trofeo Vision 360 ARGB",
+      "protocolId": "thermalright-trofeo-vision",
+      "width": 1280,
+      "height": 480
+    }
+  ],
+  "protocols": [
+    {
+      "protocolId": "thermalright-trofeo-vision",
+      "displayName": "Trofeo Vision Protocol",
+      "defaultPort": 5302,
+      "capabilities": {
+        "width": 1280,
+        "height": 480,
+        "maxPacketSize": 512,
+        "maxFrameRate": 60,
+        "supportsBrightness": true,
+        "supportsOrientation": true
+      }
+    }
+  ]
+}
