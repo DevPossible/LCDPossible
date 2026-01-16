@@ -116,19 +116,6 @@ if (-not (Test-Path ".git")) {
 }
 Write-Success "In git repository"
 
-# Check gh CLI is available
-if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
-    throw "GitHub CLI (gh) is required. Install from: https://cli.github.com/"
-}
-Write-Success "GitHub CLI available"
-
-# Check gh is authenticated
-$ghAuth = gh auth status 2>&1
-if ($LASTEXITCODE -ne 0) {
-    throw "GitHub CLI not authenticated. Run: gh auth login"
-}
-Write-Success "GitHub CLI authenticated"
-
 # Check we're on develop branch
 $currentBranch = Get-CurrentBranch
 if ($currentBranch -ne "develop") {
