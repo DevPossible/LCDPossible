@@ -6,10 +6,14 @@ using LCDPossible.Core.Ipc;
 using LCDPossible.Core.Plugins;
 using LCDPossible.Core.Rendering;
 using LCDPossible.Core.Transitions;
+using LCDPossible.Core.Sensors;
+using LCDPossible.Core.Services;
 using LCDPossible.Core.Usb;
 using LCDPossible.Core.Usb.Discovery;
 using LCDPossible;
 using LCDPossible.Cli;
+using LCDPossible.Cli.Framework;
+using LCDPossible.Cli.Commands;
 using LCDPossible.Ipc;
 using LCDPossible.Monitoring;
 using LCDPossible.Panels;
@@ -173,27 +177,41 @@ static async Task<int> RunCliAsync(string[] args)
 
     return command switch
     {
+        // Display commands
+        "show" => await ShowPanels(args),
+        "render" or "test" => await RenderPanelsToFiles(args),
+        "set-image" => await SetImage(args),
+        "test-pattern" => await TestPattern(GetDeviceIndex(args)),
+
+        // Device commands
         "list" => ListDevices(),
+        "list-drivers" or "drivers" => ListDrivers(),
+        "status" => ShowStatus(),
+
+        // Panel commands
         "list-panels" or "panels" => ListPanels(),
         "help-panel" or "panel-help" => ShowPanelHelp(args),
-        "status" => ShowStatus(),
-        "test" => await RenderPanelsToFiles(args),
-        "test-pattern" => await TestPattern(GetDeviceIndex(args)),
-        "set-image" => await SetImage(args),
-        "show" => await ShowPanels(args),
-        "debug" => await DebugTest.RunAsync(),
-        "sensors" or "list-sensors" => await RunSensorsCommand(),
+
+        // Management commands
         "profile" => ProfileCommands.Run(args),
-        "service" => ServiceCommands.Run(args),
         "config" => ConfigCommands.Run(args),
-        "list-drivers" or "drivers" => ListDrivers(),
-        "help" or "h" or "?" => ShowHelp(),
-        "version" or "v" => ShowVersion(),
+        "service" => ServiceCommands.Run(args),
+        "sensor" or "sensors" => await RunSensorCommand(args),
+
+        // Runtime commands (when service is running)
         "stop" => StopService(),
         "next" => AdvanceSlide(),
-        "previous" => PreviousSlide(),
+        "previous" or "prev" => PreviousSlide(),
         "goto" => GoToSlide(args),
-        "set-brightness" => await SetBrightness(args),
+        "set-brightness" or "brightness" => await SetBrightness(args),
+
+        // Help and version
+        "help" or "h" or "?" => ShowHelp(),
+        "version" or "v" => ShowVersion(),
+
+        // Debug (hidden)
+        "debug" => await DebugTest.RunAsync(),
+
         _ => UnknownCommand(command)
     };
 }
@@ -203,144 +221,63 @@ static int ShowHelp()
     var version = GetVersion();
 
     Console.WriteLine($@"
-LCDPossible v{version}
-Cross-platform LCD controller for HID-based displays
+LCDPossible v{version} - Cross-platform LCD controller for HID-based displays
 
-USAGE:
-    lcdpossible <command> [options]
-    lcdpossible [--help | -h | /? | /h]
+USAGE: lcdpossible <command> [options]
 
-SERVICE COMMANDS:
-    serve, run              Start the LCD service (foreground)
-    serve --service         Start as Windows Service
-    service <sub-command>   Manage service installation (install/remove/start/stop/restart)
-
-CLI COMMANDS:
-    list                    List connected LCD devices
-    list-drivers, drivers   List available LCD drivers and VirtualLCD simulator options
-    list-panels, panels     List all available panel types with descriptions
-    help-panel <type>       Show detailed help for a specific panel type
-    status                  Show status of connected devices and configuration
-    test                    Render panels to JPEG files (no LCD required, supports wildcards)
+DISPLAY COMMANDS:
+    show [panels]           Display panels on LCD (uses profile if no panels given)
+    render [panels]         Render panels to JPEG files for testing
+    set-image -p <file>     Display a static image on the LCD
     test-pattern            Display a test pattern on the LCD
-    set-image               Send an image file to the LCD display
-    show                    Quick display panels (uses default profile if no panels specified)
-    profile <sub-command>   Manage display profiles (use 'profile help' for details)
-    config <sub-command>    Manage configuration (use 'config help' for details)
 
-TEST COMMAND OPTIONS:
-    --resolution, -r WxH    Target resolution (default: 1280x480)
-    --width W               Target width in pixels (overrides -r)
-    --height H              Target height in pixels (overrides -r)
-    --wait, -w <seconds>    Render frames for N seconds before capture
-    --transitions, -t       Enable transitions between panels
-    --output, -o <path>     Output directory (default: user home folder)
+DEVICE COMMANDS:
+    list                    List connected LCD devices
+    list-drivers            List available device drivers
+    status                  Show device and service status
 
-RUNTIME COMMANDS (when service is running):
-    status                  Get service status and current slideshow info
-    show <panels>           Change the current slideshow panels
-    set-image -p <file>     Display a static image
-    test-pattern            Display a test pattern
-    set-brightness <0-100>  Set display brightness
-    next                    Advance to next slide
-    previous                Go to previous slide
-    goto <index>            Jump to a specific slide (0-based, clamped to valid range)
-    stop                    Stop the service gracefully
-
-    Note: When the service is running, these commands communicate via IPC.
-    When the service is not running, they operate directly on the device.
-
-GENERAL OPTIONS:
-    --help, -h, /?, /h      Show this help message
-    --version, -v           Show version information
-
-DEVICE OPTIONS:
-    --device, -d <n>        Device index (default: 0, use 'list' to see devices)
-
-IMAGE OPTIONS:
-    --path, -p <file>       Path to image file (required for set-image)
+PANEL COMMANDS:
+    list-panels             List all available panel types
+    help-panel <type>       Show detailed help for a panel type
 
 PROFILE COMMANDS:
-    Use 'lcdpossible profile help' for full profile management documentation.
-    Quick examples:
-        lcdpossible profile new my-profile
-        lcdpossible profile append-panel cpu-usage-graphic
-        lcdpossible profile list-panels
+    profile show            Show current profile panels
+    profile add <panel>     Add a panel to the profile
+    profile remove <index>  Remove a panel from the profile
+    profile help            Show all profile commands
 
-SHOW COMMAND:
-    Quick display of panels using inline profile format:
-    Format: {{panel}}|@{{param}}={{value}}@{{param}}={{value}},{{panel}},...
+CONFIG COMMANDS:
+    config show             Show current configuration
+    config set-theme <name> Set the default theme
+    config set-effect <name> Set the default page effect
+    config help             Show all config commands
 
-    Parameters:
-      @duration=N           How long to show this panel (seconds, default: 15)
-      @interval=N           How often to refresh data (seconds, default: 5)
-      @background=path      Background image for the panel
+SERVICE COMMANDS:
+    serve                   Start the display service (foreground)
+    service install         Install as system service
+    service start|stop      Start or stop the service
+    service help            Show all service commands
 
-EXAMPLES:
-    lcdpossible config set-proxmox --api-url https://proxmox:8006 --token-id user@pve!token --token-secret xxx
-    lcdpossible config set-proxmox --api-url """"   Clear Proxmox API URL (disables Proxmox)
-    lcdpossible config show                   Show current configuration
-    lcdpossible service install               Install service (requires admin/sudo)
-    lcdpossible service start                 Start the installed service
-    lcdpossible service status                Check service status
-    lcdpossible service restart               Restart the service
-    lcdpossible serve                         Start service in foreground
-    lcdpossible list                          List all connected LCD devices
-    lcdpossible list-panels                   List all available panel types
-    lcdpossible help-panel video              Show help for the video panel
-    lcdpossible test                          Render default panels to ~/panel.jpg files
-    lcdpossible test cpu-info,gpu-info        Render specific panels to files
-    lcdpossible test cpu-*                    Render all CPU panels (wildcard)
-    lcdpossible test *-graphic                Render all graphic panels (wildcard)
-    lcdpossible test *                        Render ALL available panels
-    lcdpossible test -r 800x480               Render at 800x480 resolution
-    lcdpossible test -w 5 animated-gif:demo.gif   Wait 5 seconds then capture frame
-    lcdpossible test -o ./output cpu-info     Save output to ./output directory
-    lcdpossible test -t -w 3 a,b,c            Enable transitions, wait 3s, capture mid-transition
-    lcdpossible test-pattern                  Send test pattern to first device
-    lcdpossible test-pattern -d 1             Send test pattern to second device
-    lcdpossible set-image -p wallpaper.jpg    Display an image
-    lcdpossible show                          Show default panels (basic, CPU, GPU, RAM)
-    lcdpossible show basic-info               Show basic info panel
-    lcdpossible show basic-info|@duration=10  Show with 10s duration
-    lcdpossible show basic-info,cpu-usage-graphic   Show multiple panels
-    lcdpossible profile list                  List available profiles
-    lcdpossible profile new my-profile        Create a new profile
-    lcdpossible profile append-panel cpu-info Add a panel to a profile
-    lcdpossible profile list-panels           Show panels in default profile
+RUNTIME COMMANDS (when service is running):
+    next, previous          Navigate between slides
+    goto <index>            Jump to a specific slide
+    stop                    Stop the service gracefully
 
-CONFIGURATION:
-    LCDPossible uses a YAML profile for slideshow configuration.
-    The profile is searched in these locations (first found wins):
+GLOBAL OPTIONS:
+    -d, --device <n>        Device index (default: 0)
+    --debug                 Enable debug output
+    -h, --help              Show help for a command
+    -v, --version           Show version information
 
-    Windows:    C:\ProgramData\LCDPossible\display-profile.yaml
-    Linux:      /etc/lcdpossible/display-profile.yaml
-    macOS:      /Library/Application Support/LCDPossible/display-profile.yaml
+QUICK START:
+    lcdpossible list                    # See connected devices
+    lcdpossible show                    # Display default profile
+    lcdpossible show cpu-info,gpu-info  # Display specific panels
+    lcdpossible render cpu-*            # Render CPU panels to files
+    lcdpossible config set-theme rgb-gaming
 
-    If no profile is found, a default profile is used.
-
-THEMES:
-    LCDPossible includes several built-in color themes:
-
-    Gamer:      cyberpunk (default), rgb-gaming
-    Corporate:  executive, clean
-
-    Set theme:          lcdpossible config set-theme <name>
-    List themes:        lcdpossible config list-themes
-    Per-panel override: cpu-info|@theme=executive
-
-PANELS:
-    Use 'lcdpossible list-panels' for available panel types.
-    Use 'lcdpossible help-panel <type>' for detailed help on a panel.
-
-SUPPORTED DEVICES:");
-    foreach (var supported in DriverRegistry.SupportedDevices)
-    {
-        Console.WriteLine($"    {supported.DeviceName,-35} VID:0x{supported.VendorId:X4} PID:0x{supported.ProductId:X4}");
-    }
-
-    Console.WriteLine(@"
-For more information, visit: https://github.com/DevPossible/lcd-possible
+For detailed help: lcdpossible <command> --help
+Documentation: https://github.com/DevPossible/lcd-possible
 ");
     return 0;
 }
@@ -577,16 +514,34 @@ static int UnknownCommand(string command)
     return 1;
 }
 
-static Task<int> RunSensorsCommand()
+static async Task<int> RunSensorCommand(string[] args)
 {
     if (!OperatingSystem.IsWindows())
     {
-        Console.Error.WriteLine("The 'sensors' command is only available on Windows.");
+        Console.Error.WriteLine("The 'sensor' command is only available on Windows.");
         Console.Error.WriteLine("It uses LibreHardwareMonitor and WMI which are Windows-specific.");
-        return Task.FromResult(1);
+        return 1;
     }
 
-    return ListSensors.RunAsync();
+    // Create CLI context and router
+    var context = new CliContext(args);
+    var router = new CliRouter();
+
+    // Register sensor commands
+    router.RegisterCommand(new SensorListCommand());
+    router.RegisterCommand(new SensorReadCommand());
+    router.RegisterCommand(new SensorWatchCommand());
+    router.RegisterCommand(new SensorHelpCommand());
+
+    // Route to the appropriate command
+    using var cts = new CancellationTokenSource();
+    Console.CancelKeyPress += (_, e) =>
+    {
+        e.Cancel = true;
+        cts.Cancel();
+    };
+
+    return await router.ExecuteAsync(context, cts.Token);
 }
 
 static int GetDeviceIndex(string[] args)
@@ -645,6 +600,11 @@ static string? GetShowProfile(string[] args)
     }
 
     return null;
+}
+
+static bool IsHelpRequested(string[] args)
+{
+    return args.Any(a => a is "--help" or "-h" or "-?" or "/?" or "/h");
 }
 
 static bool IsDebugMode(string[] args)
@@ -970,7 +930,45 @@ static bool IsProxmoxConfigured(bool debug = false)
 
 static async Task<int> ShowPanels(string[] args)
 {
-    var profile = GetShowProfile(args);
+    if (IsHelpRequested(args))
+    {
+        Console.WriteLine(@"
+SHOW - Display panels on the LCD
+
+USAGE: lcdpossible show [panels] [options]
+
+DESCRIPTION:
+    Displays panels on the connected LCD device. If no panels are specified,
+    uses the panels from the saved display profile.
+
+ARGUMENTS:
+    [panels]                Comma-separated list of panel types to display
+                            Supports wildcards: cpu-*, *-graphic, *
+
+PANEL OPTIONS (inline):
+    @duration=<seconds>     How long to display each panel (default: 15)
+    @interval=<seconds>     Data refresh interval (default: 5)
+    @theme=<name>           Theme override for this panel
+    @effect=<name>          Page effect for this panel
+    @background=<path>      Background image for this panel
+
+OPTIONS:
+    -d, --device <index>    Device index (default: 0)
+    --debug                 Enable debug output
+    -h, --help              Show this help
+
+EXAMPLES:
+    lcdpossible show                        # Use panels from saved profile
+    lcdpossible show cpu-info               # Show single panel
+    lcdpossible show cpu-info,gpu-info      # Show multiple panels
+    lcdpossible show cpu-*                  # Show all CPU panels
+    lcdpossible show basic-info@duration=30 # Show with 30s duration
+    lcdpossible show cpu-info@theme=executive@effect=hologram
+");
+        return 0;
+    }
+
+    var cliProfile = GetShowProfile(args); // Panels specified on CLI
     var deviceIndex = GetDeviceIndex(args);
     var debug = IsDebugMode(args);
 
@@ -980,29 +978,57 @@ static async Task<int> ShowPanels(string[] args)
         Console.WriteLine($"[DEBUG] Arguments: {string.Join(" ", args)}");
     }
 
-    // If no profile specified, use the default profile panels
-    if (string.IsNullOrEmpty(profile))
+    // Always load the saved profile first (or in-memory default if no file exists)
+    var profileManager = new ProfileManager();
+    var savedProfile = profileManager.LoadProfile(null);
+    if (debug)
     {
-        // Get default profile (includes Proxmox panels if configured)
-        profile = GetDefaultProfile(debug);
-        Console.WriteLine("No panels specified, using default profile");
-        if (debug)
+        Console.WriteLine($"[DEBUG] Loaded profile: {savedProfile.Name}");
+        Console.WriteLine($"[DEBUG] Profile DefaultPageEffect: {savedProfile.DefaultPageEffect}");
+        Console.WriteLine($"[DEBUG] Profile DefaultTransition: {savedProfile.DefaultTransition}");
+        Console.WriteLine($"[DEBUG] Profile slides: {savedProfile.Slides.Count}");
+    }
+
+    List<SlideshowItem> items;
+    if (!string.IsNullOrEmpty(cliProfile))
+    {
+        // CLI panels override the profile's slides
+        var (isValid, error) = InlineProfileParser.Validate(cliProfile);
+        if (!isValid)
         {
-            Console.WriteLine($"[DEBUG] Default profile: {profile}");
+            Console.Error.WriteLine($"Error: {error}");
+            return 1;
+        }
+        items = InlineProfileParser.Parse(cliProfile);
+        Console.WriteLine($"Using {items.Count} panel(s) from command line");
+
+        // Apply profile defaults to CLI items that don't have explicit values
+        var defaultPageEffect = savedProfile.DefaultPageEffect ?? "none";
+        var defaultTransition = TransitionTypeExtensions.Parse(savedProfile.DefaultTransition);
+        foreach (var item in items)
+        {
+            if (defaultPageEffect != "none" && item.PageEffect == "none")
+            {
+                item.PageEffect = defaultPageEffect;
+            }
+            // Apply default transition if item has the default random
+            if (item.Transition == TransitionType.Random && defaultTransition != TransitionType.Random)
+            {
+                item.Transition = defaultTransition;
+            }
+        }
+        if (debug && defaultPageEffect != "none")
+        {
+            Console.WriteLine($"[DEBUG] Applied profile DefaultPageEffect: {defaultPageEffect}");
         }
     }
-
-    // Validate the profile
-    var (isValid, error) = InlineProfileParser.Validate(profile);
-    if (!isValid)
+    else
     {
-        Console.Error.WriteLine($"Error: {error}");
-        return 1;
+        // Use the profile's slideshow items (ToSlideshowItems already applies defaults)
+        items = savedProfile.ToSlideshowItems();
+        Console.WriteLine($"Using {items.Count} panel(s) from profile");
     }
 
-    // Parse the profile
-    var items = InlineProfileParser.Parse(profile);
-    Console.WriteLine($"Parsed {items.Count} panel(s) from inline profile");
     if (debug)
     {
         foreach (var item in items)
@@ -1010,6 +1036,7 @@ static async Task<int> ShowPanels(string[] args)
             var extras = new List<string>();
             if (!string.IsNullOrEmpty(item.Theme)) extras.Add($"Theme={item.Theme}");
             if (!string.IsNullOrEmpty(item.PageEffect) && item.PageEffect != "none") extras.Add($"Effect={item.PageEffect}");
+            if (item.Transition != TransitionType.Random) extras.Add($"Transition={item.Transition}");
             var extraStr = extras.Count > 0 ? $", {string.Join(", ", extras)}" : "";
             Console.WriteLine($"[DEBUG] Panel: Type={item.Type}, Source={item.Source}, Duration={item.DurationSeconds}s{extraStr}");
         }
@@ -1082,7 +1109,8 @@ static async Task<int> ShowPanels(string[] args)
         {
             Console.WriteLine("[DEBUG] Creating PanelFactory...");
         }
-        var panelFactory = new PanelFactory(pluginManager, systemProvider, debug: debug);
+        using var lcdServices = LcdServices.CreateMinimal(new SensorRegistry());
+        var panelFactory = new PanelFactory(pluginManager, systemProvider, services: lcdServices, debug: debug);
         if (debug)
         {
             Console.WriteLine("[DEBUG] Creating SlideshowManager...");
@@ -1178,6 +1206,48 @@ static async Task<int> ShowPanels(string[] args)
 
 static async Task<int> RenderPanelsToFiles(string[] args)
 {
+    if (IsHelpRequested(args))
+    {
+        Console.WriteLine(@"
+RENDER - Render panels to JPEG files for testing
+
+USAGE: lcdpossible render [panels] [options]
+
+DESCRIPTION:
+    Renders panels to JPEG image files without requiring an LCD device.
+    Useful for testing panel layouts, debugging, and previewing content.
+
+ARGUMENTS:
+    [panels]                Comma-separated list of panel types to render
+                            Supports wildcards: cpu-*, *-graphic, *
+                            If omitted, renders panels from the saved profile
+
+OPTIONS:
+    -r, --resolution WxH    Target resolution (default: 1280x480)
+    --width <pixels>        Target width (overrides -r)
+    --height <pixels>       Target height (overrides -r)
+    -w, --wait <seconds>    Wait time before capture (for animations)
+    -t, --transitions       Enable transitions between panels
+    -o, --output <path>     Output directory (default: user home)
+    --debug                 Enable debug output
+    -h, --help              Show this help
+
+EXAMPLES:
+    lcdpossible render                      # Render default profile panels
+    lcdpossible render cpu-info             # Render single panel
+    lcdpossible render cpu-*                # Render all CPU panels
+    lcdpossible render * -o ./output        # Render all panels to ./output
+    lcdpossible render -r 800x480           # Render at different resolution
+    lcdpossible render -w 5 animated-gif:demo.gif  # Wait 5s then capture
+    lcdpossible render -t -w 3 a,b,c        # Capture mid-transition
+
+OUTPUT:
+    Files are saved as {panel-type}.jpg in the output directory.
+    With --debug, shows full path and file size for each rendered file.
+");
+        return 0;
+    }
+
     var profile = GetShowProfile(args);
     var debug = IsDebugMode(args);
 
@@ -1243,7 +1313,8 @@ static async Task<int> RenderPanelsToFiles(string[] args)
     pluginManager.DiscoverPlugins();
 
     // Create panel factory
-    var panelFactory = new PanelFactory(pluginManager, systemProvider, debug: debug);
+    using var lcdServices = LcdServices.CreateMinimal(new SensorRegistry());
+    var panelFactory = new PanelFactory(pluginManager, systemProvider, services: lcdServices, debug: debug);
 
     // Get themes (if specified)
     var themes = GetTestThemes(args, debug);

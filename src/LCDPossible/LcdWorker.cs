@@ -5,6 +5,8 @@ using LCDPossible.Core.Ipc;
 using LCDPossible.Core.Monitoring;
 using LCDPossible.Core.Plugins;
 using LCDPossible.Core.Rendering;
+using LCDPossible.Core.Sensors;
+using LCDPossible.Core.Services;
 using LCDPossible.Ipc;
 using LCDPossible.Monitoring;
 using LCDPossible.Panels;
@@ -40,6 +42,7 @@ public sealed class LcdWorker : BackgroundService
 
     private ISystemInfoProvider? _systemProvider;
     private IProxmoxProvider? _proxmoxProvider;
+    private ILcdServices? _lcdServices;
     private PanelFactory? _panelFactory;
     private DisplayProfile? _displayProfile;
     private string? _profilePath;
@@ -159,6 +162,7 @@ public sealed class LcdWorker : BackgroundService
 
             _systemProvider?.Dispose();
             _proxmoxProvider?.Dispose();
+            _lcdServices?.Dispose();
 
             // Disconnect all devices
             foreach (var device in _connectedDevices.Values)
@@ -199,11 +203,15 @@ public sealed class LcdWorker : BackgroundService
         _pluginManager.DiscoverPlugins();
         _logger.LogInformation("Discovered {Count} plugins", _pluginManager.DiscoveredPlugins.Count);
 
+        // Create LCD services facade with sensor registry
+        _lcdServices = LcdServices.CreateMinimal(new SensorRegistry());
+
         // Create panel factory with color scheme from profile
         _panelFactory = new PanelFactory(
             _pluginManager,
             _systemProvider,
             _proxmoxProvider,
+            _lcdServices,
             _loggerFactory);
 
         if (_displayProfile != null)

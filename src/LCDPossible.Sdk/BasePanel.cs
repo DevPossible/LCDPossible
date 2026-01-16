@@ -1,5 +1,6 @@
 using LCDPossible.Core.Configuration;
 using LCDPossible.Core.Rendering;
+using LCDPossible.Core.Services;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
@@ -31,6 +32,12 @@ public abstract class BasePanel : IDisplayPanel
     /// Color scheme for rendering. Can be updated at runtime via <see cref="SetColorScheme"/>.
     /// </summary>
     protected ResolvedColorScheme Colors { get; private set; } = ResolvedColorScheme.CreateDefault();
+
+    /// <summary>
+    /// Unified LCD services facade providing access to sensors, panels, themes, and effects.
+    /// Use <see cref="SetServices"/> to inject services from <see cref="PanelCreationContext"/>.
+    /// </summary>
+    protected ILcdServices? Services { get; private set; }
 
     /// <summary>
     /// Gets the unique identifier for this panel type.
@@ -85,6 +92,16 @@ public abstract class BasePanel : IDisplayPanel
     public void SetColorScheme(ResolvedColorScheme? colors)
     {
         Colors = colors ?? ResolvedColorScheme.CreateDefault();
+    }
+
+    /// <summary>
+    /// Sets the LCD services facade for this panel.
+    /// Call this from plugin's CreatePanel method using context.Services.
+    /// </summary>
+    /// <param name="services">The LCD services instance, or null to clear.</param>
+    public void SetServices(ILcdServices? services)
+    {
+        Services = services;
     }
 
     /// <summary>

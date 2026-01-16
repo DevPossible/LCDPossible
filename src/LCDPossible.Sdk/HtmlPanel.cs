@@ -501,32 +501,65 @@ public abstract class HtmlPanel : BasePanel
 
     #region Browser Management
 
+    private static Exception? _browserLaunchError;
+
     private static async Task<IBrowser> GetOrCreateBrowserAsync()
     {
         await BrowserLock.WaitAsync();
         try
         {
+            // If we already failed to launch, don't retry
+            if (_browserLaunchError != null)
+            {
+                throw new InvalidOperationException(
+                    $"Browser launch previously failed: {_browserLaunchError.Message}",
+                    _browserLaunchError);
+            }
+
             if (_sharedBrowser == null || !_sharedBrowser.IsConnected)
             {
                 var browserFetcher = new BrowserFetcher();
                 var installedBrowser = await browserFetcher.DownloadAsync();
 
-                Console.WriteLine($"[DEBUG] Browser path: {installedBrowser.GetExecutablePath()}");
-
-                _sharedBrowser = await Puppeteer.LaunchAsync(new LaunchOptions
+                var executablePath = installedBrowser.GetExecutablePath();
+                var debug = Environment.GetEnvironmentVariable("LCDPOSSIBLE_DEBUG") == "1";
+                if (debug)
                 {
-                    Headless = true,
-                    ExecutablePath = installedBrowser.GetExecutablePath(),
-                    Args =
-                    [
-                        "--no-sandbox",
-                        "--disable-setuid-sandbox",
-                        "--disable-dev-shm-usage",
-                        "--disable-gpu",
-                        "--allow-file-access-from-files",
-                        "--disable-web-security"
-                    ]
-                });
+                    Console.WriteLine($"[DEBUG] Browser path: {executablePath}");
+                }
+
+                try
+                {
+                    _sharedBrowser = await Puppeteer.LaunchAsync(new LaunchOptions
+                    {
+                        Headless = true,
+                        ExecutablePath = executablePath,
+                        Args =
+                        [
+                            "--no-sandbox",
+                            "--disable-setuid-sandbox",
+                            "--disable-dev-shm-usage",
+                            "--disable-gpu",
+                            "--allow-file-access-from-files",
+                            "--disable-web-security"
+                        ]
+                    });
+
+                    if (debug)
+                    {
+                        Console.WriteLine("[DEBUG] Browser launched successfully");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _browserLaunchError = ex;
+                    Console.WriteLine($"[ERROR] Failed to launch browser: {ex.Message}");
+                    if (debug)
+                    {
+                        Console.WriteLine($"[DEBUG] Browser launch exception details: {ex}");
+                    }
+                    throw;
+                }
             }
 
             Interlocked.Increment(ref _instanceCount);

@@ -940,130 +940,60 @@ public static class ProfileCommands
     private static int ShowProfileHelp()
     {
         Console.WriteLine(@"
-PROFILE MANAGEMENT COMMANDS
+PROFILE - Manage display profiles
 
-Manage display profiles in the user data directory.
+USAGE: lcdpossible profile <command> [options]
 
-USAGE:
-    lcdpossible profile <sub-command> [options]
-
-PROFILE LOCATION:
-    Profiles are stored in: " + ProfileManager.ProfilesDirectory + @"
-
-SUB-COMMANDS:
-
-  Profile Operations:
-    new <name>                  Create a new empty profile
+COMMANDS:
+  Profile Management:
+    show                        Show current profile panels
     list                        List all available profiles
-    delete <name>               Delete a profile file (use --force for default)
-    remove-profile <name>       Alias for delete
-    show [name]                 Show profile details (alias for list-panels)
-    reload                      Force the running service to reload the profile
+    new <name>                  Create a new profile
+    delete <name>               Delete a profile
+    reload                      Reload profile in running service
 
-  Panel Operations:
-    list-panels [-p <profile>]  List panels in a profile
-    append-panel <type>         Add a panel to the end of the profile
-    remove-panel <index>        Remove a panel at the specified index
-    move-panel <from> <to>      Move a panel from one position to another
+  Panel Management:
+    add <panel> [options]       Add a panel to the profile
+    remove <index>              Remove panel at index
+    move <from> <to>            Move panel to new position
 
-  Panel Parameters:
-    set-panelparam -i <index> -n <name> -v <value>
-                                Set a parameter for a panel (empty value = delete)
-    get-panelparam -i <index> -n <name>
-                                Get a parameter value for a panel
-    clear-panelparams <index>   Clear all parameters for a panel
-
-  Profile Defaults:
-    set-defaults                Set profile-level default settings
+  Settings:
+    set <index> <param> <value> Set a panel parameter
+    get <index> <param>         Get a panel parameter
+    clear <index>               Clear all panel parameters
+    set-defaults [options]      Set profile-wide defaults
 
 OPTIONS:
+    -p, --profile <name>        Target profile (default: 'default')
+    -f, --format json|yaml      Output format for show/list
 
-    -p, --profile <name>        Target profile name (default: 'default')
-    -f, --format <format>       Output format: json, yaml (for list commands)
+  add options:
+    -d, --duration <sec>        Display duration
+    -i, --interval <sec>        Update interval
+    -b, --background <path>     Background image
 
-    append-panel options:
-        -d, --duration <sec>    Panel display duration
-        -i, --interval <sec>    Data update interval
-        -b, --background <path> Background image path
+  set-defaults options:
+    --duration <sec>            Default display duration
+    --interval <sec>            Default update interval
+    --transition <type>         Default transition effect
+    --transition-duration <ms>  Default transition duration
 
-    set-defaults options:
-        --name <name>                Set profile display name
-        --description <text>         Set profile description
-        --duration <sec>             Set default panel duration
-        --interval <sec>             Set default update interval
-        --transition <type>          Set default transition effect
-        --transition-duration <ms>   Set default transition duration (ms)
-
-    set-panelparam parameters:
-        panel                   Panel type ID (e.g., 'cpu-usage-graphic')
-        type                    Slide type ('panel' or 'image')
-        source                  Source path for images
-        duration                Display duration in seconds
-        interval                Update interval in seconds
-        background              Background image path
-        transition              Transition effect for this panel
-        transition_duration     Transition duration in milliseconds
-
-TRANSITION TYPES:
-    none        - No transition (instant switch)
-    fade        - Fade in from black
-    crossfade   - Crossfade/dissolve between panels
-    slide-left  - Slide in from the left
-    slide-right - Slide in from the right
-    slide-up    - Slide in from the top
-    slide-down  - Slide in from the bottom
-    wipe-left   - Horizontal wipe from right to left
-    wipe-right  - Horizontal wipe from left to right
-    wipe-up     - Vertical wipe from bottom to top
-    wipe-down   - Vertical wipe from top to bottom
-    zoom-in     - Zoom in from center
-    zoom-out    - Zoom out from edges
-    push-left   - Push previous panel out to the left
-    push-right  - Push previous panel out to the right
-    random      - Randomly select a transition (default)
+TRANSITIONS:
+    none, fade, crossfade, slide-left, slide-right, slide-up, slide-down,
+    wipe-left, wipe-right, wipe-up, wipe-down, zoom-in, zoom-out,
+    push-left, push-right, random (default)
 
 EXAMPLES:
-
-    # Create a new profile
-    lcdpossible profile new my-gaming-profile
-
-    # Delete/remove a profile
-    lcdpossible profile delete my-old-profile
-    lcdpossible profile remove-profile my-old-profile
-
-    # Add panels to a profile
-    lcdpossible profile append-panel cpu-usage-graphic -p my-gaming-profile
-    lcdpossible profile append-panel gpu-usage-graphic -p my-gaming-profile -d 10
-    lcdpossible profile append-panel basic-info
-
-    # List panels in a profile
-    lcdpossible profile list-panels -p my-gaming-profile
-    lcdpossible profile list-panels --format json
-
-    # Modify panel parameters
-    lcdpossible profile set-panelparam -i 0 -n duration -v 30
-    lcdpossible profile set-panelparam -i 1 -n interval -v 2
-
-    # Move and remove panels
-    lcdpossible profile move-panel 0 2
-    lcdpossible profile remove-panel 1
-
-    # Set profile defaults
-    lcdpossible profile set-defaults --duration 20 --interval 3
-    lcdpossible profile set-defaults --transition fade --transition-duration 500
-
-    # Set transition for a specific panel
-    lcdpossible profile set-panelparam -i 0 -n transition -v slide-left
-    lcdpossible profile set-panelparam -i 0 -n transition_duration -v 400
-
-    # Disable transitions (instant switch)
-    lcdpossible profile set-defaults --transition none
-
-    # Export profile as YAML
-    lcdpossible profile list-panels --format yaml > my-profile.yaml
-
-    # Force reload the profile (e.g., after editing YAML manually)
+    lcdpossible profile show
+    lcdpossible profile add cpu-info
+    lcdpossible profile add gpu-info -d 30
+    lcdpossible profile remove 2
+    lcdpossible profile set 0 duration 20
+    lcdpossible profile set-defaults --transition fade
+    lcdpossible profile new gaming-profile
     lcdpossible profile reload
+
+LOCATION: " + ProfileManager.ProfilesDirectory + @"
 ");
         return 0;
     }

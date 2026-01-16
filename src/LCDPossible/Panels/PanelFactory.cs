@@ -2,6 +2,7 @@ using LCDPossible.Core.Configuration;
 using LCDPossible.Core.Monitoring;
 using LCDPossible.Core.Plugins;
 using LCDPossible.Core.Rendering;
+using LCDPossible.Core.Services;
 using Microsoft.Extensions.Logging;
 
 namespace LCDPossible.Panels;
@@ -15,6 +16,7 @@ public sealed class PanelFactory
     private readonly PluginManager _pluginManager;
     private readonly ISystemInfoProvider? _systemProvider;
     private readonly IProxmoxProvider? _proxmoxProvider;
+    private readonly ILcdServices? _services;
     private readonly ILoggerFactory? _loggerFactory;
     private readonly ILogger<PanelFactory>? _logger;
     private readonly bool _debug;
@@ -25,12 +27,14 @@ public sealed class PanelFactory
         PluginManager pluginManager,
         ISystemInfoProvider? systemProvider = null,
         IProxmoxProvider? proxmoxProvider = null,
+        ILcdServices? services = null,
         ILoggerFactory? loggerFactory = null,
         bool debug = false)
     {
         _pluginManager = pluginManager ?? throw new ArgumentNullException(nameof(pluginManager));
         _systemProvider = systemProvider;
         _proxmoxProvider = proxmoxProvider;
+        _services = services;
         _loggerFactory = loggerFactory;
         _logger = loggerFactory?.CreateLogger<PanelFactory>();
         _debug = debug;
@@ -196,8 +200,11 @@ public sealed class PanelFactory
                 PanelTypeId = normalizedId,
                 Argument = argument,
                 Settings = settings,
+                Services = _services,
+#pragma warning disable CS0618 // Type or member is obsolete
                 SystemProvider = _systemProvider,
                 ProxmoxProvider = _proxmoxProvider,
+#pragma warning restore CS0618
                 ColorScheme = _colorScheme,
                 LoggerFactory = _loggerFactory
             };

@@ -1,6 +1,7 @@
 using LCDPossible.Core.Configuration;
 using LCDPossible.Core.Monitoring;
 using LCDPossible.Core.Rendering;
+using LCDPossible.Core.Services;
 using Microsoft.Extensions.Logging;
 
 namespace LCDPossible.Core.Plugins;
@@ -91,8 +92,24 @@ public sealed class PanelCreationContext
     public required string PanelTypeId { get; init; }
     public string? Argument { get; init; }
     public IReadOnlyDictionary<string, string>? Settings { get; init; }
+
+    /// <summary>
+    /// Unified LCD services facade. Preferred over individual providers.
+    /// </summary>
+    public ILcdServices? Services { get; init; }
+
+    /// <summary>
+    /// System info provider for hardware monitoring.
+    /// </summary>
+    [Obsolete("Use Services.Sensors instead. Will be removed in a future version.")]
     public ISystemInfoProvider? SystemProvider { get; init; }
+
+    /// <summary>
+    /// Proxmox provider for virtualization monitoring.
+    /// </summary>
+    [Obsolete("Use Services.Sensors with proxmox.* sensors instead. Will be removed in a future version.")]
     public IProxmoxProvider? ProxmoxProvider { get; init; }
+
     public ResolvedColorScheme? ColorScheme { get; init; }
     public ILoggerFactory? LoggerFactory { get; init; }
 

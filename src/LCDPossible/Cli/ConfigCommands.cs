@@ -59,74 +59,47 @@ public static class ConfigCommands
     private static int ShowHelp()
     {
         Console.WriteLine(@"
-LCDPossible Configuration Management
+CONFIG - Manage LCDPossible configuration
 
-USAGE:
-    lcdpossible config <command> [options]
+USAGE: lcdpossible config <command> [options]
 
 COMMANDS:
-    set-theme <name>        Set the default display theme
-    list-themes             List available themes
-    set-page-effect <name>  Set the default page effect
-    list-page-effects       List available page effects
-    set-proxmox             Configure Proxmox API settings
-    validate-proxmox        Test Proxmox API connection
     show                    Show current configuration
     path                    Show configuration file path
-    help                    Show this help message
 
-THEME OPTIONS:
-    Available themes:
-      GAMER THEMES:
-        cyberpunk    - Neon cyan/magenta on deep black (default)
-        rgb-gaming   - Rainbow RGB with hot pink accents
+  Theme:
+    set-theme <name>        Set the default display theme
+    list-themes             List available themes
 
-      CORPORATE THEMES:
-        executive    - Professional navy blue with gold accents
-        clean        - Minimal white/light theme
+  Effects:
+    set-effect <name>       Set the default page effect
+    list-effects            List available page effects
 
-    Themes can also be overridden per-panel in the profile using @theme=name
+  Proxmox:
+    set-proxmox [options]   Configure Proxmox API settings
+    validate-proxmox        Test Proxmox API connection
 
-PAGE EFFECT OPTIONS:
-    Available effects: none, glow-on-change, flip-digits, slide-numbers,
-    typewriter, particle-burst, gentle-float, tilt-3d, shake-on-warning,
-    bounce-in, wave, scanlines, matrix-rain, particle-field, grid-pulse,
-    hologram, vanna-white, pixel-mascot, robot-assistant, warning-flash,
-    spotlight, neon-trails, glitch, random
+THEMES:
+    cyberpunk    Neon cyan/magenta on deep black (default)
+    rgb-gaming   Rainbow RGB with hot pink accents
+    executive    Professional navy blue with gold accents
+    clean        Minimal white/light theme
 
-    Effects can also be overridden per-panel in the profile using @effect=name
-
-SET-PROXMOX OPTIONS:
-    --api-url <url>         Proxmox API URL (e.g., https://proxmox.local:8006)
-    --token-id <id>         API token ID (format: user@realm!tokenname)
-                            Shell-safe: use / or : instead of ! (auto-converted)
+PROXMOX OPTIONS:
+    --api-url <url>         Proxmox API URL (https://host:8006)
+    --token-id <id>         API token ID (user@realm!token or user@realm/token)
     --token-secret <secret> API token secret
-    --ignore-ssl-errors     Ignore SSL certificate errors (for self-signed certs)
-    --no-ignore-ssl-errors  Validate SSL certificates (default)
-    --enabled               Enable Proxmox integration
-    --disabled              Disable Proxmox integration
-
-    Pass an empty string """" to clear a value.
+    --ignore-ssl-errors     Skip SSL certificate validation
+    --enabled / --disabled  Enable or disable Proxmox integration
 
 EXAMPLES:
-    # Set default theme to RGB Gaming
-    lcdpossible config set-theme rgb-gaming
-
-    # Set default page effect to hologram
-    lcdpossible config set-page-effect hologram
-
-    # List all available page effects
-    lcdpossible config list-page-effects
-
-    # Configure Proxmox API (use / instead of ! to avoid shell escaping)
-    lcdpossible config set-proxmox --api-url https://proxmox.local:8006 \
-        --token-id monitor@pve/lcdpossible --token-secret xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-
-    # Test Proxmox connection
-    lcdpossible config validate-proxmox
-
-    # Show current config
     lcdpossible config show
+    lcdpossible config set-theme rgb-gaming
+    lcdpossible config set-effect hologram
+    lcdpossible config list-effects
+    lcdpossible config set-proxmox --api-url https://pve:8006 \
+        --token-id monitor@pve/lcd --token-secret xxx
+    lcdpossible config validate-proxmox
 ");
         return 0;
     }

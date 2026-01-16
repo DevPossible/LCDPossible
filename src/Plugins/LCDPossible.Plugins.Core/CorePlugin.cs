@@ -208,10 +208,17 @@ public sealed class CorePlugin : IPanelPlugin
             _ => null
         };
 
-        // Set color scheme for all BasePanel-derived panels
-        if (panel != null && context.ColorScheme != null && panel is LCDPossible.Sdk.BasePanel basePanel)
+        // Set color scheme and services for all BasePanel-derived panels
+        if (panel != null && panel is LCDPossible.Sdk.BasePanel basePanel)
         {
-            basePanel.SetColorScheme(context.ColorScheme);
+            if (context.ColorScheme != null)
+            {
+                basePanel.SetColorScheme(context.ColorScheme);
+            }
+            if (context.Services != null)
+            {
+                basePanel.SetServices(context.Services);
+            }
         }
 
         return panel;
