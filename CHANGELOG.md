@@ -17,6 +17,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Page Effects System** - 30+ animated overlays for panels:
+  - Background effects: aurora, snow, rain, bubbles, fireflies, stars-twinkle, lava-lamp, bokeh, smoke, waves, confetti, lightning, clouds, embers, fireworks, breathing-glow
+  - Overlay effects: vhs-static, film-grain, lens-flare, neon-border, chromatic-aberration, crt-warp
+  - Container animations: gentle-float, tilt-3d, bounce, wave
+  - Character mascots: vanna-white, pixel-mascot, robot-assistant
+  - Alert effects: spotlight
+- **Effects Documentation** - New `docs/effects/README.md` with usage guide
+
+### Changed
+
+- Slowed down matrix-rain effect speed for better visibility
+- Slowed down grid-pulse effect speed for smoother animation
+
+### Removed
+
+- Removed value-change triggered effects (particle-burst, glitch, glow-on-change, flip-digits, typewriter, slide-numbers, neon-trails, shake-on-warning, warning-flash, bounce-in)
+- Removed color-cycle effect
+- Removed red-man effect
+
 ## [0.3.0] - 2026-01-11
 
 ## [0.2.5] - 2026-01-11

@@ -708,6 +708,15 @@ public abstract class WidgetPanel : HtmlPanel
         .radial-progress {{
             --thickness: 8px;
         }}
+        /* Z-index layering for page effects */
+        .lcd-widget-grid {{
+            position: relative;
+            z-index: 10;
+        }}
+        .lcd-widget {{
+            position: relative;
+            z-index: 10;
+        }}
     </style>
     <!-- ECharts library for advanced charts -->
     <script>{{{{ echarts_script }}}}</script>

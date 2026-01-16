@@ -75,27 +75,6 @@ public class PageEffectManager
 
     private void RegisterBuiltInEffects()
     {
-        // Value Change Effects
-        Register("glow-on-change", "Glow on Change",
-            "Values that changed since last frame emit a brief glow/pulse",
-            PageEffectCategory.ValueChange);
-
-        Register("flip-digits", "Flip Digits",
-            "Numbers flip like an airport departure board when changing",
-            PageEffectCategory.ValueChange);
-
-        Register("slide-numbers", "Slide Numbers",
-            "Digits slide up/down like a slot machine when values change",
-            PageEffectCategory.ValueChange);
-
-        Register("typewriter", "Typewriter",
-            "Text types out character by character on change",
-            PageEffectCategory.ValueChange);
-
-        Register("particle-burst", "Particle Burst",
-            "Particles burst from widgets when values change significantly",
-            PageEffectCategory.ValueChange);
-
         // Container Animation Effects
         Register("gentle-float", "Gentle Float",
             "Containers float up/down subtly (breathing effect)",
@@ -105,19 +84,15 @@ public class PageEffectManager
             "Containers have slight 3D tilt/perspective that shifts",
             PageEffectCategory.ContainerAnimation);
 
-        Register("shake-on-warning", "Shake on Warning",
-            "Containers shake when values hit warning/critical thresholds",
-            PageEffectCategory.ContainerAnimation);
-
-        Register("bounce-in", "Bounce In",
-            "Widgets bounce in when panel first loads",
+        Register("bounce", "Bounce",
+            "Widgets bounce around with physics, bouncing off walls and each other",
             PageEffectCategory.ContainerAnimation);
 
         Register("wave", "Wave",
             "Widgets wave in a sine pattern across the grid",
             PageEffectCategory.ContainerAnimation);
 
-        // Background/Overlay Effects
+        // Background Effects
         Register("scanlines", "Scanlines",
             "CRT/retro scanline overlay",
             PageEffectCategory.BackgroundOverlay);
@@ -134,8 +109,97 @@ public class PageEffectManager
             "Grid lines pulse outward from center",
             PageEffectCategory.BackgroundOverlay);
 
+        Register("fireworks", "Fireworks",
+            "Colorful fireworks exploding in the background",
+            PageEffectCategory.BackgroundOverlay);
+
         Register("hologram", "Hologram",
             "Holographic shimmer/interference pattern",
+            PageEffectCategory.BackgroundOverlay);
+
+        Register("aurora", "Aurora",
+            "Northern lights with flowing color ribbons",
+            PageEffectCategory.BackgroundOverlay);
+
+        Register("snow", "Snow",
+            "Gentle snowflakes drifting down",
+            PageEffectCategory.BackgroundOverlay);
+
+        Register("rain", "Rain",
+            "Rain drops falling with splash effects",
+            PageEffectCategory.BackgroundOverlay);
+
+        Register("bubbles", "Bubbles",
+            "Translucent bubbles floating upward",
+            PageEffectCategory.BackgroundOverlay);
+
+        Register("fireflies", "Fireflies",
+            "Glowing particles drifting randomly",
+            PageEffectCategory.BackgroundOverlay);
+
+        Register("stars-twinkle", "Stars Twinkle",
+            "Stationary twinkling starfield",
+            PageEffectCategory.BackgroundOverlay);
+
+        Register("lava-lamp", "Lava Lamp",
+            "Blobby colored blobs floating",
+            PageEffectCategory.BackgroundOverlay);
+
+        Register("bokeh", "Bokeh",
+            "Out-of-focus light circles drifting",
+            PageEffectCategory.BackgroundOverlay);
+
+        Register("smoke", "Smoke",
+            "Wispy smoke tendrils rising",
+            PageEffectCategory.BackgroundOverlay);
+
+        Register("waves", "Waves",
+            "Ocean waves flowing at bottom",
+            PageEffectCategory.BackgroundOverlay);
+
+        Register("confetti", "Confetti",
+            "Colorful confetti falling continuously",
+            PageEffectCategory.BackgroundOverlay);
+
+        Register("lightning", "Lightning",
+            "Occasional lightning flashes across background",
+            PageEffectCategory.BackgroundOverlay);
+
+        Register("clouds", "Clouds",
+            "Slow-moving clouds drifting across",
+            PageEffectCategory.BackgroundOverlay);
+
+        Register("embers", "Embers",
+            "Glowing embers floating upward",
+            PageEffectCategory.BackgroundOverlay);
+
+        Register("breathing-glow", "Breathing Glow",
+            "Pulsing ambient glow around edges",
+            PageEffectCategory.BackgroundOverlay);
+
+        // Overlay Effects (on top of widgets)
+        Register("vhs-static", "VHS Static",
+            "VHS tape noise/tracking lines",
+            PageEffectCategory.BackgroundOverlay);
+
+        Register("film-grain", "Film Grain",
+            "Old film grain texture overlay",
+            PageEffectCategory.BackgroundOverlay);
+
+        Register("lens-flare", "Lens Flare",
+            "Moving lens flare effect",
+            PageEffectCategory.BackgroundOverlay);
+
+        Register("neon-border", "Neon Border",
+            "Glowing pulse around widget edges",
+            PageEffectCategory.BackgroundOverlay);
+
+        Register("chromatic-aberration", "Chromatic Aberration",
+            "RGB split/shift effect",
+            PageEffectCategory.BackgroundOverlay);
+
+        Register("crt-warp", "CRT Warp",
+            "CRT screen edge warping",
             PageEffectCategory.BackgroundOverlay);
 
         // Character/Mascot Effects
@@ -152,26 +216,9 @@ public class PageEffectManager
             PageEffectCategory.CharacterMascot);
 
         // Alert/Status Effects
-        Register("warning-flash", "Warning Flash",
-            "Panel border flashes when any value is critical",
-            PageEffectCategory.AlertStatus);
-
         Register("spotlight", "Spotlight",
             "Roaming spotlight illuminates different widgets",
             PageEffectCategory.AlertStatus);
-
-        Register("neon-trails", "Neon Trails",
-            "Neon light trails follow value changes",
-            PageEffectCategory.AlertStatus);
-
-        Register("glitch", "Glitch",
-            "Random digital glitch effects on high values",
-            PageEffectCategory.AlertStatus);
-
-        // Debug/Test Effects
-        Register("red-man", "Red Man",
-            "Debug overlay - full panel red at 55% opacity",
-            PageEffectCategory.Other);
     }
 
     private void Register(string id, string displayName, string description, PageEffectCategory category)

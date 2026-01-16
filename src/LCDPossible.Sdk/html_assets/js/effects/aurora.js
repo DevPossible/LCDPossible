@@ -1,25 +1,20 @@
 /**
- * Matrix Rain Effect
- * Digital rain falling behind widgets.
+ * Aurora Effect
+ * Northern lights with flowing color ribbons.
  */
 window.LCDEffect = {
     _canvas: null,
     _ctx: null,
-    _columns: [],
-    _fontSize: 14,
-    _chars: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%^&*',
+    _time: 0,
+    _ribbons: [],
     _animationId: null,
     _lastFrameTime: 0,
 
     onInit: function(options) {
-        console.log('[EFFECT] matrix-rain.onInit called', options);
+        console.log('[EFFECT] aurora.onInit called', options);
 
-        this._fontSize = options.fontSize || 14;
-        if (options.chars) this._chars = options.chars;
-
-        // Create canvas behind everything
         this._canvas = document.createElement('canvas');
-        this._canvas.id = 'effect-matrix-rain-canvas';
+        this._canvas.id = 'effect-aurora-canvas';
         this._canvas.style.cssText = [
             'position: fixed',
             'top: 0',
@@ -27,17 +22,28 @@ window.LCDEffect = {
             'width: 100%',
             'height: 100%',
             'z-index: 1',
-            'opacity: 0.4'
+            'opacity: 0.5'
         ].join(';');
         document.body.insertBefore(this._canvas, document.body.firstChild);
 
         this._ctx = this._canvas.getContext('2d');
         this._resize();
 
+        // Create ribbons
+        for (var i = 0; i < 5; i++) {
+            this._ribbons.push({
+                baseY: 0.1 + Math.random() * 0.3,
+                amplitude: 0.05 + Math.random() * 0.1,
+                frequency: 0.5 + Math.random() * 1,
+                phase: Math.random() * Math.PI * 2,
+                hue: 120 + Math.random() * 60,
+                speed: 0.2 + Math.random() * 0.3
+            });
+        }
+
         this._resizeHandler = function() { this._resize(); }.bind(this);
         window.addEventListener('resize', this._resizeHandler);
 
-        // Start animation loop
         this._lastFrameTime = performance.now();
         this._animate();
     },
@@ -45,15 +51,6 @@ window.LCDEffect = {
     _resize: function() {
         this._canvas.width = window.innerWidth;
         this._canvas.height = window.innerHeight;
-
-        var columnCount = Math.floor(this._canvas.width / this._fontSize);
-        this._columns = [];
-        for (var i = 0; i < columnCount; i++) {
-            this._columns.push({
-                y: Math.random() * this._canvas.height,
-                speed: 0.5 + Math.random() * 0.5
-            });
-        }
     },
 
     _animate: function() {
@@ -62,24 +59,10 @@ window.LCDEffect = {
         var deltaTime = (now - this._lastFrameTime) / 1000;
         this._lastFrameTime = now;
 
-        this._update(deltaTime);
+        this._time += deltaTime;
         this._render();
 
         this._animationId = requestAnimationFrame(function() { self._animate(); });
-    },
-
-    _update: function(dt) {
-        var h = this._canvas.height;
-
-        for (var i = 0; i < this._columns.length; i++) {
-            var col = this._columns[i];
-            col.y += this._fontSize * col.speed * dt * 12;
-
-            // Reset column when it goes off screen
-            if (col.y > h && Math.random() > 0.95) {
-                col.y = 0;
-            }
-        }
     },
 
     _render: function() {
@@ -87,24 +70,33 @@ window.LCDEffect = {
         var w = this._canvas.width;
         var h = this._canvas.height;
 
-        // Fade effect
         ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
         ctx.fillRect(0, 0, w, h);
 
-        ctx.font = this._fontSize + 'px monospace';
+        for (var r = 0; r < this._ribbons.length; r++) {
+            var ribbon = this._ribbons[r];
+            var baseY = ribbon.baseY * h;
 
-        for (var i = 0; i < this._columns.length; i++) {
-            var col = this._columns[i];
-            var char = this._chars[Math.floor(Math.random() * this._chars.length)];
-            var x = i * this._fontSize;
+            ctx.beginPath();
+            ctx.moveTo(0, baseY);
 
-            // Brighter leading character
-            ctx.fillStyle = '#fff';
-            ctx.fillText(char, x, col.y);
+            for (var x = 0; x <= w; x += 10) {
+                var wave1 = Math.sin((x / w) * Math.PI * ribbon.frequency + this._time * ribbon.speed + ribbon.phase);
+                var wave2 = Math.sin((x / w) * Math.PI * ribbon.frequency * 2 + this._time * ribbon.speed * 0.7);
+                var y = baseY + (wave1 * 0.7 + wave2 * 0.3) * ribbon.amplitude * h;
+                ctx.lineTo(x, y);
+            }
 
-            // Trail characters
-            ctx.fillStyle = 'rgba(0, 255, 70, 0.8)';
-            ctx.fillText(char, x, col.y - this._fontSize);
+            ctx.lineTo(w, h);
+            ctx.lineTo(0, h);
+            ctx.closePath();
+
+            var gradient = ctx.createLinearGradient(0, baseY - ribbon.amplitude * h, 0, h);
+            gradient.addColorStop(0, 'hsla(' + ribbon.hue + ', 80%, 50%, 0.3)');
+            gradient.addColorStop(0.5, 'hsla(' + (ribbon.hue + 30) + ', 70%, 40%, 0.1)');
+            gradient.addColorStop(1, 'transparent');
+            ctx.fillStyle = gradient;
+            ctx.fill();
         }
     },
 

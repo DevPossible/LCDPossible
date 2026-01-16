@@ -25,7 +25,7 @@
 
   <ItemGroup>
     <!-- Required for fonts and drawing in BaseLivePanel -->
-    <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.5" />
+    <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.7" />
   </ItemGroup>
 
   <ItemGroup>

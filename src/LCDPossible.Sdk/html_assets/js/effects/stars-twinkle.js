@@ -1,25 +1,22 @@
 /**
- * Matrix Rain Effect
- * Digital rain falling behind widgets.
+ * Stars Twinkle Effect
+ * Stationary twinkling starfield.
  */
 window.LCDEffect = {
     _canvas: null,
     _ctx: null,
-    _columns: [],
-    _fontSize: 14,
-    _chars: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%^&*',
+    _stars: [],
+    _time: 0,
     _animationId: null,
     _lastFrameTime: 0,
 
     onInit: function(options) {
-        console.log('[EFFECT] matrix-rain.onInit called', options);
+        console.log('[EFFECT] stars-twinkle.onInit called', options);
 
-        this._fontSize = options.fontSize || 14;
-        if (options.chars) this._chars = options.chars;
+        var starCount = options.starCount || 150;
 
-        // Create canvas behind everything
         this._canvas = document.createElement('canvas');
-        this._canvas.id = 'effect-matrix-rain-canvas';
+        this._canvas.id = 'effect-stars-twinkle-canvas';
         this._canvas.style.cssText = [
             'position: fixed',
             'top: 0',
@@ -27,32 +24,51 @@ window.LCDEffect = {
             'width: 100%',
             'height: 100%',
             'z-index: 1',
-            'opacity: 0.4'
+            'pointer-events: none'
         ].join(';');
         document.body.insertBefore(this._canvas, document.body.firstChild);
 
         this._ctx = this._canvas.getContext('2d');
         this._resize();
 
+        for (var i = 0; i < starCount; i++) {
+            this._stars.push(this._createStar());
+        }
+
         this._resizeHandler = function() { this._resize(); }.bind(this);
         window.addEventListener('resize', this._resizeHandler);
 
-        // Start animation loop
         this._lastFrameTime = performance.now();
         this._animate();
     },
 
+    _createStar: function() {
+        var w = this._canvas.width || window.innerWidth;
+        var h = this._canvas.height || window.innerHeight;
+        return {
+            x: Math.random() * w,
+            y: Math.random() * h,
+            size: 0.5 + Math.random() * 2,
+            twinklePhase: Math.random() * Math.PI * 2,
+            twinkleSpeed: 0.5 + Math.random() * 2,
+            baseAlpha: 0.3 + Math.random() * 0.5
+        };
+    },
+
     _resize: function() {
+        var oldW = this._canvas.width;
+        var oldH = this._canvas.height;
         this._canvas.width = window.innerWidth;
         this._canvas.height = window.innerHeight;
 
-        var columnCount = Math.floor(this._canvas.width / this._fontSize);
-        this._columns = [];
-        for (var i = 0; i < columnCount; i++) {
-            this._columns.push({
-                y: Math.random() * this._canvas.height,
-                speed: 0.5 + Math.random() * 0.5
-            });
+        // Reposition stars if resized
+        if (oldW && oldH) {
+            var scaleX = this._canvas.width / oldW;
+            var scaleY = this._canvas.height / oldH;
+            for (var i = 0; i < this._stars.length; i++) {
+                this._stars[i].x *= scaleX;
+                this._stars[i].y *= scaleY;
+            }
         }
     },
 
@@ -62,6 +78,7 @@ window.LCDEffect = {
         var deltaTime = (now - this._lastFrameTime) / 1000;
         this._lastFrameTime = now;
 
+        this._time += deltaTime;
         this._update(deltaTime);
         this._render();
 
@@ -69,16 +86,9 @@ window.LCDEffect = {
     },
 
     _update: function(dt) {
-        var h = this._canvas.height;
-
-        for (var i = 0; i < this._columns.length; i++) {
-            var col = this._columns[i];
-            col.y += this._fontSize * col.speed * dt * 12;
-
-            // Reset column when it goes off screen
-            if (col.y > h && Math.random() > 0.95) {
-                col.y = 0;
-            }
+        for (var i = 0; i < this._stars.length; i++) {
+            var s = this._stars[i];
+            s.twinklePhase += s.twinkleSpeed * dt;
         }
     },
 
@@ -87,24 +97,17 @@ window.LCDEffect = {
         var w = this._canvas.width;
         var h = this._canvas.height;
 
-        // Fade effect
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
-        ctx.fillRect(0, 0, w, h);
+        ctx.clearRect(0, 0, w, h);
 
-        ctx.font = this._fontSize + 'px monospace';
+        for (var i = 0; i < this._stars.length; i++) {
+            var s = this._stars[i];
+            var twinkle = (Math.sin(s.twinklePhase) + 1) / 2;
+            var alpha = s.baseAlpha * (0.3 + twinkle * 0.7);
 
-        for (var i = 0; i < this._columns.length; i++) {
-            var col = this._columns[i];
-            var char = this._chars[Math.floor(Math.random() * this._chars.length)];
-            var x = i * this._fontSize;
-
-            // Brighter leading character
-            ctx.fillStyle = '#fff';
-            ctx.fillText(char, x, col.y);
-
-            // Trail characters
-            ctx.fillStyle = 'rgba(0, 255, 70, 0.8)';
-            ctx.fillText(char, x, col.y - this._fontSize);
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.size * (0.8 + twinkle * 0.4), 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, ' + alpha + ')';
+            ctx.fill();
         }
     },
 

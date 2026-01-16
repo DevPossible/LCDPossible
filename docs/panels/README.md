@@ -4,6 +4,7 @@ This directory contains documentation and screenshots for all available display 
 
 **Related Documentation:**
 - [Themes](../themes/README.md) - Available color themes and customization
+- [Page Effects](../effects/README.md) - Animated overlays and backgrounds
 
 ## Panel Categories
 
