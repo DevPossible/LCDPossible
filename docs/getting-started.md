@@ -5,6 +5,7 @@ This guide will help you install LCDPossible and display your first panel.
 ## Prerequisites
 
 - A supported LCD device (see [Supported Devices](#supported-devices))
+  - **No hardware?** Use the [Virtual LCD Simulator](simulator.md) to test without a device
 - .NET 10.0 Runtime (installed automatically by installer scripts)
 
 ## Quick Install
@@ -99,8 +100,23 @@ See [Service Setup](configuration/service-setup.md) for detailed instructions.
 
 For device protocol details, see [Reference/Devices](reference/devices/).
 
+## Using the Simulator
+
+Don't have hardware? The Virtual LCD Simulator lets you test everything:
+
+```bash
+# Terminal 1: Start simulator
+dotnet run --project src/LCDPossible.VirtualLcd
+
+# Terminal 2: Send content to simulator
+lcdpossible show cpu-info
+```
+
+See [Virtual LCD Simulator](simulator.md) for full details.
+
 ## Next Steps
 
+- [Try the simulator](simulator.md) if you don't have hardware
 - [Browse available panels](panels/README.md)
 - [Explore effects](effects/README.md)
 - [Customize themes](themes/README.md)

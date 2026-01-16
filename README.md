@@ -16,6 +16,7 @@ LCDPossible is an open-source alternative to vendor-specific Windows-only softwa
 - 16+ built-in screensavers
 - Slideshows with smooth transitions
 - Plugin architecture for custom panels
+- **Virtual LCD simulator** - Test and develop without hardware
 - Cross-platform (Windows, Linux, macOS)
 
 **[Full Documentation](docs/README.md)** - Detailed guides, panel reference, configuration options
@@ -49,6 +50,25 @@ lcdpossible serve
 ```
 
 See [CLI Reference](docs/cli/README.md) for all commands.
+
+## Try Without Hardware
+
+Don't have an LCD device yet? Use the **Virtual LCD Simulator** to test LCDPossible:
+
+```bash
+# Terminal 1: Start the simulator
+dotnet run --project src/LCDPossible.VirtualLcd
+
+# Terminal 2: Display panels on the virtual LCD
+lcdpossible show cpu-info
+```
+
+The simulator opens an Avalonia window that displays exactly what a real LCD would show. Perfect for:
+- Trying LCDPossible before buying hardware
+- Developing and testing custom panels
+- Debugging display issues
+
+See [Virtual LCD Simulator](docs/simulator.md) for full documentation.
 
 ## Installation
 
@@ -172,6 +192,7 @@ Add `--remove-config` (Linux/macOS) or `-RemoveConfig` (Windows) to also remove 
 | Topic | Description |
 |-------|-------------|
 | [Getting Started](docs/getting-started.md) | First steps after installation |
+| [Virtual LCD Simulator](docs/simulator.md) | Test and develop without hardware |
 | [Panels](docs/panels/README.md) | Available display panels with screenshots |
 | [Effects](docs/effects/README.md) | Page effects and animations |
 | [Themes](docs/themes/README.md) | Color themes |

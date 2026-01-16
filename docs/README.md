@@ -7,6 +7,7 @@ Welcome to the LCDPossible documentation. LCDPossible is a cross-platform LCD co
 | Section | Description |
 |---------|-------------|
 | [Getting Started](getting-started.md) | Installation and first steps |
+| [Virtual LCD Simulator](simulator.md) | Test without hardware |
 | [Panels](panels/README.md) | Available display panels |
 | [Effects](effects/README.md) | Page effects and animations |
 | [Themes](themes/README.md) | Color themes and customization |
@@ -41,6 +42,7 @@ docs/
 ## For Users
 
 - **New to LCDPossible?** Start with [Getting Started](getting-started.md)
+- **No hardware yet?** Try the [Virtual LCD Simulator](simulator.md) to test without a device
 - **Want to customize your display?** See [Panels](panels/README.md), [Effects](effects/README.md), and [Themes](themes/README.md)
 - **Setting up as a service?** Check [Configuration](configuration/README.md)
 
