@@ -194,7 +194,7 @@ public sealed class PanelFactory
                 return new PanelCreationResult(null, error);
             }
 
-            // Create panel context
+            // Create panel context with theme available at creation time (H004 fix)
             var context = new PanelCreationContext
             {
                 PanelTypeId = normalizedId,
@@ -206,6 +206,7 @@ public sealed class PanelFactory
                 ProxmoxProvider = _proxmoxProvider,
 #pragma warning restore CS0618
                 ColorScheme = _colorScheme,
+                Theme = _currentTheme,
                 LoggerFactory = _loggerFactory
             };
 

@@ -46,13 +46,13 @@ public sealed class VirtualDeviceDiscoveryClient : IDisposable
 
         try
         {
-            await _client.SendAsync(requestData, broadcastEndpoint, cancellationToken);
+            await _client.SendAsync(requestData, broadcastEndpoint, cancellationToken).ConfigureAwait(false);
         }
         catch (SocketException)
         {
             // Broadcast may not be available, try localhost only
             var localhostEndpoint = new IPEndPoint(IPAddress.Loopback, VirtualDeviceDiscovery.DiscoveryPort);
-            await _client.SendAsync(requestData, localhostEndpoint, cancellationToken);
+            await _client.SendAsync(requestData, localhostEndpoint, cancellationToken).ConfigureAwait(false);
         }
 
         // Collect responses until timeout
@@ -65,7 +65,7 @@ public sealed class VirtualDeviceDiscoveryClient : IDisposable
         {
             try
             {
-                var result = await _client.ReceiveAsync(linkedCts.Token);
+                var result = await _client.ReceiveAsync(linkedCts.Token).ConfigureAwait(false);
                 var response = DiscoveryResponse.FromBytes(result.Buffer);
 
                 if (response?.IsValid() == true)

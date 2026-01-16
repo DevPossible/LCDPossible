@@ -92,11 +92,11 @@ public static class IpcPaths
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                return await IsServiceRunningWindowsAsync(cancellationToken);
+                return await IsServiceRunningWindowsAsync(cancellationToken).ConfigureAwait(false);
             }
             else
             {
-                return await IsServiceRunningUnixAsync(cancellationToken);
+                return await IsServiceRunningUnixAsync(cancellationToken).ConfigureAwait(false);
             }
         }
         catch
@@ -143,7 +143,7 @@ public static class IpcPaths
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(DiscoveryTimeoutMs);
 
-            await client.ConnectAsync(cts.Token);
+            await client.ConnectAsync(cts.Token).ConfigureAwait(false);
             return true;
         }
         catch (OperationCanceledException)
@@ -190,7 +190,7 @@ public static class IpcPaths
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(DiscoveryTimeoutMs);
 
-            await socket.ConnectAsync(new UnixDomainSocketEndPoint(socketPath), cts.Token);
+            await socket.ConnectAsync(new UnixDomainSocketEndPoint(socketPath), cts.Token).ConfigureAwait(false);
             return true;
         }
         catch (OperationCanceledException)

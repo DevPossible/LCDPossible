@@ -37,7 +37,7 @@ public sealed class CompositeDeviceEnumerator : IDeviceEnumerator
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        var discovered = await _discoveryClient.DiscoverAsync(_discoveryTimeout, cancellationToken);
+        var discovered = await _discoveryClient.DiscoverAsync(_discoveryTimeout, cancellationToken).ConfigureAwait(false);
 
         // Clear existing virtual devices and add discovered ones
         _virtualEnumerator.ClearDevices();

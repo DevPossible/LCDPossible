@@ -159,9 +159,13 @@ public sealed class DevicePluginManager : IDisposable
     }
 
     /// <summary>
-    /// Creates a physical device driver for the specified HID device.
+    /// Creates a physical device driver for the specified HID device asynchronously.
+    /// C001 fix: Async version to avoid sync-over-async blocking.
     /// </summary>
-    public ILcdDevice? CreatePhysicalDevice(HidDeviceInfo hidInfo, IDeviceEnumerator enumerator)
+    public async Task<ILcdDevice?> CreatePhysicalDeviceAsync(
+        HidDeviceInfo hidInfo,
+        IDeviceEnumerator enumerator,
+        CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -174,7 +178,7 @@ public sealed class DevicePluginManager : IDisposable
             return null;
         }
 
-        var plugin = EnsurePluginLoaded(pluginId);
+        var plugin = await EnsurePluginLoadedAsync(pluginId, cancellationToken).ConfigureAwait(false);
         if (plugin is null)
         {
             _logger?.LogWarning("Failed to load plugin {PluginId} for device", pluginId);
@@ -193,9 +197,51 @@ public sealed class DevicePluginManager : IDisposable
     }
 
     /// <summary>
-    /// Creates a virtual device driver for the specified protocol.
+    /// Creates a physical device driver for the specified HID device.
     /// </summary>
-    public ILcdDevice? CreateVirtualDevice(string protocolId, string endpoint)
+    [Obsolete("Use CreatePhysicalDeviceAsync to avoid sync-over-async blocking (C001). Will be removed in a future version.")]
+    public ILcdDevice? CreatePhysicalDevice(HidDeviceInfo hidInfo, IDeviceEnumerator enumerator)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        var key = (hidInfo.VendorId, hidInfo.ProductId);
+        if (!_deviceToPlugin.TryGetValue(key, out var pluginId))
+        {
+            _logger?.LogDebug(
+                "No plugin registered for device VID:0x{VendorId:X4} PID:0x{ProductId:X4}",
+                hidInfo.VendorId, hidInfo.ProductId);
+            return null;
+        }
+
+#pragma warning disable CS0618 // Type or member is obsolete
+        var plugin = EnsurePluginLoaded(pluginId);
+#pragma warning restore CS0618
+
+        if (plugin is null)
+        {
+            _logger?.LogWarning("Failed to load plugin {PluginId} for device", pluginId);
+            return null;
+        }
+
+        try
+        {
+            return plugin.CreatePhysicalDevice(hidInfo, enumerator);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to create physical device from plugin {PluginId}", pluginId);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Creates a virtual device driver for the specified protocol asynchronously.
+    /// C001 fix: Async version to avoid sync-over-async blocking.
+    /// </summary>
+    public async Task<ILcdDevice?> CreateVirtualDeviceAsync(
+        string protocolId,
+        string endpoint,
+        CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -205,7 +251,7 @@ public sealed class DevicePluginManager : IDisposable
             return null;
         }
 
-        var plugin = EnsurePluginLoaded(pluginId);
+        var plugin = await EnsurePluginLoadedAsync(pluginId, cancellationToken).ConfigureAwait(false);
         if (plugin is null)
         {
             _logger?.LogWarning("Failed to load plugin {PluginId} for protocol", pluginId);
@@ -224,8 +270,78 @@ public sealed class DevicePluginManager : IDisposable
     }
 
     /// <summary>
+    /// Creates a virtual device driver for the specified protocol.
+    /// </summary>
+    [Obsolete("Use CreateVirtualDeviceAsync to avoid sync-over-async blocking (C001). Will be removed in a future version.")]
+    public ILcdDevice? CreateVirtualDevice(string protocolId, string endpoint)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (!_protocolToPlugin.TryGetValue(protocolId, out var pluginId))
+        {
+            _logger?.LogDebug("No plugin registered for protocol {ProtocolId}", protocolId);
+            return null;
+        }
+
+#pragma warning disable CS0618 // Type or member is obsolete
+        var plugin = EnsurePluginLoaded(pluginId);
+#pragma warning restore CS0618
+
+        if (plugin is null)
+        {
+            _logger?.LogWarning("Failed to load plugin {PluginId} for protocol", pluginId);
+            return null;
+        }
+
+        try
+        {
+            return plugin.CreateVirtualDevice(protocolId, endpoint);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to create virtual device from plugin {PluginId}", pluginId);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Creates a simulator handler for the specified protocol asynchronously.
+    /// C001 fix: Async version to avoid sync-over-async blocking.
+    /// </summary>
+    public async Task<IVirtualDeviceHandler?> CreateSimulatorHandlerAsync(
+        string protocolId,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (!_protocolToPlugin.TryGetValue(protocolId, out var pluginId))
+        {
+            _logger?.LogDebug("No plugin registered for protocol {ProtocolId}", protocolId);
+            return null;
+        }
+
+        var plugin = await EnsurePluginLoadedAsync(pluginId, cancellationToken).ConfigureAwait(false);
+        if (plugin is null)
+        {
+            _logger?.LogWarning("Failed to load plugin {PluginId} for protocol", pluginId);
+            return null;
+        }
+
+        try
+        {
+            return plugin.CreateSimulatorHandler(protocolId);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to create simulator handler from plugin {PluginId}", pluginId);
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Creates a simulator handler for the specified protocol.
     /// </summary>
+    [Obsolete("Use CreateSimulatorHandlerAsync to avoid sync-over-async blocking (C001). Will be removed in a future version.")]
     public IVirtualDeviceHandler? CreateSimulatorHandler(string protocolId)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -236,7 +352,10 @@ public sealed class DevicePluginManager : IDisposable
             return null;
         }
 
+#pragma warning disable CS0618 // Type or member is obsolete
         var plugin = EnsurePluginLoaded(pluginId);
+#pragma warning restore CS0618
+
         if (plugin is null)
         {
             _logger?.LogWarning("Failed to load plugin {PluginId} for protocol", pluginId);
@@ -411,6 +530,22 @@ public sealed class DevicePluginManager : IDisposable
         }
     }
 
+    /// <summary>
+    /// Ensures a plugin is loaded asynchronously.
+    /// C001 fix: Async version to avoid sync-over-async blocking.
+    /// </summary>
+    private async Task<IDevicePlugin?> EnsurePluginLoadedAsync(string pluginId, CancellationToken cancellationToken)
+    {
+        if (_loadedPlugins.TryGetValue(pluginId, out var entry))
+            return entry.Plugin;
+
+        if (!_availablePlugins.TryGetValue(pluginId, out var metadata))
+            return null;
+
+        return await LoadPluginFromMetadataAsync(metadata, cancellationToken).ConfigureAwait(false);
+    }
+
+    [Obsolete("Use EnsurePluginLoadedAsync to avoid sync-over-async blocking (C001). Will be removed in a future version.")]
     private IDevicePlugin? EnsurePluginLoaded(string pluginId)
     {
         if (_loadedPlugins.TryGetValue(pluginId, out var entry))
@@ -419,7 +554,7 @@ public sealed class DevicePluginManager : IDisposable
         if (!_availablePlugins.TryGetValue(pluginId, out var metadata))
             return null;
 
-        // Load synchronously (blocking)
+        // Load synchronously (blocking) - marked obsolete
         return LoadPluginFromMetadataAsync(metadata, CancellationToken.None)
             .ConfigureAwait(false)
             .GetAwaiter()

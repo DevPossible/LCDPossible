@@ -66,7 +66,7 @@ public static class AssetCache
         }
 
         // It's a URL - download to cache if not already present
-        return await DownloadToCacheAsync(pathOrUrl, cancellationToken);
+        return await DownloadToCacheAsync(pathOrUrl, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -103,16 +103,16 @@ public static class AssetCache
         }
 
         // Download the file
-        using var response = await HttpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        using var response = await HttpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
         // Write to a temp file first, then move (atomic operation)
         var tempFilePath = cacheFilePath + ".tmp";
         try
         {
-            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
             await using var fileStream = File.Create(tempFilePath);
-            await stream.CopyToAsync(fileStream, cancellationToken);
+            await stream.CopyToAsync(fileStream, cancellationToken).ConfigureAwait(false);
         }
         catch
         {

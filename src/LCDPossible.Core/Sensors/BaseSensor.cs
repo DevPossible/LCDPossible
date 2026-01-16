@@ -38,7 +38,7 @@ public abstract class BaseSensor<T> : ISensor<T>
             return CachedValue;
         }
 
-        return await RefreshAsync(ct);
+        return await RefreshAsync(ct).ConfigureAwait(false);
     }
 
     public async Task<T?> RefreshAsync(CancellationToken ct = default)
@@ -55,7 +55,7 @@ public abstract class BaseSensor<T> : ISensor<T>
 
         try
         {
-            CachedValue = await ReadValueAsync(ct);
+            CachedValue = await ReadValueAsync(ct).ConfigureAwait(false);
             LastUpdated = DateTime.UtcNow;
             return CachedValue;
         }
@@ -74,10 +74,10 @@ public abstract class BaseSensor<T> : ISensor<T>
     protected abstract Task<T?> ReadValueAsync(CancellationToken ct);
 
     async Task<object?> ISensor.GetValueAsync(CancellationToken ct) =>
-        await GetValueAsync(ct);
+        await GetValueAsync(ct).ConfigureAwait(false);
 
     async Task<object?> ISensor.RefreshAsync(CancellationToken ct) =>
-        await RefreshAsync(ct);
+        await RefreshAsync(ct).ConfigureAwait(false);
 
     public void Dispose()
     {

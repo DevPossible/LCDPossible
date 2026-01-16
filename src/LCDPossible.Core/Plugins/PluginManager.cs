@@ -22,7 +22,7 @@ public sealed class PluginManager : IDisposable
     private readonly Dictionary<string, string> _panelTypeToPlugin = new(StringComparer.OrdinalIgnoreCase);
 
     private bool _disposed;
-    private static bool _sharedAssembliesPreloaded;
+    private static int _sharedAssembliesPreloaded; // 0 = false, 1 = true (using int for Interlocked)
 
     /// <summary>
     /// Creates a new plugin manager.
@@ -52,7 +52,9 @@ public sealed class PluginManager : IDisposable
     /// </summary>
     private void EnsureSharedAssembliesLoaded()
     {
-        if (_sharedAssembliesPreloaded) return;
+        // Thread-safe check using Interlocked
+        if (Interlocked.CompareExchange(ref _sharedAssembliesPreloaded, 1, 0) == 1)
+            return; // Already loaded by another thread
 
         // List of assemblies that must be available to plugins
         var sharedAssemblies = new[]
@@ -74,7 +76,7 @@ public sealed class PluginManager : IDisposable
 
                 if (loaded != null)
                 {
-                    if (_debug) Console.WriteLine($"[DEBUG] PluginManager: Shared assembly '{assemblyName}' already loaded");
+                    _logger.LogDebug("Shared assembly '{AssemblyName}' already loaded", assemblyName);
                     continue;
                 }
 
@@ -83,7 +85,7 @@ public sealed class PluginManager : IDisposable
                 if (File.Exists(assemblyPath))
                 {
                     AssemblyLoadContext.Default.LoadFromAssemblyPath(assemblyPath);
-                    if (_debug) Console.WriteLine($"[DEBUG] PluginManager: Loaded shared assembly '{assemblyName}' from disk");
+                    _logger.LogDebug("Loaded shared assembly '{AssemblyName}' from disk", assemblyName);
                     continue;
                 }
 
@@ -91,20 +93,18 @@ public sealed class PluginManager : IDisposable
                 try
                 {
                     AssemblyLoadContext.Default.LoadFromAssemblyName(new AssemblyName(assemblyName));
-                    if (_debug) Console.WriteLine($"[DEBUG] PluginManager: Loaded shared assembly '{assemblyName}' from bundle");
+                    _logger.LogDebug("Loaded shared assembly '{AssemblyName}' from bundle", assemblyName);
                 }
                 catch (Exception ex)
                 {
-                    if (_debug) Console.WriteLine($"[DEBUG] PluginManager: Could not preload '{assemblyName}': {ex.Message}");
+                    _logger.LogDebug("Could not preload '{AssemblyName}': {Message}", assemblyName, ex.Message);
                 }
             }
             catch (Exception ex)
             {
-                if (_debug) Console.WriteLine($"[DEBUG] PluginManager: Error preloading '{assemblyName}': {ex.Message}");
+                _logger.LogDebug("Error preloading '{AssemblyName}': {Message}", assemblyName, ex.Message);
             }
         }
-
-        _sharedAssembliesPreloaded = true;
     }
 
     /// <summary>
@@ -114,50 +114,49 @@ public sealed class PluginManager : IDisposable
     public void DiscoverPlugins()
     {
         _logger.LogInformation("Discovering plugins...");
-        if (_debug) Console.WriteLine("[DEBUG] PluginManager: Discovering plugins...");
+        _logger.LogDebug("Starting plugin discovery");
 
         // Built-in plugins (lower priority)
         var builtInDir = PlatformPaths.GetBuiltInPluginsDirectory();
-        if (_debug) Console.WriteLine($"[DEBUG] PluginManager: Built-in plugins directory: {builtInDir}");
+        _logger.LogDebug("Built-in plugins directory: {Directory}", builtInDir);
         if (Directory.Exists(builtInDir))
         {
             ScanPluginDirectory(builtInDir, isBuiltIn: true);
         }
-        else if (_debug)
+        else
         {
-            Console.WriteLine($"[DEBUG] PluginManager: Built-in directory does not exist!");
+            _logger.LogDebug("Built-in directory does not exist: {Directory}", builtInDir);
         }
 
         // User plugins (higher priority - can override built-in)
         var userDir = PlatformPaths.GetUserPluginsDirectory();
-        if (_debug) Console.WriteLine($"[DEBUG] PluginManager: User plugins directory: {userDir}");
+        _logger.LogDebug("User plugins directory: {Directory}", userDir);
         if (Directory.Exists(userDir))
         {
             ScanPluginDirectory(userDir, isBuiltIn: false);
         }
-        else if (_debug)
+        else
         {
-            Console.WriteLine($"[DEBUG] PluginManager: User directory does not exist (OK - optional)");
+            _logger.LogDebug("User directory does not exist (OK - optional): {Directory}", userDir);
         }
 
         _logger.LogInformation("Discovered {Count} plugins with {PanelCount} panel types",
             _availablePlugins.Count, _panelTypeToPlugin.Count);
-        if (_debug) Console.WriteLine($"[DEBUG] PluginManager: Discovered {_availablePlugins.Count} plugins with {_panelTypeToPlugin.Count} panel types");
     }
 
     private void ScanPluginDirectory(string directory, bool isBuiltIn)
     {
         var dirs = Directory.GetDirectories(directory);
-        if (_debug) Console.WriteLine($"[DEBUG] PluginManager: Scanning {directory}, found {dirs.Length} subdirectories");
+        _logger.LogDebug("Scanning {Directory}, found {Count} subdirectories", directory, dirs.Length);
 
         foreach (var pluginDir in dirs)
         {
-            if (_debug) Console.WriteLine($"[DEBUG] PluginManager:   Checking: {Path.GetFileName(pluginDir)}");
+            _logger.LogDebug("Checking plugin directory: {Directory}", Path.GetFileName(pluginDir));
 
             var manifestPath = Path.Combine(pluginDir, "plugin.json");
             if (!File.Exists(manifestPath))
             {
-                if (_debug) Console.WriteLine($"[DEBUG] PluginManager:     No plugin.json found");
+                _logger.LogDebug("No plugin.json found in {Directory}", pluginDir);
                 continue;
             }
 
@@ -195,6 +194,15 @@ public sealed class PluginManager : IDisposable
                     IsBuiltIn = isBuiltIn
                 };
 
+                // Check for plugin ID collision (H008 fix)
+                if (_availablePlugins.TryGetValue(metadata.Id, out var existingEntry))
+                {
+                    _logger.LogWarning(
+                        "Plugin '{PluginId}' already registered from '{ExistingPath}', " +
+                        "overwriting with plugin from '{NewPath}'",
+                        metadata.Id, existingEntry.PluginDirectory, pluginDir);
+                }
+
                 // User plugins override built-in plugins with same ID
                 _availablePlugins[metadata.Id] = entry;
 
@@ -202,12 +210,32 @@ public sealed class PluginManager : IDisposable
                 foreach (var panelType in metadata.PanelTypes)
                 {
                     var typeId = panelType.TypeId.ToLowerInvariant();
+
+                    // Check for panel type collision (H008 fix)
+                    if (_panelTypeToPlugin.TryGetValue(typeId, out var existingPluginId))
+                    {
+                        _logger.LogWarning(
+                            "Panel type '{TypeId}' already registered by plugin '{ExistingPlugin}', " +
+                            "overwriting with plugin '{NewPlugin}'",
+                            typeId, existingPluginId, metadata.Id);
+                    }
+
                     _panelTypeToPlugin[typeId] = metadata.Id;
 
                     // Also register prefix pattern if present
                     if (!string.IsNullOrEmpty(panelType.PrefixPattern))
                     {
                         var prefix = panelType.PrefixPattern.TrimEnd(':').ToLowerInvariant();
+
+                        // Check for prefix collision
+                        if (_panelTypeToPlugin.TryGetValue(prefix, out existingPluginId) && existingPluginId != metadata.Id)
+                        {
+                            _logger.LogWarning(
+                                "Panel prefix '{Prefix}' already registered by plugin '{ExistingPlugin}', " +
+                                "overwriting with plugin '{NewPlugin}'",
+                                prefix, existingPluginId, metadata.Id);
+                        }
+
                         _panelTypeToPlugin[prefix] = metadata.Id;
                     }
                 }
@@ -296,7 +324,7 @@ public sealed class PluginManager : IDisposable
 
             // Create context and initialize
             var context = new PluginContext(pluginId, _loggerFactory, _services);
-            await entry.Instance.InitializeAsync(context, cancellationToken);
+            await entry.Instance.InitializeAsync(context, cancellationToken).ConfigureAwait(false);
 
             _loadedPlugins[pluginId] = entry;
             _logger.LogInformation("Loaded plugin: {PluginId} v{Version}",

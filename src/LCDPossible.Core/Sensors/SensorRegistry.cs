@@ -73,8 +73,8 @@ public sealed class SensorRegistry : ISensorRegistry
             return default;
         }
 
-        await sensor.InitializeAsync(ct);
-        var value = await sensor.GetValueAsync(ct);
+        await sensor.InitializeAsync(ct).ConfigureAwait(false);
+        var value = await sensor.GetValueAsync(ct).ConfigureAwait(false);
 
         if (value is T typedValue)
         {

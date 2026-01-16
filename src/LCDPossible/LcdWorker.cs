@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using LCDPossible.Core.Caching;
 using LCDPossible.Core.Configuration;
 using LCDPossible.Core.Devices;
@@ -24,6 +25,9 @@ namespace LCDPossible;
 /// </summary>
 public sealed class LcdWorker : BackgroundService
 {
+    // L006: Extract string literal to constant
+    private const string DefaultSlideshowKey = "default";
+
     private readonly IHostApplicationLifetime _appLifetime;
     private readonly DeviceManager _deviceManager;
     private readonly ProfileLoader _profileLoader;
@@ -32,13 +36,16 @@ public sealed class LcdWorker : BackgroundService
     private readonly ILoggerFactory _loggerFactory;
     private readonly LcdPossibleOptions _options;
     private readonly JpegImageEncoder _encoder;
-    private readonly Dictionary<string, ILcdDevice> _connectedDevices = [];
-    private readonly Dictionary<string, Image<Rgba32>?> _staticImages = [];
-    private readonly Dictionary<string, SlideshowManager> _slideshows = [];
-    private readonly Dictionary<string, IDisplayPanel> _singlePanels = [];
-    private readonly Dictionary<string, float> _brightnessLevels = []; // 0.0 to 1.0
-    private readonly Dictionary<string, (Image<Rgba32> ErrorFrame, string ErrorMessage)> _panelErrorCache = [];
-    private readonly HashSet<string> _failedPanels = [];
+    private readonly ConcurrentDictionary<string, ILcdDevice> _connectedDevices = new();
+    private readonly ConcurrentDictionary<string, Image<Rgba32>?> _staticImages = new();
+    private readonly ConcurrentDictionary<string, SlideshowManager> _slideshows = new();
+    private readonly ConcurrentDictionary<string, IDisplayPanel> _singlePanels = new();
+    private readonly ConcurrentDictionary<string, float> _brightnessLevels = new(); // 0.0 to 1.0
+    private readonly ConcurrentDictionary<string, (Image<Rgba32> ErrorFrame, string ErrorMessage)> _panelErrorCache = new();
+    private readonly ConcurrentDictionary<string, byte> _failedPanels = new(); // Using byte as dummy value for set-like behavior
+
+    // Cancellation token from ExecuteAsync for use in event handlers
+    private CancellationToken _stoppingToken;
 
     private ISystemInfoProvider? _systemProvider;
     private IProxmoxProvider? _proxmoxProvider;
@@ -70,6 +77,7 @@ public sealed class LcdWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        _stoppingToken = stoppingToken;
         _logger.LogInformation("LcdWorker starting...");
 
         // Load display profile from system location
@@ -133,31 +141,33 @@ public sealed class LcdWorker : BackgroundService
             _deviceManager.DeviceDiscovered -= OnDeviceDiscovered;
             _deviceManager.DeviceDisconnected -= OnDeviceDisconnected;
 
-            // Cleanup
-            foreach (var slideshow in _slideshows.Values)
+            // Cleanup slideshows
+            foreach (var kvp in _slideshows)
             {
-                slideshow.Dispose();
+                kvp.Value.Dispose();
+                _slideshows.TryRemove(kvp.Key, out _);
             }
-            _slideshows.Clear();
 
-            foreach (var panel in _singlePanels.Values)
+            // Cleanup panels
+            foreach (var kvp in _singlePanels)
             {
-                panel.Dispose();
+                kvp.Value.Dispose();
+                _singlePanels.TryRemove(kvp.Key, out _);
             }
-            _singlePanels.Clear();
 
-            foreach (var image in _staticImages.Values)
+            // Cleanup static images
+            foreach (var kvp in _staticImages)
             {
-                image?.Dispose();
+                kvp.Value?.Dispose();
+                _staticImages.TryRemove(kvp.Key, out _);
             }
-            _staticImages.Clear();
 
             // Cleanup error caches
-            foreach (var cached in _panelErrorCache.Values)
+            foreach (var kvp in _panelErrorCache)
             {
-                cached.ErrorFrame.Dispose();
+                kvp.Value.ErrorFrame.Dispose();
+                _panelErrorCache.TryRemove(kvp.Key, out _);
             }
-            _panelErrorCache.Clear();
             _failedPanels.Clear();
 
             _systemProvider?.Dispose();
@@ -165,11 +175,11 @@ public sealed class LcdWorker : BackgroundService
             _lcdServices?.Dispose();
 
             // Disconnect all devices
-            foreach (var device in _connectedDevices.Values)
+            foreach (var kvp in _connectedDevices)
             {
-                await device.DisconnectAsync();
+                await kvp.Value.DisconnectAsync();
+                _connectedDevices.TryRemove(kvp.Key, out _);
             }
-            _connectedDevices.Clear();
 
             _logger.LogInformation("LcdWorker stopped.");
         }
@@ -268,7 +278,7 @@ public sealed class LcdWorker : BackgroundService
             _loggerFactory.CreateLogger<SlideshowManager>());
 
         await slideshow.InitializeAsync(cancellationToken);
-        _slideshows["default"] = slideshow;
+        _slideshows[DefaultSlideshowKey] = slideshow;
         _logger.LogInformation("Initialized default slideshow with {Count} panels from profile '{ProfileName}'",
             items.Count, _displayProfile.Name);
     }
@@ -385,7 +395,7 @@ public sealed class LcdWorker : BackgroundService
         {
             return options;
         }
-        if (_options.Devices.TryGetValue("default", out var defaultOptions))
+        if (_options.Devices.TryGetValue(DefaultSlideshowKey, out var defaultOptions))
         {
             return defaultOptions;
         }
@@ -399,7 +409,7 @@ public sealed class LcdWorker : BackgroundService
         {
             return device.Info.UniqueId;
         }
-        return "default";
+        return DefaultSlideshowKey;
     }
 
     private async Task RenderFrameToAllDevicesAsync(CancellationToken cancellationToken)
@@ -487,7 +497,7 @@ public sealed class LcdWorker : BackgroundService
         {
             return image;
         }
-        if (_staticImages.TryGetValue("default", out image) && image != null)
+        if (_staticImages.TryGetValue(DefaultSlideshowKey, out image) && image != null)
         {
             return image;
         }
@@ -503,9 +513,9 @@ public sealed class LcdWorker : BackgroundService
         {
             panelKey = configKey;
         }
-        else if (_singlePanels.TryGetValue("default", out panel))
+        else if (_singlePanels.TryGetValue(DefaultSlideshowKey, out panel))
         {
-            panelKey = "default";
+            panelKey = DefaultSlideshowKey;
         }
 
         if (panel == null)
@@ -514,7 +524,7 @@ public sealed class LcdWorker : BackgroundService
         }
 
         // If this panel has previously failed, return the cached error frame
-        if (_failedPanels.Contains(panelKey))
+        if (_failedPanels.ContainsKey(panelKey))
         {
             if (_panelErrorCache.TryGetValue(panelKey, out var errorCached))
             {
@@ -535,8 +545,10 @@ public sealed class LcdWorker : BackgroundService
             _logger.LogError(ex, "Panel '{PanelId}' failed to render: {Message}", panel.PanelId, ex.Message);
 
             // Mark as failed and cache error page
-            _failedPanels.Add(panelKey);
-            var errorFrame = GenerateErrorPage(capabilities.Width, capabilities.Height, panel.PanelId, ex.Message);
+            _failedPanels.TryAdd(panelKey, 0);
+            var errorFrame = ErrorPageRenderer.Generate(
+                capabilities.Width, capabilities.Height, panel.PanelId, ex.Message,
+                "Panel disabled until restart");
             _panelErrorCache[panelKey] = (errorFrame, ex.Message);
 
             _logger.LogWarning("Panel '{PanelId}' marked as failed - displaying error page", panel.PanelId);
@@ -551,7 +563,7 @@ public sealed class LcdWorker : BackgroundService
         {
             return await slideshow.RenderCurrentFrameAsync(capabilities.Width, capabilities.Height, cancellationToken);
         }
-        if (_slideshows.TryGetValue("default", out slideshow))
+        if (_slideshows.TryGetValue(DefaultSlideshowKey, out slideshow))
         {
             return await slideshow.RenderCurrentFrameAsync(capabilities.Width, capabilities.Height, cancellationToken);
         }
@@ -649,130 +661,37 @@ public sealed class LcdWorker : BackgroundService
         return p;
     }
 
-    /// <summary>
-    /// Generates an error page image for display when a panel fails.
-    /// </summary>
-    private static Image<Rgba32> GenerateErrorPage(int width, int height, string panelName, string errorMessage)
-    {
-        var image = new Image<Rgba32>(width, height);
-
-        // Dark red gradient background
-        image.Mutate(ctx =>
-        {
-            ctx.BackgroundColor(new Rgba32(40, 10, 10));
-        });
-
-        // Try to load system font for error text
-        Font? titleFont = null;
-        Font? messageFont = null;
-        Font? hintFont = null;
-
-        try
-        {
-            if (SystemFonts.TryGet("Segoe UI", out var family) ||
-                SystemFonts.TryGet("Arial", out family) ||
-                SystemFonts.TryGet("DejaVu Sans", out family))
-            {
-                titleFont = family.CreateFont(28, FontStyle.Bold);
-                messageFont = family.CreateFont(18, FontStyle.Regular);
-                hintFont = family.CreateFont(14, FontStyle.Italic);
-            }
-        }
-        catch
-        {
-            // Font loading failed, we'll render without text
-        }
-
-        if (titleFont != null && messageFont != null && hintFont != null)
-        {
-            var errorColor = new Rgba32(255, 100, 100);
-            var textColor = new Rgba32(220, 220, 220);
-            var hintColor = new Rgba32(150, 150, 150);
-
-            image.Mutate(ctx =>
-            {
-                var y = height * 0.25f;
-
-                // Error icon (simple X)
-                var centerX = width / 2f;
-                ctx.DrawLine(errorColor, 4f, new PointF(centerX - 30, y - 30), new PointF(centerX + 30, y + 30));
-                ctx.DrawLine(errorColor, 4f, new PointF(centerX + 30, y - 30), new PointF(centerX - 30, y + 30));
-
-                y += 60;
-
-                // Title
-                var title = "Panel Error";
-                var titleOptions = new RichTextOptions(titleFont)
-                {
-                    Origin = new PointF(centerX, y),
-                    HorizontalAlignment = HorizontalAlignment.Center
-                };
-                ctx.DrawText(titleOptions, title, errorColor);
-
-                y += 50;
-
-                // Panel name
-                var panelText = $"Panel: {panelName}";
-                var panelOptions = new RichTextOptions(messageFont)
-                {
-                    Origin = new PointF(centerX, y),
-                    HorizontalAlignment = HorizontalAlignment.Center
-                };
-                ctx.DrawText(panelOptions, panelText, textColor);
-
-                y += 35;
-
-                // Error message (truncate if too long)
-                var displayError = errorMessage.Length > 80
-                    ? errorMessage[..77] + "..."
-                    : errorMessage;
-                var errorOptions = new RichTextOptions(messageFont)
-                {
-                    Origin = new PointF(centerX, y),
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    WrappingLength = width - 40
-                };
-                ctx.DrawText(errorOptions, displayError, textColor);
-
-                y += 60;
-
-                // Hint
-                var hint = "Panel disabled until restart";
-                var hintOptions = new RichTextOptions(hintFont)
-                {
-                    Origin = new PointF(centerX, y),
-                    HorizontalAlignment = HorizontalAlignment.Center
-                };
-                ctx.DrawText(hintOptions, hint, hintColor);
-            });
-        }
-
-        return image;
-    }
-
     private void OnDeviceDiscovered(object? sender, LcdDeviceEventArgs e)
     {
         _logger.LogInformation("New device discovered: {Device}", e.Device.Info);
 
-        Task.Run(async () =>
+        // Handle device connection asynchronously with proper error handling
+        _ = HandleDeviceDiscoveredAsync(e.Device);
+    }
+
+    private async Task HandleDeviceDiscoveredAsync(ILcdDevice device)
+    {
+        try
         {
-            try
-            {
-                await e.Device.ConnectAsync();
-                _connectedDevices[e.Device.Info.UniqueId] = e.Device;
-                _logger.LogInformation("Connected to newly discovered {DeviceName}", e.Device.Info.Name);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to connect to discovered device {DeviceName}", e.Device.Info.Name);
-            }
-        });
+            await device.ConnectAsync(_stoppingToken).ConfigureAwait(false);
+            _connectedDevices[device.Info.UniqueId] = device;
+            _logger.LogInformation("Connected to newly discovered {DeviceName}", device.Info.Name);
+        }
+        catch (OperationCanceledException) when (_stoppingToken.IsCancellationRequested)
+        {
+            // Expected during shutdown - don't log as error
+            _logger.LogDebug("Device connection cancelled during shutdown: {DeviceName}", device.Info.Name);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to connect to discovered device {DeviceName}", device.Info.Name);
+        }
     }
 
     private void OnDeviceDisconnected(object? sender, LcdDeviceEventArgs e)
     {
         _logger.LogInformation("Device disconnected: {Device}", e.Device.Info);
-        _connectedDevices.Remove(e.Device.Info.UniqueId);
+        _connectedDevices.TryRemove(e.Device.Info.UniqueId, out _);
     }
 
     #region IPC Server
@@ -786,8 +705,8 @@ public sealed class LcdWorker : BackgroundService
                 _appLifetime,
                 _deviceManager,
                 _panelFactory,
-                () => _connectedDevices,
-                () => _slideshows,
+                () => _connectedDevices.ToDictionary(kv => kv.Key, kv => kv.Value),
+                () => _slideshows.ToDictionary(kv => kv.Key, kv => kv.Value),
                 () => _displayProfile,
                 () => _profilePath,
                 SetSlideshowAsync,
@@ -827,27 +746,42 @@ public sealed class LcdWorker : BackgroundService
         }
     }
 
-    private async void OnIpcRequest(object? sender, IpcRequestEventArgs e)
+    private void OnIpcRequest(object? sender, IpcRequestEventArgs e)
+    {
+        // Handle IPC request asynchronously with proper error handling
+        // Using fire-and-forget pattern but with tracked error handling
+        _ = HandleIpcRequestAsync(e);
+    }
+
+    private async Task HandleIpcRequestAsync(IpcRequestEventArgs e)
     {
         if (_ipcCommandHandler is null)
         {
             await e.SendResponseAsync(
                 IpcResponse.Fail(e.Request.Id, IpcErrorCodes.InternalError, "Command handler not initialized"),
-                CancellationToken.None);
+                CancellationToken.None).ConfigureAwait(false);
             return;
         }
 
         try
         {
-            var response = await _ipcCommandHandler.HandleAsync(e.Request, CancellationToken.None);
-            await e.SendResponseAsync(response, CancellationToken.None);
+            var response = await _ipcCommandHandler.HandleAsync(e.Request, _stoppingToken).ConfigureAwait(false);
+            await e.SendResponseAsync(response, _stoppingToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (_stoppingToken.IsCancellationRequested)
+        {
+            // Expected during shutdown - send cancellation response
+            _logger.LogDebug("IPC request cancelled during shutdown");
+            await e.SendResponseAsync(
+                IpcResponse.Fail(e.Request.Id, IpcErrorCodes.InternalError, "Service shutting down"),
+                CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error handling IPC request");
             await e.SendResponseAsync(
                 IpcResponse.Fail(e.Request.Id, ex),
-                CancellationToken.None);
+                CancellationToken.None).ConfigureAwait(false);
         }
     }
 
@@ -877,19 +811,18 @@ public sealed class LcdWorker : BackgroundService
         }
 
         // Dispose old default slideshow
-        if (_slideshows.TryGetValue("default", out var oldSlideshow))
+        if (_slideshows.TryRemove(DefaultSlideshowKey, out var oldSlideshow))
         {
             oldSlideshow.Dispose();
-            _slideshows.Remove("default");
         }
 
         // Clear any cached errors for panels that might now work
         _failedPanels.Clear();
-        foreach (var cached in _panelErrorCache.Values)
+        foreach (var kvp in _panelErrorCache)
         {
-            cached.ErrorFrame.Dispose();
+            kvp.Value.ErrorFrame.Dispose();
+            _panelErrorCache.TryRemove(kvp.Key, out _);
         }
-        _panelErrorCache.Clear();
 
         // Reinitialize default slideshow
         await InitializeDefaultSlideshowAsync(cancellationToken);
@@ -903,7 +836,7 @@ public sealed class LcdWorker : BackgroundService
     internal Task SetSlideshowAsync(string configKey, SlideshowManager slideshow, CancellationToken cancellationToken)
     {
         // Dispose old slideshow if exists
-        if (_slideshows.TryGetValue(configKey, out var oldSlideshow))
+        if (_slideshows.TryRemove(configKey, out var oldSlideshow))
         {
             oldSlideshow.Dispose();
         }
@@ -919,7 +852,7 @@ public sealed class LcdWorker : BackgroundService
     internal Task SetStaticImageAsync(string configKey, Image<Rgba32>? image)
     {
         // Dispose old image if exists
-        if (_staticImages.TryGetValue(configKey, out var oldImage))
+        if (_staticImages.TryRemove(configKey, out var oldImage))
         {
             oldImage?.Dispose();
         }
@@ -963,7 +896,7 @@ public sealed class LcdWorker : BackgroundService
         {
             return level;
         }
-        if (_brightnessLevels.TryGetValue("default", out level))
+        if (_brightnessLevels.TryGetValue(DefaultSlideshowKey, out level))
         {
             return level;
         }

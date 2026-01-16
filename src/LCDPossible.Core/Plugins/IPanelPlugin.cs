@@ -111,6 +111,18 @@ public sealed class PanelCreationContext
     public IProxmoxProvider? ProxmoxProvider { get; init; }
 
     public ResolvedColorScheme? ColorScheme { get; init; }
+
+    /// <summary>
+    /// Theme to apply to the panel. Provides styling hooks for HtmlPanel-based panels.
+    /// H004 fix: Available at creation time rather than applied post-creation.
+    /// </summary>
+    public Theme? Theme { get; init; }
+
+    /// <summary>
+    /// Page effect to apply to the panel.
+    /// </summary>
+    public PageEffect? PageEffect { get; init; }
+
     public ILoggerFactory? LoggerFactory { get; init; }
 
     public string? GetSetting(string key, string? defaultValue = null) =>

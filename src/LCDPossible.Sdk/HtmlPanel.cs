@@ -1,5 +1,9 @@
+using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
 using LCDPossible.Core.Configuration;
 using LCDPossible.Core.Rendering;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using PuppeteerSharp;
 using Scriban;
 using Scriban.Runtime;
@@ -29,11 +33,25 @@ namespace LCDPossible.Sdk;
 /// Color scheme variables are automatically injected as CSS custom properties.
 /// </para>
 /// </remarks>
-public abstract class HtmlPanel : BasePanel
+public abstract class HtmlPanel : BasePanel, IAsyncDisposable
 {
     // Shared browser instance management
     private static IBrowser? _sharedBrowser;
     private static readonly SemaphoreSlim BrowserLock = new(1, 1);
+
+    // Compiled regex for body extraction (M006 - avoid recompilation)
+    private static readonly Regex BodyStartRegex = new(
+        @"<body[^>]*>",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    // Static logger for static methods (M005 - replace Console.Error)
+    private static ILogger? _staticLogger;
+
+    /// <summary>
+    /// Sets the static logger used for asset loading diagnostics.
+    /// Should be called once during application startup.
+    /// </summary>
+    public static void SetStaticLogger(ILogger logger) => _staticLogger = logger;
     private static int _instanceCount;
 
     // Page and rendering state
@@ -147,8 +165,8 @@ public abstract class HtmlPanel : BasePanel
     private static string? _echartsScript;
     private static string? _echartsComponentsScript;
     private static string? _daisyUiComponentsScript;
-    private static readonly Dictionary<string, string> _themeScriptCache = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly Dictionary<string, string> _effectScriptCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, string> _themeScriptCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, string> _effectScriptCache = new(StringComparer.OrdinalIgnoreCase);
     private Theme? _currentTheme;
     private PageEffect? _currentPageEffect;
     private PanelRenderMode? _renderModeOverride;
@@ -190,7 +208,7 @@ public abstract class HtmlPanel : BasePanel
         if (File.Exists(filePath))
         {
             var content = File.ReadAllText(filePath);
-            if (debug) Console.Error.WriteLine($"[ASSET LOADED] {filename} from {filePath} ({content.Length} bytes)");
+            if (debug) _staticLogger?.LogDebug("Asset loaded: {Filename} from {Path} ({Length} bytes)", filename, filePath, content.Length);
             return content;
         }
 
@@ -204,7 +222,7 @@ public abstract class HtmlPanel : BasePanel
             if (File.Exists(exePath))
             {
                 var content = File.ReadAllText(exePath);
-                if (debug) Console.Error.WriteLine($"[ASSET LOADED] {filename} from {exePath} ({content.Length} bytes)");
+                if (debug) _staticLogger?.LogDebug("Asset loaded: {Filename} from {Path} ({Length} bytes)", filename, exePath, content.Length);
                 return content;
             }
         }
@@ -218,7 +236,7 @@ public abstract class HtmlPanel : BasePanel
             if (File.Exists(cwdPath))
             {
                 var content = File.ReadAllText(cwdPath);
-                if (debug) Console.Error.WriteLine($"[ASSET LOADED] {filename} from {cwdPath} ({content.Length} bytes)");
+                if (debug) _staticLogger?.LogDebug("Asset loaded: {Filename} from {Path} ({Length} bytes)", filename, cwdPath, content.Length);
                 return content;
             }
         }
@@ -232,17 +250,13 @@ public abstract class HtmlPanel : BasePanel
             if (File.Exists(optPath))
             {
                 var content = File.ReadAllText(optPath);
-                if (debug) Console.Error.WriteLine($"[ASSET LOADED] {filename} from {optPath} ({content.Length} bytes)");
+                if (debug) _staticLogger?.LogDebug("Asset loaded: {Filename} from {Path} ({Length} bytes)", filename, optPath, content.Length);
                 return content;
             }
         }
 
         // Log when asset file isn't found (helps debug deployment issues)
-        Console.Error.WriteLine($"[ASSET NOT FOUND] {filename} - tried:");
-        foreach (var path in pathsTried)
-        {
-            Console.Error.WriteLine($"  {path}");
-        }
+        _staticLogger?.LogWarning("Asset not found: {Filename} - tried: {Paths}", filename, string.Join(", ", pathsTried));
 
         return fallback;
     }
@@ -297,28 +311,21 @@ public abstract class HtmlPanel : BasePanel
         if (string.IsNullOrEmpty(themeId))
             return GetDefaultThemeHooks();
 
-        // Check cache first
-        if (_themeScriptCache.TryGetValue(themeId, out var cached))
-            return cached;
-
         // Check Theme.ScriptContent first (allows programmatic themes)
         if (_currentTheme?.ScriptContent != null)
         {
-            _themeScriptCache[themeId] = _currentTheme.ScriptContent;
-            return _currentTheme.ScriptContent;
+            return _themeScriptCache.GetOrAdd(themeId, _ => _currentTheme.ScriptContent);
         }
 
-        // Try to load from file
-        var script = LoadAssetFile("js/themes", $"{themeId}.js", "");
-
-        // If no theme-specific file, provide default hooks structure
-        if (string.IsNullOrEmpty(script))
+        // Thread-safe cache lookup with factory
+        return _themeScriptCache.GetOrAdd(themeId, id =>
         {
-            script = GetDefaultThemeHooks();
-        }
+            // Try to load from file
+            var script = LoadAssetFile("js/themes", $"{id}.js", "");
 
-        _themeScriptCache[themeId] = script;
-        return script;
+            // If no theme-specific file, provide default hooks structure
+            return string.IsNullOrEmpty(script) ? GetDefaultThemeHooks() : script;
+        });
     }
 
     /// <summary>
@@ -346,28 +353,21 @@ public abstract class HtmlPanel : BasePanel
         if (string.IsNullOrEmpty(effectId) || effectId == "none")
             return GetDefaultEffectHooks();
 
-        // Check cache first
-        if (_effectScriptCache.TryGetValue(effectId, out var cached))
-            return cached;
-
         // Check PageEffect.ScriptContent first (allows programmatic effects)
         if (_currentPageEffect?.ScriptContent != null)
         {
-            _effectScriptCache[effectId] = _currentPageEffect.ScriptContent;
-            return _currentPageEffect.ScriptContent;
+            return _effectScriptCache.GetOrAdd(effectId, _ => _currentPageEffect.ScriptContent);
         }
 
-        // Try to load from file
-        var script = LoadAssetFile("js/effects", $"{effectId}.js", "");
-
-        // If no effect-specific file, provide default hooks structure
-        if (string.IsNullOrEmpty(script))
+        // Thread-safe cache lookup with factory
+        return _effectScriptCache.GetOrAdd(effectId, id =>
         {
-            script = GetDefaultEffectHooks();
-        }
+            // Try to load from file
+            var script = LoadAssetFile("js/effects", $"{id}.js", "");
 
-        _effectScriptCache[effectId] = script;
-        return script;
+            // If no effect-specific file, provide default hooks structure
+            return string.IsNullOrEmpty(script) ? GetDefaultEffectHooks() : script;
+        });
     }
 
     /// <summary>
@@ -463,12 +463,12 @@ public abstract class HtmlPanel : BasePanel
         {
             if (_currentPageEffect != null)
             {
-                Console.WriteLine($"[DEBUG] [{PanelId}] Effect set: '{_currentPageEffect.Id}' ({_currentPageEffect.DisplayName})");
-                Console.WriteLine($"[DEBUG] [{PanelId}]   RequiresLiveMode: {_currentPageEffect.RequiresLiveMode}, RenderMode: {RenderMode}");
+                _staticLogger?.LogDebug("[{PanelId}] Effect set: '{EffectId}' ({EffectName})", PanelId, _currentPageEffect.Id, _currentPageEffect.DisplayName);
+                _staticLogger?.LogDebug("[{PanelId}]   RequiresLiveMode: {RequiresLiveMode}, RenderMode: {RenderMode}", PanelId, _currentPageEffect.RequiresLiveMode, RenderMode);
             }
             else if (!string.IsNullOrEmpty(previousEffect))
             {
-                Console.WriteLine($"[DEBUG] [{PanelId}] Effect cleared (was: '{previousEffect}')");
+                _staticLogger?.LogDebug("[{PanelId}] Effect cleared (was: '{PreviousEffect}')", PanelId, previousEffect);
             }
         }
     }
@@ -481,11 +481,7 @@ public abstract class HtmlPanel : BasePanel
         if (effect?.RequiresLiveMode == true)
         {
             _renderModeOverride = PanelRenderMode.Stream;
-            var debug = Environment.GetEnvironmentVariable("LCDPOSSIBLE_DEBUG") == "1";
-            if (debug)
-            {
-                Console.WriteLine($"[DEBUG] [{PanelId}] Page effect '{effect.Id}' requires live mode - switching to Stream render mode");
-            }
+            _staticLogger?.LogDebug("[{PanelId}] Page effect '{EffectId}' requires live mode - switching to Stream render mode", PanelId, effect.Id);
         }
         else
         {
@@ -522,11 +518,7 @@ public abstract class HtmlPanel : BasePanel
                 var installedBrowser = await browserFetcher.DownloadAsync();
 
                 var executablePath = installedBrowser.GetExecutablePath();
-                var debug = Environment.GetEnvironmentVariable("LCDPOSSIBLE_DEBUG") == "1";
-                if (debug)
-                {
-                    Console.WriteLine($"[DEBUG] Browser path: {executablePath}");
-                }
+                _staticLogger?.LogDebug("Browser path: {ExecutablePath}", executablePath);
 
                 try
                 {
@@ -545,19 +537,12 @@ public abstract class HtmlPanel : BasePanel
                         ]
                     });
 
-                    if (debug)
-                    {
-                        Console.WriteLine("[DEBUG] Browser launched successfully");
-                    }
+                    _staticLogger?.LogDebug("Browser launched successfully");
                 }
                 catch (Exception ex)
                 {
                     _browserLaunchError = ex;
-                    Console.WriteLine($"[ERROR] Failed to launch browser: {ex.Message}");
-                    if (debug)
-                    {
-                        Console.WriteLine($"[DEBUG] Browser launch exception details: {ex}");
-                    }
+                    _staticLogger?.LogError(ex, "Failed to launch browser: {Message}", ex.Message);
                     throw;
                 }
             }
@@ -808,7 +793,7 @@ public abstract class HtmlPanel : BasePanel
             // Always show errors and warnings
             if (type == "ERROR" || type == "WARNING")
             {
-                Console.Error.WriteLine($"[BROWSER {type}] [{PanelId}] {text}");
+                _staticLogger?.LogWarning("[BROWSER {Type}] [{PanelId}] {Text}", type, PanelId, text);
             }
             // In debug mode, also show effect-related console messages
             else if (Environment.GetEnvironmentVariable("LCDPOSSIBLE_DEBUG") == "1")
@@ -817,7 +802,7 @@ public abstract class HtmlPanel : BasePanel
                 if (text.Contains("LCDEffect") || text.Contains("LCDTheme") ||
                     text.Contains("[EFFECT]") || text.Contains("[THEME]"))
                 {
-                    Console.WriteLine($"[BROWSER LOG] [{PanelId}] {text}");
+                    _staticLogger?.LogDebug("[BROWSER LOG] [{PanelId}] {Text}", PanelId, text);
                 }
             }
         };
@@ -825,13 +810,13 @@ public abstract class HtmlPanel : BasePanel
         // Add page error handler
         Page.PageError += (sender, e) =>
         {
-            Console.Error.WriteLine($"[BROWSER PAGE ERROR] [{PanelId}] {e.Message}");
+            _staticLogger?.LogError("[BROWSER PAGE ERROR] [{PanelId}] {Message}", PanelId, e.Message);
         };
 
         // Add request failed handler for debugging resource loading
         Page.RequestFailed += (sender, e) =>
         {
-            Console.Error.WriteLine($"[BROWSER REQUEST FAILED] [{PanelId}] {e.Request.Url}");
+            _staticLogger?.LogWarning("[BROWSER REQUEST FAILED] [{PanelId}] {Url}", PanelId, e.Request.Url);
         };
 
         await Page.SetViewportAsync(new ViewPortOptions
@@ -886,10 +871,7 @@ public abstract class HtmlPanel : BasePanel
             LastRenderedHtml = html;
 
             await InjectHtmlContentAsync(html, dataModel);
-            if (debug)
-            {
-                Console.WriteLine($"[DEBUG] [{PanelId}] Updated panel content via JS injection (preserving page effects)");
-            }
+            _staticLogger?.LogDebug("[{PanelId}] Updated panel content via JS injection (preserving page effects)", PanelId);
             return;
         }
 
@@ -912,10 +894,7 @@ public abstract class HtmlPanel : BasePanel
         });
 
         _pageLoaded = true;
-        if (debug)
-        {
-            Console.WriteLine($"[DEBUG] [{PanelId}] Initial page loaded from {tempHtmlPath}");
-        }
+        _staticLogger?.LogDebug("[{PanelId}] Initial page loaded from {TempPath}", PanelId, tempHtmlPath);
     }
 
     /// <summary>
@@ -959,11 +938,7 @@ public abstract class HtmlPanel : BasePanel
         }
         catch (Exception ex)
         {
-            var debug = Environment.GetEnvironmentVariable("LCDPOSSIBLE_DEBUG") == "1";
-            if (debug)
-            {
-                Console.Error.WriteLine($"[DEBUG] [{PanelId}] Failed to inject HTML content: {ex.Message}");
-            }
+            _staticLogger?.LogDebug(ex, "Failed to inject HTML content for panel {PanelId}", PanelId);
         }
     }
 
@@ -972,10 +947,8 @@ public abstract class HtmlPanel : BasePanel
     /// </summary>
     private static string ExtractBodyContent(string fullHtml)
     {
-        var bodyStartMatch = System.Text.RegularExpressions.Regex.Match(
-            fullHtml,
-            @"<body[^>]*>",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        // Use pre-compiled regex (M006 fix)
+        var bodyStartMatch = BodyStartRegex.Match(fullHtml);
 
         if (!bodyStartMatch.Success)
             return fullHtml;
@@ -1186,21 +1159,15 @@ public abstract class HtmlPanel : BasePanel
             options[kvp.Key] = kvp.Value;
         }
 
-        if (debug)
+        _staticLogger?.LogDebug("[{PanelId}] Calling effect onInit for '{EffectId}'", PanelId, _currentPageEffect.Id);
+        if (_currentPageEffect.DefaultOptions.Count > 0)
         {
-            Console.WriteLine($"[DEBUG] [{PanelId}] Calling effect onInit for '{_currentPageEffect.Id}'");
-            if (_currentPageEffect.DefaultOptions.Count > 0)
-            {
-                Console.WriteLine($"[DEBUG] [{PanelId}]   Options: {string.Join(", ", options.Select(kv => $"{kv.Key}={kv.Value}"))}");
-            }
+            _staticLogger?.LogDebug("[{PanelId}]   Options: {Options}", PanelId, string.Join(", ", options.Select(kv => $"{kv.Key}={kv.Value}")));
         }
 
         await CallPageEffectHookAsync("onInit", options);
 
-        if (debug)
-        {
-            Console.WriteLine($"[DEBUG] [{PanelId}] Effect '{_currentPageEffect.Id}' initialized");
-        }
+        _staticLogger?.LogDebug("[{PanelId}] Effect '{EffectId}' initialized", PanelId, _currentPageEffect.Id);
     }
 
     public override void Dispose()
@@ -1221,9 +1188,10 @@ public abstract class HtmlPanel : BasePanel
             {
                 Page.CloseAsync().Wait(TimeSpan.FromSeconds(5));
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore errors during cleanup
+                // H012 fix: Log instead of swallow
+                _staticLogger?.LogDebug(ex, "Error closing browser page during disposal for panel {PanelId}", PanelId);
             }
             Page = null;
         }
@@ -1232,12 +1200,65 @@ public abstract class HtmlPanel : BasePanel
         {
             ReleaseBrowserAsync().Wait(TimeSpan.FromSeconds(5));
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore timeout
+            // H012 fix: Log instead of swallow
+            _staticLogger?.LogDebug(ex, "Timeout or error releasing browser during disposal for panel {PanelId}", PanelId);
         }
 
         base.Dispose();
+    }
+
+    /// <summary>
+    /// Asynchronously disposes of browser resources.
+    /// Preferred over <see cref="Dispose"/> to avoid sync-over-async blocking.
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _lastFrame?.Dispose();
+        _lastFrame = null;
+        _pageLoaded = false;
+        _domReadyCalled = false;
+
+        if (Page != null)
+        {
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                await Page.CloseAsync().WaitAsync(cts.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                _staticLogger?.LogDebug("Timeout closing browser page during async disposal for panel {PanelId}", PanelId);
+            }
+            catch (Exception ex)
+            {
+                _staticLogger?.LogDebug(ex, "Error closing browser page during async disposal for panel {PanelId}", PanelId);
+            }
+            Page = null;
+        }
+
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await ReleaseBrowserAsync().WaitAsync(cts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            _staticLogger?.LogDebug("Timeout releasing browser during async disposal for panel {PanelId}", PanelId);
+        }
+        catch (Exception ex)
+        {
+            _staticLogger?.LogDebug(ex, "Error releasing browser during async disposal for panel {PanelId}", PanelId);
+        }
+
+        _disposed = true;
+        GC.SuppressFinalize(this);
     }
 
     #endregion
