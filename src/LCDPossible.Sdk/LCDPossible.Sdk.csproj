@@ -12,8 +12,8 @@
     <Description>SDK for developing LCDPossible display panel plugins. Create custom panels for HID-based LCD screens.</Description>
     <PackageTags>lcd;panel;plugin;sdk;hid;display</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/your-org/LCDPossible</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/your-org/LCDPossible</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/DevPossible/lcd-possible</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/DevPossible/lcd-possible</RepositoryUrl>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <IsPackable>true</IsPackable>
   </PropertyGroup>

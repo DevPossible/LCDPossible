@@ -326,7 +326,7 @@ SUPPORTED DEVICES:");
     }
 
     Console.WriteLine(@"
-For more information, visit: https://github.com/DevPossible/LCDPossible
+For more information, visit: https://github.com/DevPossible/lcd-possible
 ");
     return 0;
 }

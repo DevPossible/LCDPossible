@@ -17,7 +17,7 @@ public static class AssetCache
         Timeout = TimeSpan.FromMinutes(5),
         DefaultRequestHeaders =
         {
-            { "User-Agent", "LCDPossible/1.0 (https://github.com/DevPossible/LCDPossible)" }
+            { "User-Agent", "LCDPossible/1.0 (https://github.com/DevPossible/lcd-possible)" }
         }
     };
 

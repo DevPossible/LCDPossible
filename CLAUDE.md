@@ -29,7 +29,8 @@ Device docs contain: verified commands, packet formats, known limitations, and p
 ```
 LCDPossible/
 ├── .build/                        # Build outputs (gitignored, hidden)
-├── .github/workflows/             # GitHub Actions CI/CD
+├── .github/workflows/             # GitHub Actions (legacy, for public mirror)
+├── pipelines/                     # Azure DevOps Pipelines (primary CI/CD)
 ├── docs/                          # Documentation
 ├── scripts/                       # Deployment & setup scripts
 │   └── publish.ps1                # Cross-platform publish helper
@@ -96,6 +97,20 @@ DA DB DC DD 02 00 00 00 [width LE 2B] [height LE 2B] 02 00 00 00 [length LE 4B] 
 | Scriban | Template engine for HTML panels |
 | Microsoft.Extensions.Hosting | Service hosting |
 | LibreHardwareMonitorLib | Windows hardware monitoring |
+
+## CI/CD
+
+**Primary:** Azure DevOps Pipelines (source of truth)
+**Mirror:** GitHub (public mirror for releases and community)
+
+| Pipeline | Trigger | Purpose |
+|----------|---------|---------|
+| `pipelines/ci.yml` | PRs, push to develop | Build & test on Windows/Linux |
+| `pipelines/release.yml` | Push to main | Build artifacts, create GitHub release |
+
+See `pipelines/README.md` for setup instructions including:
+- Variable group: `lcdpossible-secrets`
+- Service connection: `github-lcdpossible`
 
 ## Build & Run Commands
 

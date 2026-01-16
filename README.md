@@ -2,8 +2,8 @@
 
 Cross-platform .NET 10 LCD controller service for HID-based LCD screens.
 
-[![CI](https://github.com/DevPossible/LCDPossible/actions/workflows/ci.yml/badge.svg)](https://github.com/DevPossible/LCDPossible/actions/workflows/ci.yml)
-[![Release](https://github.com/DevPossible/LCDPossible/actions/workflows/release.yml/badge.svg)](https://github.com/DevPossible/LCDPossible/releases)
+[![CI](https://github.com/DevPossible/lcd-possible/actions/workflows/ci.yml/badge.svg)](https://github.com/DevPossible/lcd-possible/actions/workflows/ci.yml)
+[![Release](https://github.com/DevPossible/lcd-possible/actions/workflows/release.yml/badge.svg)](https://github.com/DevPossible/lcd-possible/releases)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ## Overview
@@ -92,7 +92,7 @@ These scripts will:
 <details>
 <summary>Windows (Manual)</summary>
 
-1. Download the latest `lcdpossible-x.x.x-win-x64.zip` from [Releases](https://github.com/DevPossible/LCDPossible/releases)
+1. Download the latest `lcdpossible-x.x.x-win-x64.zip` from [Releases](https://github.com/DevPossible/lcd-possible/releases)
 2. Extract to a folder (e.g., `C:\Program Files\LCDPossible`)
 3. Run `LCDPossible.exe` from the command line or add to PATH
 
@@ -112,7 +112,7 @@ sc.exe start LCDPossible
 sudo apt install vlc libvlc-dev fonts-dejavu-core
 
 # Download and extract
-wget https://github.com/DevPossible/LCDPossible/releases/latest/download/lcdpossible-x.x.x-linux-x64.tar.gz
+wget https://github.com/DevPossible/lcd-possible/releases/latest/download/lcdpossible-x.x.x-linux-x64.tar.gz
 sudo mkdir -p /opt/lcdpossible
 sudo tar -xzf lcdpossible-*.tar.gz -C /opt/lcdpossible
 
@@ -137,7 +137,7 @@ source ~/.bashrc
 brew install vlc
 
 # Download and extract
-curl -LO https://github.com/DevPossible/LCDPossible/releases/latest/download/lcdpossible-x.x.x-osx-x64.tar.gz
+curl -LO https://github.com/DevPossible/lcd-possible/releases/latest/download/lcdpossible-x.x.x-osx-x64.tar.gz
 mkdir -p ~/.local/share/lcdpossible
 tar -xzf lcdpossible-*.tar.gz -C ~/.local/share/lcdpossible
 
@@ -152,7 +152,7 @@ source ~/.zshrc
 Requires [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
 ```bash
-git clone https://github.com/DevPossible/LCDPossible.git
+git clone https://github.com/DevPossible/lcd-possible.git
 cd LCDPossible
 
 # Build

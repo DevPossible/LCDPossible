@@ -1,6 +1,6 @@
 [Unit]
 Description=LCDPossible LCD Controller Service
-Documentation=https://github.com/DevPossible/LCDPossible
+Documentation=https://github.com/DevPossible/lcd-possible
 After=network.target graphical.target
 
 [Service]

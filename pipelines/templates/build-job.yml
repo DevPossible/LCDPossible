@@ -1,0 +1,98 @@
+# Build Job Template for LCDPossible
+# Shared template for building and packaging artifacts
+
+parameters:
+  - name: runtime
+    type: string
+  - name: version
+    type: string
+  - name: archiveType
+    type: string
+    default: 'tar'
+    values:
+      - tar
+      - zip
+  - name: skipVideoTests
+    type: boolean
+    default: false
+
+steps:
+  - checkout: self
+    fetchDepth: 0
+
+  - task: UseDotNet@2
+    displayName: Setup .NET
+    inputs:
+      packageType: 'sdk'
+      version: '10.0.x'
+      includePreviewVersions: true
+
+  - task: Cache@2
+    displayName: Cache NuGet packages
+    inputs:
+      key: 'nuget | "$(Agent.OS)" | **/packages.lock.json'
+      restoreKeys: |
+        nuget | "$(Agent.OS)"
+      path: $(NUGET_PACKAGES)
+
+  - script: dotnet restore src/LCDPossible.sln
+    displayName: Restore dependencies
+
+  - script: dotnet build src/LCDPossible.sln --configuration Release --no-restore
+    displayName: Build
+
+  - ${{ if eq(parameters.skipVideoTests, true) }}:
+      - script: dotnet test src/LCDPossible.sln --configuration Release --no-build --verbosity normal --filter "FullyQualifiedName!~Video&FullyQualifiedName!~WildcardAll"
+        displayName: Test (skip video tests)
+
+  - ${{ if eq(parameters.skipVideoTests, false) }}:
+      - script: dotnet test src/LCDPossible.sln --configuration Release --no-build --verbosity normal
+        displayName: Test
+
+  - script: |
+      dotnet publish src/LCDPossible/LCDPossible.csproj \
+        --configuration Release \
+        --runtime ${{ parameters.runtime }} \
+        --self-contained true \
+        -p:Version=${{ parameters.version }} \
+        --output $(Build.ArtifactStagingDirectory)/publish
+    displayName: Publish
+
+  - bash: |
+      # Copy plugins to publish folder
+      BUILD_PLUGINS=".build/LCDPossible/bin/Release/net10.0/plugins"
+      PUBLISH_DIR="$(Build.ArtifactStagingDirectory)/publish"
+
+      if [ -d "$BUILD_PLUGINS" ]; then
+        cp -r "$BUILD_PLUGINS" "$PUBLISH_DIR/"
+        echo "Copied plugins from $BUILD_PLUGINS"
+        ls -la "$PUBLISH_DIR/plugins/" || true
+      else
+        echo "Warning: Plugins folder not found at $BUILD_PLUGINS"
+        # Try alternate location
+        ALT_PLUGINS="src/LCDPossible/bin/Release/net10.0/plugins"
+        if [ -d "$ALT_PLUGINS" ]; then
+          cp -r "$ALT_PLUGINS" "$PUBLISH_DIR/"
+          echo "Copied plugins from $ALT_PLUGINS"
+        fi
+      fi
+    displayName: Copy plugins
+
+  - ${{ if eq(parameters.archiveType, 'zip') }}:
+      - task: ArchiveFiles@2
+        displayName: Create ZIP archive
+        inputs:
+          rootFolderOrFile: '$(Build.ArtifactStagingDirectory)/publish'
+          includeRootFolder: false
+          archiveType: 'zip'
+          archiveFile: '$(Build.ArtifactStagingDirectory)/lcdpossible-${{ parameters.version }}-${{ parameters.runtime }}.zip'
+
+  - ${{ if eq(parameters.archiveType, 'tar') }}:
+      - bash: |
+          cd $(Build.ArtifactStagingDirectory)/publish
+          tar -czvf ../lcdpossible-${{ parameters.version }}-${{ parameters.runtime }}.tar.gz .
+        displayName: Create tar.gz archive
+
+  - publish: $(Build.ArtifactStagingDirectory)/lcdpossible-${{ parameters.version }}-${{ parameters.runtime }}.${{ if eq(parameters.archiveType, 'zip') }}zip${{ else }}tar.gz${{ endif }}
+    artifact: artifact-${{ parameters.runtime }}
+    displayName: Publish artifact

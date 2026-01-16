@@ -8,9 +8,10 @@
     1. Ensures you're on the develop branch with no uncommitted changes
     2. Runs tests (optional)
     3. Merges develop to main
-    4. Pushes main to trigger the release workflow
+    4. Pushes main to trigger the Azure DevOps release pipeline
 
-    The CI workflow handles version calculation and tagging automatically.
+    The Azure DevOps pipeline handles version calculation and tagging automatically.
+    Releases are published to the GitHub mirror at: https://github.com/DevPossible/lcd-possible
 
 .PARAMETER SkipTests
     Skip running tests before release.
@@ -237,11 +238,12 @@ Write-Host "`n" + ("=" * 60) -ForegroundColor Green
 Write-Host "  RELEASE TRIGGERED!" -ForegroundColor Green
 Write-Host ("=" * 60) -ForegroundColor Green
 
-Write-Host "`nThe CI workflow will now:"
+Write-Host "`nThe Azure DevOps pipeline will now:"
 Write-Host "  1. Calculate the version from conventional commits" -ForegroundColor White
 Write-Host "  2. Build artifacts for all platforms" -ForegroundColor White
-Write-Host "  3. Create a GitHub release with the tag" -ForegroundColor White
+Write-Host "  3. Create a GitHub release on the public mirror" -ForegroundColor White
 
-Write-Host "`nMonitor the release workflow:" -ForegroundColor White
-Write-Host "  https://github.com/DevPossible/LCDPossible/actions" -ForegroundColor Blue
+Write-Host "`nMonitor the release pipeline:" -ForegroundColor White
+Write-Host "  Azure DevOps: Check your organization's pipelines" -ForegroundColor Blue
+Write-Host "  GitHub Releases: https://github.com/DevPossible/lcd-possible/releases" -ForegroundColor Blue
 Write-Host ""

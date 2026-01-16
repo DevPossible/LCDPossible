@@ -4,7 +4,7 @@ Release:        1%{?dist}
 Summary:        Cross-platform LCD controller service for HID-based displays
 
 License:        MIT
-URL:            https://github.com/DevPossible/LCDPossible
+URL:            https://github.com/DevPossible/lcd-possible
 Source0:        lcdpossible-%{version}.tar.gz
 
 BuildArch:      x86_64

@@ -1,0 +1,251 @@
+# Release Pipeline for LCDPossible
+# Triggers on push to main branch
+# Builds artifacts for all platforms and creates GitHub release
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    exclude:
+      - '*.md'
+      - 'docs/**'
+
+pr: none
+
+variables:
+  - group: lcdpossible-secrets
+  - name: DOTNET_NOLOGO
+    value: 'true'
+  - name: DOTNET_SKIP_FIRST_TIME_EXPERIENCE
+    value: 'true'
+  - name: DOTNET_CLI_TELEMETRY_OPTOUT
+    value: 'true'
+  - name: dotnetVersion
+    value: '10.0.x'
+  - name: githubRepo
+    value: 'DevPossible/lcd-possible'
+
+stages:
+  - stage: Version
+    displayName: Calculate Version
+    jobs:
+      - job: CalculateVersion
+        displayName: Determine Release Version
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+            fetchDepth: 0
+
+          - bash: |
+              # Check if HEAD already has a tag
+              EXISTING_TAG=$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+
+              if [ -n "$EXISTING_TAG" ]; then
+                VERSION="${EXISTING_TAG#v}"
+                echo "Found existing tag: $EXISTING_TAG"
+                echo "##vso[task.setvariable variable=version;isOutput=true]$VERSION"
+                echo "##vso[task.setvariable variable=tagExists;isOutput=true]true"
+                echo "##vso[task.setvariable variable=shouldRelease;isOutput=true]true"
+                exit 0
+              fi
+
+              echo "No existing tag on HEAD, calculating version from commits..."
+              echo "##vso[task.setvariable variable=tagExists;isOutput=true]false"
+
+              # Calculate version using conventional commits
+              chmod +x ./scripts/get-version.sh
+              VERSION=$(./scripts/get-version.sh)
+              echo "Calculated version: $VERSION"
+
+              # Check if this version tag already exists
+              if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+                echo "Tag v$VERSION already exists, bumping patch..."
+                IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+                while git rev-parse "v$MAJOR.$MINOR.$PATCH" >/dev/null 2>&1; do
+                  PATCH=$((PATCH + 1))
+                done
+                VERSION="$MAJOR.$MINOR.$PATCH"
+                echo "Next available version: $VERSION"
+              fi
+
+              echo "##vso[task.setvariable variable=version;isOutput=true]$VERSION"
+              echo "##vso[task.setvariable variable=shouldRelease;isOutput=true]true"
+              echo "Version: $VERSION"
+            displayName: Calculate version
+            name: versionStep
+
+          - bash: |
+              VERSION="$(versionStep.version)"
+              LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+              echo "Last tag: ${LAST_TAG:-(none)}"
+
+              if [ -n "$LAST_TAG" ]; then
+                COMMITS=$(git log "$LAST_TAG..HEAD" --pretty=format:"- %s" --reverse)
+                COMPARE_URL="https://github.com/$(githubRepo)/compare/${LAST_TAG}...v${VERSION}"
+              else
+                COMMITS=$(git log --pretty=format:"- %s" --reverse | head -50)
+                COMPARE_URL="https://github.com/$(githubRepo)/commits/v${VERSION}"
+              fi
+
+              cat > $(Build.ArtifactStagingDirectory)/changelog.md << EOF
+              ## What's Changed
+
+              $COMMITS
+
+              **Full Changelog**: $COMPARE_URL
+              EOF
+
+              echo "Generated changelog:"
+              cat $(Build.ArtifactStagingDirectory)/changelog.md
+            displayName: Generate changelog
+            condition: eq(variables['versionStep.shouldRelease'], 'true')
+
+          - publish: $(Build.ArtifactStagingDirectory)/changelog.md
+            artifact: changelog
+            displayName: Publish changelog
+            condition: eq(variables['versionStep.shouldRelease'], 'true')
+
+  - stage: Build
+    displayName: Build Artifacts
+    dependsOn: Version
+    condition: eq(stageDependencies.Version.CalculateVersion.outputs['versionStep.shouldRelease'], 'true')
+    variables:
+      version: $[ stageDependencies.Version.CalculateVersion.outputs['versionStep.version'] ]
+    jobs:
+      - job: BuildWindows
+        displayName: Build (win-x64)
+        pool:
+          vmImage: 'windows-latest'
+        steps:
+          - template: templates/build-job.yml
+            parameters:
+              runtime: 'win-x64'
+              version: $(version)
+              archiveType: 'zip'
+
+      - job: BuildLinuxX64
+        displayName: Build (linux-x64)
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              sudo apt-get update
+              sudo apt-get install -y vlc libvlc-dev fonts-dejavu-core
+            displayName: Install Linux dependencies
+
+          - template: templates/build-job.yml
+            parameters:
+              runtime: 'linux-x64'
+              version: $(version)
+              archiveType: 'tar'
+
+      - job: BuildLinuxArm64
+        displayName: Build (linux-arm64)
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              sudo apt-get update
+              sudo apt-get install -y vlc libvlc-dev fonts-dejavu-core
+            displayName: Install Linux dependencies
+
+          - template: templates/build-job.yml
+            parameters:
+              runtime: 'linux-arm64'
+              version: $(version)
+              archiveType: 'tar'
+
+      - job: BuildMacOSX64
+        displayName: Build (osx-x64)
+        pool:
+          vmImage: 'macos-latest'
+        steps:
+          - script: brew install --cask vlc
+            displayName: Install macOS dependencies
+
+          - template: templates/build-job.yml
+            parameters:
+              runtime: 'osx-x64'
+              version: $(version)
+              archiveType: 'tar'
+              skipVideoTests: true
+
+      - job: BuildMacOSArm64
+        displayName: Build (osx-arm64)
+        pool:
+          vmImage: 'macos-latest'
+        steps:
+          - script: brew install --cask vlc
+            displayName: Install macOS dependencies
+
+          - template: templates/build-job.yml
+            parameters:
+              runtime: 'osx-arm64'
+              version: $(version)
+              archiveType: 'tar'
+              skipVideoTests: true
+
+  - stage: Release
+    displayName: Create Release
+    dependsOn:
+      - Version
+      - Build
+    condition: and(succeeded(), eq(stageDependencies.Version.CalculateVersion.outputs['versionStep.shouldRelease'], 'true'))
+    variables:
+      version: $[ stageDependencies.Version.CalculateVersion.outputs['versionStep.version'] ]
+      tagExists: $[ stageDependencies.Version.CalculateVersion.outputs['versionStep.tagExists'] ]
+    jobs:
+      - job: CreateGitHubRelease
+        displayName: Create GitHub Release
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+            fetchDepth: 0
+            persistCredentials: true
+
+          - download: current
+            displayName: Download all artifacts
+
+          - bash: |
+              echo "Creating tag v$(version) if it doesn't exist..."
+              if [ "$(tagExists)" != "true" ]; then
+                git config user.name "Azure Pipelines"
+                git config user.email "azuredevops@devpossible.com"
+                git tag -a "v$(version)" -m "Release v$(version)"
+                git push origin "v$(version)"
+                echo "Tag v$(version) created and pushed"
+              else
+                echo "Tag already exists, skipping tag creation"
+              fi
+            displayName: Create git tag
+            condition: ne(variables['tagExists'], 'true')
+
+          - bash: |
+              echo "Artifacts downloaded:"
+              ls -R $(Pipeline.Workspace)
+            displayName: List artifacts
+
+          - task: GitHubRelease@1
+            displayName: Create GitHub Release
+            inputs:
+              gitHubConnection: 'github-lcdpossible'
+              repositoryName: '$(githubRepo)'
+              action: 'create'
+              target: '$(Build.SourceVersion)'
+              tagSource: 'userSpecifiedTag'
+              tag: 'v$(version)'
+              title: 'LCDPossible v$(version)'
+              releaseNotesFilePath: '$(Pipeline.Workspace)/changelog/changelog.md'
+              assets: |
+                $(Pipeline.Workspace)/artifact-win-x64/*.zip
+                $(Pipeline.Workspace)/artifact-linux-x64/*.tar.gz
+                $(Pipeline.Workspace)/artifact-linux-arm64/*.tar.gz
+                $(Pipeline.Workspace)/artifact-osx-x64/*.tar.gz
+                $(Pipeline.Workspace)/artifact-osx-arm64/*.tar.gz
+              isDraft: false
+              isPreRelease: false
+              addChangeLog: false

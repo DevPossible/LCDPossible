@@ -1,0 +1,142 @@
+# CI Pipeline for LCDPossible
+# Triggers on PRs and pushes to develop branch
+# Builds and tests on Windows and Linux
+
+trigger:
+  branches:
+    include:
+      - develop
+  paths:
+    exclude:
+      - '*.md'
+      - 'docs/**'
+
+pr:
+  branches:
+    include:
+      - main
+      - develop
+  paths:
+    exclude:
+      - '*.md'
+      - 'docs/**'
+
+variables:
+  - group: lcdpossible-secrets
+  - name: DOTNET_NOLOGO
+    value: 'true'
+  - name: DOTNET_SKIP_FIRST_TIME_EXPERIENCE
+    value: 'true'
+  - name: DOTNET_CLI_TELEMETRY_OPTOUT
+    value: 'true'
+  - name: dotnetVersion
+    value: '10.0.x'
+
+stages:
+  - stage: Build
+    displayName: Build & Test
+    jobs:
+      - job: BuildWindows
+        displayName: Build (Windows)
+        pool:
+          vmImage: 'windows-latest'
+        steps:
+          - checkout: self
+            fetchDepth: 0
+
+          - task: UseDotNet@2
+            displayName: Setup .NET
+            inputs:
+              packageType: 'sdk'
+              version: $(dotnetVersion)
+              includePreviewVersions: true
+
+          - task: Cache@2
+            displayName: Cache NuGet packages
+            inputs:
+              key: 'nuget | "$(Agent.OS)" | **/packages.lock.json'
+              restoreKeys: |
+                nuget | "$(Agent.OS)"
+              path: $(NUGET_PACKAGES)
+
+          - script: dotnet restore src/LCDPossible.sln
+            displayName: Restore dependencies
+
+          - script: dotnet build src/LCDPossible.sln --configuration Release --no-restore
+            displayName: Build
+
+          - script: dotnet test src/LCDPossible.sln --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage" --results-directory $(Build.SourcesDirectory)/coverage
+            displayName: Test
+
+          - task: PublishCodeCoverageResults@2
+            displayName: Publish code coverage
+            inputs:
+              summaryFileLocation: '$(Build.SourcesDirectory)/coverage/**/coverage.cobertura.xml'
+            condition: succeededOrFailed()
+
+      - job: BuildLinux
+        displayName: Build (Linux)
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+            fetchDepth: 0
+
+          - script: |
+              sudo apt-get update
+              sudo apt-get install -y vlc libvlc-dev fonts-dejavu-core
+            displayName: Install Linux dependencies
+
+          - task: UseDotNet@2
+            displayName: Setup .NET
+            inputs:
+              packageType: 'sdk'
+              version: $(dotnetVersion)
+              includePreviewVersions: true
+
+          - task: Cache@2
+            displayName: Cache NuGet packages
+            inputs:
+              key: 'nuget | "$(Agent.OS)" | **/packages.lock.json'
+              restoreKeys: |
+                nuget | "$(Agent.OS)"
+              path: $(NUGET_PACKAGES)
+
+          - script: dotnet restore src/LCDPossible.sln
+            displayName: Restore dependencies
+
+          - script: dotnet build src/LCDPossible.sln --configuration Release --no-restore
+            displayName: Build
+
+          - script: dotnet test src/LCDPossible.sln --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage" --results-directory $(Build.SourcesDirectory)/coverage
+            displayName: Test
+
+          - task: PublishCodeCoverageResults@2
+            displayName: Publish code coverage
+            inputs:
+              summaryFileLocation: '$(Build.SourcesDirectory)/coverage/**/coverage.cobertura.xml'
+            condition: succeededOrFailed()
+
+  - stage: Lint
+    displayName: Code Quality
+    dependsOn: []
+    jobs:
+      - job: FormatCheck
+        displayName: Code Format Check
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+
+          - task: UseDotNet@2
+            displayName: Setup .NET
+            inputs:
+              packageType: 'sdk'
+              version: $(dotnetVersion)
+              includePreviewVersions: true
+
+          - script: dotnet restore src/LCDPossible.sln
+            displayName: Restore dependencies
+
+          - script: dotnet format src/LCDPossible.sln --verify-no-changes --verbosity diagnostic
+            displayName: Check code formatting

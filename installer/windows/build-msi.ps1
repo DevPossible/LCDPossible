@@ -259,7 +259,7 @@ $($componentRefs -join "`n")
     <!-- Icon for Add/Remove Programs -->
     <Icon Id="ProductIcon" SourceFile="$PublishDir\LCDPossible.exe" />
     <Property Id="ARPPRODUCTICON" Value="ProductIcon" />
-    <Property Id="ARPURLINFOABOUT" Value="https://github.com/DevPossible/LCDPossible" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/DevPossible/lcd-possible" />
 
   </Package>
 </Wix>

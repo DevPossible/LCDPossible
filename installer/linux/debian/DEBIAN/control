@@ -8,5 +8,5 @@ Description: Cross-platform LCD controller service for HID-based displays
  LCDPossible is a cross-platform .NET service for controlling HID-based
  LCD screens such as the Thermalright Trofeo Vision 360 ARGB. It provides
  system monitoring displays, custom images, and slideshows.
-Homepage: https://github.com/DevPossible/LCDPossible
+Homepage: https://github.com/DevPossible/lcd-possible
 Depends: libicu72 | libicu71 | libicu70 | libicu67
