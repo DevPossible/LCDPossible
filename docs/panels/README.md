@@ -1,120 +1,120 @@
-# LCDPossible Panels
+# Display Panels
 
-This directory contains documentation and screenshots for all available display panels.
-
-**Related Documentation:**
-- [Themes](../themes/README.md) - Available color themes and customization
-- [Page Effects](../effects/README.md) - Animated overlays and backgrounds
-
-## Quick Reference
-
-```bash
-# List all available panels
-lcdpossible list-panels
-
-# Display a panel
-lcdpossible show cpu-info
-
-# Display with theme and effect (note: quotes required for pipe syntax)
-lcdpossible show "cpu-info|@theme=executive|@effect=hologram"
-
-# Render panel to file for testing
-lcdpossible render cpu-info --debug
-
-# Get detailed help for a panel
-lcdpossible help-panel cpu-info
-```
+LCDPossible includes a variety of display panels organized by category.
 
 ## Panel Categories
 
-### CPU
+### [System Monitoring](system/)
 
-| Panel | Description | Plugin |
-|-------|-------------|--------|
-| [CPU Info](../core/panels/cpu-info/cpu-info.md) | Detailed CPU information including model, usage, temperature, frequency, and power | core |
-| [CPU Status](../core/panels/cpu-status/cpu-status.md) | CPU dashboard with usage bar, temperature gauge, and per-core sparkline | core |
-| [CPU Usage Graphic](../core/panels/cpu-usage-graphic/cpu-usage-graphic.md) | CPU usage with graphical bars including per-core breakdown | core |
-| [CPU Usage Text](../core/panels/cpu-usage-text/cpu-usage-text.md) | CPU usage displayed as large text percentage | core |
+Hardware monitoring panels for CPU, GPU, RAM, and network.
 
-### GPU
+| Panel | Description |
+|-------|-------------|
+| [cpu-info](system/cpu-info.md) | CPU model and specifications |
+| [cpu-status](system/cpu-status.md) | CPU dashboard with usage, temp, sparkline |
+| [cpu-usage-text](system/cpu-usage-text.md) | CPU usage as text |
+| [cpu-usage-graphic](system/cpu-usage-graphic.md) | CPU usage with visual bars |
+| [cpu-thermal-graphic](system/cpu-thermal-graphic.md) | CPU temperature gauge |
+| [gpu-info](system/gpu-info.md) | GPU model and specifications |
+| [gpu-usage-text](system/gpu-usage-text.md) | GPU usage as text |
+| [gpu-usage-graphic](system/gpu-usage-graphic.md) | GPU usage with visual bars |
+| [gpu-thermal-graphic](system/gpu-thermal-graphic.md) | GPU temperature gauge |
+| [ram-info](system/ram-info.md) | RAM specifications |
+| [ram-usage-text](system/ram-usage-text.md) | RAM usage as text |
+| [ram-usage-graphic](system/ram-usage-graphic.md) | RAM usage with visual bars |
+| [network-info](system/network-info.md) | Network interface information |
+| [system-thermal-graphic](system/system-thermal-graphic.md) | Combined CPU/GPU temperature |
+| [basic-info](system/basic-info.md) | System hostname, OS, uptime |
+| [basic-usage-text](system/basic-usage-text.md) | Basic system usage summary |
 
-| Panel | Description | Plugin |
-|-------|-------------|--------|
-| [GPU Info](../core/panels/gpu-info/gpu-info.md) | GPU information including model, usage, temperature, and VRAM | core |
-| [GPU Usage Graphic](../core/panels/gpu-usage-graphic/gpu-usage-graphic.md) | GPU usage with graphical bars | core |
-| [GPU Usage Text](../core/panels/gpu-usage-text/gpu-usage-text.md) | GPU usage displayed as large text | core |
+### [Media Panels](media/)
 
-### Media
+Video, images, and web content.
 
-| Panel | Description | Plugin |
-|-------|-------------|--------|
-| [Animated GIF](../images/panels/animated-gif/animated-gif.md) | Plays animated GIF files or URLs with full animation support | images |
-| [Image Sequence](../images/panels/image-sequence/image-sequence.md) | Plays a sequence of numbered images from a folder at 30fps | images |
-| [Video](../video/panels/video/video.md) | Plays video files, streaming URLs, or YouTube links | video |
+| Panel | Description |
+|-------|-------------|
+| [animated-gif](media/animated-gif.md) | Animated GIF from file or URL |
+| [image-sequence](media/image-sequence.md) | Folder of images as animation |
+| [video](media/video.md) | Video file, URL, or YouTube |
+| [html](media/html.md) | Local HTML file |
+| [web](media/web.md) | Live website rendering |
 
-### Memory
+### [Screensavers](screensavers/)
 
-| Panel | Description | Plugin |
-|-------|-------------|--------|
-| [RAM Info](../core/panels/ram-info/ram-info.md) | Memory information including total, used, and available | core |
-| [RAM Usage Graphic](../core/panels/ram-usage-graphic/ram-usage-graphic.md) | RAM usage with graphical bar | core |
-| [RAM Usage Text](../core/panels/ram-usage-text/ram-usage-text.md) | RAM usage displayed as large text | core |
+Animated visual effects and games.
 
-### Network
+| Panel | Description |
+|-------|-------------|
+| [screensaver](screensavers/screensaver.md) | Random screensaver or cycle all |
+| [plasma](screensavers/plasma.md) | Classic demoscene plasma |
+| [matrix-rain](screensavers/matrix-rain.md) | Digital rain effect |
+| [starfield](screensavers/starfield.md) | Classic starfield warp |
+| [fire](screensavers/fire.md) | Demoscene fire effect |
+| [warp-tunnel](screensavers/warp-tunnel.md) | Colorful warp tunnel |
+| [clock](screensavers/clock.md) | Analog clock |
+| [pipes](screensavers/pipes.md) | 3D pipes screensaver |
+| [mystify](screensavers/mystify.md) | Bouncing polygons |
+| [bubbles](screensavers/bubbles.md) | Floating bubbles |
+| [rain](screensavers/rain.md) | Raindrops with splashes |
+| [noise](screensavers/noise.md) | TV static effect |
+| [spiral](screensavers/spiral.md) | Hypnotic spiral |
+| [game-of-life](screensavers/game-of-life.md) | Conway's Game of Life |
+| [asteroids](screensavers/asteroids.md) | Asteroids game simulation |
+| [falling-blocks](screensavers/falling-blocks.md) | Tetris-style blocks |
+| [missile-command](screensavers/missile-command.md) | Missile defense game |
+| [bouncing-logo](screensavers/bouncing-logo.md) | DVD-style bouncing text |
 
-| Panel | Description | Plugin |
-|-------|-------------|--------|
-| [Network Info](../core/panels/network-info/network-info.md) | Network configuration including hostname, IP addresses, gateway, and DNS | core |
+### [Integrations](integrations/)
 
-### Proxmox
+External service integrations.
 
-| Panel | Description | Plugin |
-|-------|-------------|--------|
-| [Proxmox Summary](../proxmox/panels/proxmox-summary/proxmox-summary.md) | Proxmox cluster overview with node status and resource usage | proxmox |
-| [Proxmox VMs](../proxmox/panels/proxmox-vms/proxmox-vms.md) | List of VMs and containers with status and resource usage | proxmox |
+| Panel | Description |
+|-------|-------------|
+| [proxmox-summary](integrations/proxmox-summary.md) | Proxmox cluster overview |
+| [proxmox-vms](integrations/proxmox-vms.md) | Proxmox VM/container list |
 
-### Screensaver
+## Using Panels
 
-| Panel | Description | Plugin |
-|-------|-------------|--------|
-| [Analog Clock](../screensavers/panels/clock/clock.md) | Analog clock with smooth second hand | screensavers |
-| [Asteroids](../screensavers/panels/asteroids/asteroids.md) | Asteroids game simulation with vector graphics | screensavers |
-| [Bouncing Logo](../screensavers/panels/bouncing-logo/bouncing-logo.md) | Customizable text bouncing off screen edges (DVD screensaver style) with color, size, 3D, and rotation options | screensavers |
-| [Bubbles](../screensavers/panels/bubbles/bubbles.md) | Floating, bouncing translucent bubbles | screensavers |
-| [Falling Blocks](../screensavers/panels/falling-blocks/falling-blocks.md) | Tetris-style falling blocks simulator with AI gameplay | screensavers |
-| [Fire](../screensavers/panels/fire/fire.md) | Classic demoscene fire effect with palette animation | screensavers |
-| [Game of Life](../screensavers/panels/game-of-life/game-of-life.md) | Conway's cellular automaton with colorful patterns | screensavers |
-| [Matrix Rain](../screensavers/panels/matrix-rain/matrix-rain.md) | Digital rain effect inspired by The Matrix | screensavers |
-| [Missile Command](../screensavers/panels/missile-command/missile-command.md) | Defend cities from incoming missiles | screensavers |
-| [Mystify](../screensavers/panels/mystify/mystify.md) | Bouncing connected polygons with color trails | screensavers |
-| [Pipes](../screensavers/panels/pipes/pipes.md) | 3D pipes growing in random directions (classic Windows) | screensavers |
-| [Plasma](../screensavers/panels/plasma/plasma.md) | Classic demoscene plasma effect | screensavers |
-| [Rain](../screensavers/panels/rain/rain.md) | Falling raindrops with splash effects | screensavers |
-| [Random Screensaver](../screensavers/panels/screensaver/screensaver.md) | Plays a random screensaver effect or cycles through all | screensavers |
-| [Spiral](../screensavers/panels/spiral/spiral.md) | Hypnotic rotating spiral pattern | screensavers |
-| [Starfield](../screensavers/panels/starfield/starfield.md) | Classic starfield warp effect with stars streaming from center | screensavers |
-| [Static](../screensavers/panels/noise/noise.md) | TV static / white noise effect | screensavers |
-| [Warp Tunnel](../screensavers/panels/warp-tunnel/warp-tunnel.md) | Flying through a colorful warp tunnel | screensavers |
+### Display a Panel
 
-### System
+```bash
+lcdpossible show cpu-info
+```
 
-| Panel | Description | Plugin |
-|-------|-------------|--------|
-| [Basic Info](../core/panels/basic-info/basic-info.md) | Basic system information including hostname, OS, and uptime | core |
-| [Basic Usage Text](../core/panels/basic-usage-text/basic-usage-text.md) | Simple CPU/RAM/GPU usage summary | core |
+### Display Multiple Panels (Slideshow)
 
-### Thermal
+```bash
+lcdpossible show cpu-info,gpu-info,ram-info
+```
 
-| Panel | Description | Plugin |
-|-------|-------------|--------|
-| [CPU Thermal](../core/panels/cpu-thermal-graphic/cpu-thermal-graphic.md) | CPU temperature with graphical gauge display | core |
-| [GPU Thermal](../core/panels/gpu-thermal-graphic/gpu-thermal-graphic.md) | GPU temperature with graphical gauge display | core |
-| [System Thermal](../core/panels/system-thermal-graphic/system-thermal-graphic.md) | Combined CPU and GPU temperature display with vertical thermometers | core |
+### Use Wildcards
 
-### Web
+```bash
+lcdpossible show cpu-*        # All CPU panels
+lcdpossible show *-graphic    # All graphic panels
+```
 
-| Panel | Description | Plugin |
-|-------|-------------|--------|
-| [HTML File](../web/panels/html/html.md) | Renders a local HTML file using headless browser | web |
-| [Web Page](../web/panels/web/web.md) | Renders a live website from URL | web |
+### Apply Modifiers
 
+```bash
+# With effect
+lcdpossible show "cpu-info|@effect=matrix-rain"
+
+# With theme
+lcdpossible show "cpu-info|@theme=rgb-gaming"
+
+# With duration (seconds)
+lcdpossible show "cpu-info|@duration=30"
+```
+
+## Panel Help
+
+Get detailed help for any panel:
+
+```bash
+lcdpossible help-panel proxmox-summary
+```
+
+---
+
+*[Back to Documentation](../README.md)*

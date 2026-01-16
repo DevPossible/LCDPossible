@@ -1,0 +1,189 @@
+# LCDPossible Display Profile
+# Place this file in the system configuration directory:
+#   Windows: C:\ProgramData\LCDPossible\display-profile.yaml
+#   Linux:   /etc/lcdpossible/display-profile.yaml
+#   macOS:   /Library/Application Support/LCDPossible/display-profile.yaml
+
+name: Default
+description: Default display profile with system information panels
+
+# =============================================================================
+# GLOBAL SETTINGS
+# =============================================================================
+
+# Default settings applied to all slides unless overridden
+default_update_interval: 5    # How often panels refresh content (seconds)
+default_duration: 15          # How long each slide displays (seconds)
+
+# Default theme for all panels (cyberpunk, rgb-gaming, executive, clean)
+theme: cyberpunk
+
+# Default page effect for all panels (none, random, or specific effect name)
+# Run 'lcdpossible config list-effects' for all available effects
+effect: none
+
+# Transition effect between slides (none, fade, slide-left, slide-right, etc.)
+# Run 'lcdpossible profile help' for all transition types
+transition: fade
+transition_duration: 0.5
+
+# =============================================================================
+# SLIDESHOW SLIDES
+# =============================================================================
+# Displayed in order, then loops. Each slide can override global settings.
+
+slides:
+  # Basic system information panel
+  - panel: basic-info
+
+  # CPU status dashboard with usage, temp, and sparkline
+  - panel: cpu-status
+    update_interval: 2
+    effect: hologram        # Override: add hologram effect to this panel
+
+  # GPU usage with graphical display
+  - panel: gpu-usage-graphic
+
+  # RAM usage with graphical display
+  - panel: ram-usage-graphic
+
+  # Combined thermal display (CPU + GPU temperatures)
+  - panel: system-thermal-graphic
+    duration: 10            # Override: show for 10 seconds
+
+  # Network information
+  - panel: network-info
+
+# =============================================================================
+# EXAMPLE: SCREENSAVER SLIDES (uncomment to use)
+# =============================================================================
+#  - panel: plasma
+#    duration: 30
+#
+#  - panel: matrix-rain
+#    duration: 30
+#
+#  - panel: starfield
+#    duration: 30
+#
+#  # Random screensaver from the collection
+#  - panel: screensaver
+#    duration: 60
+
+# =============================================================================
+# EXAMPLE: MEDIA SLIDES (uncomment to use)
+# =============================================================================
+#  # Static image
+#  - type: image
+#    source: /path/to/custom-image.png
+#    duration: 10
+#
+#  # Animated GIF
+#  - panel: animated-gif:/path/to/animation.gif
+#    duration: 30
+#
+#  # Video file or YouTube URL
+#  - panel: video:https://www.youtube.com/watch?v=VIDEO_ID
+#    duration: 60
+#
+#  # Live website
+#  - panel: web:https://wttr.in/London
+#    duration: 20
+
+# =============================================================================
+# EXAMPLE: CUSTOM THEME OVERRIDE (uncomment to use)
+# =============================================================================
+#  - panel: cpu-info
+#    theme: executive       # Use professional theme for this panel
+#    effect: scanlines      # Add retro scanlines effect
+
+# =============================================================================
+# PROXMOX CONFIGURATION (for Proxmox panels)
+# =============================================================================
+# proxmox:
+#   host: https://your-proxmox-host:8006
+#   tokenId: your-api-token-id
+#   tokenSecret: your-api-token-secret
+#   # OR use username/password:
+#   # username: root@pam
+#   # password: your-password
+#   verify_ssl: true
+
+# =============================================================================
+# AVAILABLE PANEL TYPES
+# =============================================================================
+# Run 'lcdpossible list-panels' for the complete list with descriptions.
+#
+# System Information:
+#   - basic-info             : Hostname, OS, uptime summary
+#   - basic-usage-text       : Simple CPU/RAM/GPU usage summary
+#
+# CPU Panels:
+#   - cpu-info               : CPU model and specifications
+#   - cpu-status             : CPU dashboard with usage, temp, sparkline
+#   - cpu-usage-text         : CPU usage as text
+#   - cpu-usage-graphic      : CPU usage with visual bars
+#   - cpu-thermal-graphic    : CPU temperature gauge
+#
+# GPU Panels:
+#   - gpu-info               : GPU model and specifications
+#   - gpu-usage-text         : GPU usage as text
+#   - gpu-usage-graphic      : GPU usage with visual bars
+#   - gpu-thermal-graphic    : GPU temperature gauge
+#
+# Memory Panels:
+#   - ram-info               : RAM specifications
+#   - ram-usage-text         : RAM usage as text
+#   - ram-usage-graphic      : RAM usage with visual bars
+#
+# Thermal Panels:
+#   - system-thermal-graphic : Combined CPU/GPU temperature display
+#
+# Network Panels:
+#   - network-info           : Network interfaces with IP, gateway, DNS
+#
+# Proxmox (requires configuration above):
+#   - proxmox-summary        : Cluster overview
+#   - proxmox-vms            : VM/Container status list
+#
+# Screensavers:
+#   - screensaver            : Random screensaver or cycle through all
+#   - plasma, matrix-rain, starfield, fire, pipes, bubbles, clock, etc.
+#   - bouncing-logo:TEXT     : DVD-style bouncing text
+#
+# Media:
+#   - animated-gif:PATH      : Animated GIF from file or URL
+#   - video:PATH             : Video file, URL, or YouTube link
+#   - html:PATH              : Local HTML file
+#   - web:URL                : Live website
+
+# =============================================================================
+# AVAILABLE THEMES
+# =============================================================================
+# Run 'lcdpossible config list-themes' for the current list.
+#
+#   - cyberpunk    : Neon cyan/magenta, glow effects (default)
+#   - rgb-gaming   : Vibrant rainbow, bold colors
+#   - executive    : Dark blue/gold, professional
+#   - clean        : Light mode, minimal
+
+# =============================================================================
+# AVAILABLE PAGE EFFECTS
+# =============================================================================
+# Run 'lcdpossible config list-effects' for the complete list.
+#
+# Container Effects:
+#   - bounce, gentle-float, tilt-3d, wave
+#
+# Background Effects:
+#   - aurora, hologram, matrix-rain, particle-field, scanlines, etc.
+#
+# Overlay Effects:
+#   - vhs-static, film-grain, chromatic-aberration, crt-warp, etc.
+#
+# Character Effects:
+#   - robot-assistant, pixel-mascot, vanna-white
+#
+# Special:
+#   - random       : Random effect (re-randomizes each display)
+#   - spotlight    : Roaming spotlight effect

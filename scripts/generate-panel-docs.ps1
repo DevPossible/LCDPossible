@@ -7,7 +7,7 @@
     This script reads all plugin.json files to discover panels, then:
     1. Renders a screenshot of each panel (2 seconds after load)
     2. Generates markdown documentation with examples and parameters
-    3. Saves output to /docs/{plugin-name}/panels/{panel-name}/
+    3. Saves output to /docs/panels/{category}/ organized by panel category
 
 .PARAMETER Resolution
     Target resolution for screenshots (default: 1280x480)
@@ -146,7 +146,27 @@ try {
     # Group by plugin for organization
     $panelsByPlugin = $allPanels | Group-Object PluginShortName
 
-    # Generate plugin index markdown
+    # Category name mapping (from plugin category to folder name)
+    $categoryFolderMap = @{
+        'System' = 'system'
+        'Screensaver' = 'screensavers'
+        'Screensavers' = 'screensavers'
+        'Media' = 'media'
+        'Proxmox' = 'integrations'
+        'Integration' = 'integrations'
+        'Integrations' = 'integrations'
+    }
+
+    # Helper function to get category folder
+    function Get-CategoryFolder($categoryName) {
+        if ($categoryFolderMap.ContainsKey($categoryName)) {
+            return $categoryFolderMap[$categoryName]
+        }
+        # Default: lowercase the category name
+        return $categoryName.ToLower() -replace '\s+', '-'
+    }
+
+    # Generate panel index markdown
     $pluginIndexPath = Join-Path $DocsRoot "panels/README.md"
     $pluginIndexDir = Split-Path $pluginIndexPath -Parent
     if (-not (Test-Path $pluginIndexDir)) {
@@ -154,9 +174,9 @@ try {
     }
 
     $indexContent = @"
-# LCDPossible Panels
+# Display Panels
 
-This directory contains documentation and screenshots for all available display panels.
+LCDPossible includes a variety of display panels organized by category.
 
 ## Panel Categories
 
@@ -166,32 +186,93 @@ This directory contains documentation and screenshots for all available display 
     $panelsByCategory = $allPanels | Group-Object Category | Sort-Object Name
 
     foreach ($category in $panelsByCategory) {
-        $indexContent += "`n### $($category.Name)`n`n"
-        $indexContent += "| Panel | Description | Plugin |`n"
-        $indexContent += "|-------|-------------|--------|`n"
+        $categoryFolder = Get-CategoryFolder $category.Name
+        $indexContent += "`n### [$($category.Name)]($categoryFolder/)`n`n"
+        $indexContent += "| Panel | Description |`n"
+        $indexContent += "|-------|-------------|`n"
 
         foreach ($panel in ($category.Group | Sort-Object DisplayName)) {
-            $panelLink = "$($panel.PluginShortName)/panels/$($panel.TypeId)/$($panel.TypeId).md"
+            $panelLink = "$categoryFolder/$($panel.TypeId).md"
             $displayId = if ($panel.PrefixPattern) { $panel.PrefixPattern } else { $panel.TypeId }
-            $indexContent += "| [$($panel.DisplayName)]($panelLink) | $($panel.Description) | $($panel.PluginShortName) |`n"
+            $indexContent += "| [$($panel.DisplayName)]($panelLink) | $($panel.Description) |`n"
         }
     }
+
+    $indexContent += @"
+
+## Using Panels
+
+### Display a Panel
+
+``````bash
+lcdpossible show cpu-info
+``````
+
+### Display Multiple Panels (Slideshow)
+
+``````bash
+lcdpossible show cpu-info,gpu-info,ram-info
+``````
+
+### Use Wildcards
+
+``````bash
+lcdpossible show cpu-*        # All CPU panels
+lcdpossible show *-graphic    # All graphic panels
+``````
+
+### Apply Modifiers
+
+``````bash
+# With effect
+lcdpossible show "cpu-info|@effect=matrix-rain"
+
+# With theme
+lcdpossible show "cpu-info|@theme=rgb-gaming"
+
+# With duration (seconds)
+lcdpossible show "cpu-info|@duration=30"
+``````
+
+## Panel Help
+
+Get detailed help for any panel:
+
+``````bash
+lcdpossible help-panel proxmox-summary
+``````
+
+---
+
+*[Back to Documentation](../README.md)*
+"@
 
     Set-Content -Path $pluginIndexPath -Value $indexContent -Encoding UTF8
     Write-Host "Generated panel index: $pluginIndexPath" -ForegroundColor Green
 
     # Define the panel processing scriptblock
     $processPanelBlock = {
-        param($panel, $DocsRoot, $Resolution, $WaitSeconds, $SkipScreenshots, $RepoRoot)
+        param($panel, $DocsRoot, $Resolution, $WaitSeconds, $SkipScreenshots, $RepoRoot, $CategoryFolderMap)
 
-        $panelDir = Join-Path $DocsRoot "$($panel.PluginShortName)/panels/$($panel.TypeId)"
+        # Get category folder
+        $categoryFolder = if ($CategoryFolderMap.ContainsKey($panel.Category)) {
+            $CategoryFolderMap[$panel.Category]
+        } else {
+            $panel.Category.ToLower() -replace '\s+', '-'
+        }
 
-        # Create directory
+        $panelDir = Join-Path $DocsRoot "panels/$categoryFolder"
+        $screenshotDir = Join-Path $panelDir "screenshots"
+
+        # Create directories
         if (-not (Test-Path $panelDir)) {
             New-Item -ItemType Directory -Path $panelDir -Force | Out-Null
         }
+        if (-not (Test-Path $screenshotDir)) {
+            New-Item -ItemType Directory -Path $screenshotDir -Force | Out-Null
+        }
 
-        $screenshotPath = Join-Path $panelDir "$($panel.TypeId).jpg"
+        $screenshotPath = Join-Path $screenshotDir "$($panel.TypeId).jpg"
         $markdownPath = Join-Path $panelDir "$($panel.TypeId).md"
         $hadError = $false
 
@@ -218,10 +299,10 @@ This directory contains documentation and screenshots for all available display 
             if (-not $shouldSkip) {
                 try {
                     Push-Location $RepoRoot
-                    & ./start-app.ps1 test $panelCommand -r $Resolution -w $WaitSeconds -o $panelDir 2>&1 | Out-Null
+                    & ./start-app.ps1 test $panelCommand -r $Resolution -w $WaitSeconds -o $screenshotDir 2>&1 | Out-Null
                     Pop-Location
 
-                    $possibleOutput = Get-ChildItem -Path $panelDir -Filter "*.jpg" -ErrorAction SilentlyContinue | Select-Object -First 1
+                    $possibleOutput = Get-ChildItem -Path $screenshotDir -Filter "*.jpg" -ErrorAction SilentlyContinue | Select-Object -First 1
                     if ($possibleOutput -and $possibleOutput.Name -ne "$($panel.TypeId).jpg") {
                         Move-Item $possibleOutput.FullName $screenshotPath -Force
                     }
@@ -253,7 +334,7 @@ $($panel.Description)
 
 ## Screenshot
 
-![$($panel.DisplayName)]($($panel.TypeId).jpg)
+![$($panel.DisplayName)](screenshots/$($panel.TypeId).jpg)
 
 "@
         }
@@ -403,14 +484,26 @@ lcdpossible show $displayId|$paramExample
             $WaitSeconds = $using:WaitSeconds
             $SkipScreenshots = $using:SkipScreenshots
             $RepoRoot = $using:RepoRoot
+            $CategoryFolderMap = $using:categoryFolderMap
 
-            $panelDir = Join-Path $DocsRoot "$($panel.PluginShortName)/panels/$($panel.TypeId)"
+            # Get category folder
+            $categoryFolder = if ($CategoryFolderMap.ContainsKey($panel.Category)) {
+                $CategoryFolderMap[$panel.Category]
+            } else {
+                $panel.Category.ToLower() -replace '\s+', '-'
+            }
+
+            $panelDir = Join-Path $DocsRoot "panels/$categoryFolder"
+            $screenshotDir = Join-Path $panelDir "screenshots"
 
             if (-not (Test-Path $panelDir)) {
                 New-Item -ItemType Directory -Path $panelDir -Force | Out-Null
             }
+            if (-not (Test-Path $screenshotDir)) {
+                New-Item -ItemType Directory -Path $screenshotDir -Force | Out-Null
+            }
 
-            $screenshotPath = Join-Path $panelDir "$($panel.TypeId).jpg"
+            $screenshotPath = Join-Path $screenshotDir "$($panel.TypeId).jpg"
             $markdownPath = Join-Path $panelDir "$($panel.TypeId).md"
             $hadError = $false
 
@@ -430,10 +523,10 @@ lcdpossible show $displayId|$paramExample
                 if (-not $shouldSkip) {
                     try {
                         Push-Location $RepoRoot
-                        & ./start-app.ps1 test $panelCommand -r $Resolution -w $WaitSeconds -o $panelDir 2>&1 | Out-Null
+                        & ./start-app.ps1 test $panelCommand -r $Resolution -w $WaitSeconds -o $screenshotDir 2>&1 | Out-Null
                         Pop-Location
 
-                        $possibleOutput = Get-ChildItem -Path $panelDir -Filter "*.jpg" -ErrorAction SilentlyContinue | Select-Object -First 1
+                        $possibleOutput = Get-ChildItem -Path $screenshotDir -Filter "*.jpg" -ErrorAction SilentlyContinue | Select-Object -First 1
                         if ($possibleOutput -and $possibleOutput.Name -ne "$($panel.TypeId).jpg") {
                             Move-Item $possibleOutput.FullName $screenshotPath -Force
                         }
@@ -458,7 +551,7 @@ $($panel.Description)
 "@
 
             if (Test-Path $screenshotPath) {
-                $markdown += "`n## Screenshot`n`n![$($panel.DisplayName)]($($panel.TypeId).jpg)`n"
+                $markdown += "`n## Screenshot`n`n![$($panel.DisplayName)](screenshots/$($panel.TypeId).jpg)`n"
             }
 
             if ($panel.HelpText) {
@@ -536,7 +629,7 @@ lcdpossible show $displayId
             $processedCount++
             Write-Host "[$processedCount/$totalPanels] Processing: $($panel.TypeId)" -ForegroundColor Cyan
 
-            $result = & $processPanelBlock $panel $DocsRoot $Resolution $WaitSeconds $SkipScreenshots $RepoRoot
+            $result = & $processPanelBlock $panel $DocsRoot $Resolution $WaitSeconds $SkipScreenshots $RepoRoot $categoryFolderMap
 
             if ($result.Success) {
                 if ($result.HasScreenshot) {
@@ -553,33 +646,39 @@ lcdpossible show $displayId
         }
     }
 
-    # Generate plugin-level index files
-    foreach ($pluginGroup in $panelsByPlugin) {
-        $pluginIndexPath = Join-Path $DocsRoot "$($pluginGroup.Name)/README.md"
-        $pluginIndexDir = Split-Path $pluginIndexPath -Parent
+    # Generate category-level index files
+    foreach ($category in $panelsByCategory) {
+        $categoryFolder = Get-CategoryFolder $category.Name
+        $categoryIndexPath = Join-Path $DocsRoot "panels/$categoryFolder/README.md"
+        $categoryIndexDir = Split-Path $categoryIndexPath -Parent
+        $screenshotDir = Join-Path $categoryIndexDir "screenshots"
 
-        if (-not (Test-Path $pluginIndexDir)) {
-            New-Item -ItemType Directory -Path $pluginIndexDir -Force | Out-Null
+        if (-not (Test-Path $categoryIndexDir)) {
+            New-Item -ItemType Directory -Path $categoryIndexDir -Force | Out-Null
+        }
+        if (-not (Test-Path $screenshotDir)) {
+            New-Item -ItemType Directory -Path $screenshotDir -Force | Out-Null
         }
 
-        $firstPanel = $pluginGroup.Group[0]
+        $categoryIndex = @"
+# $($category.Name) Panels
 
-        $pluginIndex = @"
-# $($firstPanel.PluginName)
-
-$($firstPanel.PluginDescription)
-
-## Panels
-
-| Panel | Description | Category |
-|-------|-------------|----------|
+| Panel | Description |
+|-------|-------------|
 "@
-        foreach ($panel in ($pluginGroup.Group | Sort-Object DisplayName)) {
+        foreach ($panel in ($category.Group | Sort-Object DisplayName)) {
             $displayId = if ($panel.PrefixPattern) { $panel.PrefixPattern } else { $panel.TypeId }
-            $pluginIndex += "| [$($panel.DisplayName)](panels/$($panel.TypeId)/$($panel.TypeId).md) | $($panel.Description) | $($panel.Category) |`n"
+            $categoryIndex += "| [$($panel.DisplayName)]($($panel.TypeId).md) | $($panel.Description) |`n"
         }
 
-        Set-Content -Path $pluginIndexPath -Value $pluginIndex -Encoding UTF8
+        $categoryIndex += @"
+
+---
+
+*[Back to Panels](../README.md)*
+"@
+
+        Set-Content -Path $categoryIndexPath -Value $categoryIndex -Encoding UTF8
     }
 
     # Enhance descriptions using Ollama (if requested)
@@ -596,7 +695,8 @@ $($firstPanel.PluginDescription)
             $esc = [char]27
 
             foreach ($panel in $allPanels) {
-                $markdownPath = Join-Path $DocsRoot "$($panel.PluginShortName)/panels/$($panel.TypeId)/$($panel.TypeId).md"
+                $categoryFolder = Get-CategoryFolder $panel.Category
+                $markdownPath = Join-Path $DocsRoot "panels/$categoryFolder/$($panel.TypeId).md"
 
                 if (Test-Path $markdownPath) {
                     Write-Host "  Enhancing: $($panel.TypeId)" -ForegroundColor DarkGray
@@ -692,7 +792,8 @@ Output ONLY the overview text. No headers, formatting, markdown, or meta-comment
 
             foreach ($panel in ($category.Group | Sort-Object DisplayName)) {
                 $displayId = if ($panel.PrefixPattern) { $panel.PrefixPattern } else { $panel.TypeId }
-                $docLink = "docs/$($panel.PluginShortName)/panels/$($panel.TypeId)/$($panel.TypeId).md"
+                $categoryFolder = Get-CategoryFolder $panel.Category
+                $docLink = "docs/panels/$categoryFolder/$($panel.TypeId).md"
                 $newPanelSection += "| [``$displayId``]($docLink) | $($panel.Description) |`n"
             }
         }

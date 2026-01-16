@@ -10,6 +10,8 @@ Cross-platform .NET 10 LCD controller service for HID-based LCD screens.
 
 LCDPossible is an open-source alternative to vendor-specific Windows-only software for controlling HID-based LCD displays found in AIO coolers and other PC components. It provides:
 
+> **📚 Documentation:** See the [full documentation](docs/README.md) for detailed guides, panel reference, and configuration options.
+
 - **Real-time system monitoring** - CPU, GPU, RAM usage and temperatures
 - **Media playback** - Animated GIFs, videos, YouTube, and web pages
 - **Screensavers** - 14 built-in animated screensavers
@@ -53,32 +55,32 @@ Install LCDPossible with all dependencies using a single command:
 
 **Windows** (PowerShell as Administrator):
 ```powershell
-irm https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/install-windows.ps1 | iex
+irm https://raw.githubusercontent.com/DevPossible/lcd-possible/main/scripts/install-windows.ps1 | iex
 ```
 
 **Ubuntu/Debian**:
 ```bash
-curl -sSL https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/install-ubuntu.sh | bash
+curl -sSL https://raw.githubusercontent.com/DevPossible/lcd-possible/main/scripts/install-ubuntu.sh | bash
 ```
 
 **Fedora/RHEL**:
 ```bash
-curl -sSL https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/install-fedora.sh | bash
+curl -sSL https://raw.githubusercontent.com/DevPossible/lcd-possible/main/scripts/install-fedora.sh | bash
 ```
 
 **Arch Linux**:
 ```bash
-curl -sSL https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/install-arch.sh | bash
+curl -sSL https://raw.githubusercontent.com/DevPossible/lcd-possible/main/scripts/install-arch.sh | bash
 ```
 
 **macOS**:
 ```bash
-curl -sSL https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/install-macos.sh | bash
+curl -sSL https://raw.githubusercontent.com/DevPossible/lcd-possible/main/scripts/install-macos.sh | bash
 ```
 
 **Proxmox VE** (run as root):
 ```bash
-curl -sSL https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/install-proxmox.sh | bash
+curl -sSL https://raw.githubusercontent.com/DevPossible/lcd-possible/main/scripts/install-proxmox.sh | bash
 ```
 
 These scripts will:
@@ -174,27 +176,27 @@ Remove LCDPossible using a single command:
 
 **Windows** (PowerShell as Administrator):
 ```powershell
-irm https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/uninstall-windows.ps1 | iex
+irm https://raw.githubusercontent.com/DevPossible/lcd-possible/main/scripts/uninstall-windows.ps1 | iex
 ```
 
 **Ubuntu/Debian/Proxmox**:
 ```bash
-curl -sSL https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/uninstall-ubuntu.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/DevPossible/lcd-possible/main/scripts/uninstall-ubuntu.sh | sudo bash
 ```
 
 **Fedora/RHEL**:
 ```bash
-curl -sSL https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/uninstall-fedora.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/DevPossible/lcd-possible/main/scripts/uninstall-fedora.sh | sudo bash
 ```
 
 **Arch Linux**:
 ```bash
-curl -sSL https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/uninstall-arch.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/DevPossible/lcd-possible/main/scripts/uninstall-arch.sh | sudo bash
 ```
 
 **macOS**:
 ```bash
-curl -sSL https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/uninstall-macos.sh | bash
+curl -sSL https://raw.githubusercontent.com/DevPossible/lcd-possible/main/scripts/uninstall-macos.sh | bash
 ```
 
 These scripts will:
@@ -209,10 +211,10 @@ To also remove configuration files, use the `--remove-config` flag:
 
 ```bash
 # Linux/macOS
-curl -sSL https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/uninstall-ubuntu.sh | sudo bash -s -- --remove-config
+curl -sSL https://raw.githubusercontent.com/DevPossible/lcd-possible/main/scripts/uninstall-ubuntu.sh | sudo bash -s -- --remove-config
 
 # Windows
-irm https://raw.githubusercontent.com/DevPossible/LCDPossible/main/scripts/uninstall-windows.ps1 -OutFile uninstall.ps1; .\uninstall.ps1 -RemoveConfig
+irm https://raw.githubusercontent.com/DevPossible/lcd-possible/main/scripts/uninstall-windows.ps1 -OutFile uninstall.ps1; .\uninstall.ps1 -RemoveConfig
 ```
 
 ### Local Uninstall Script
@@ -318,95 +320,12 @@ lcdpossible debug                   # Run diagnostics
 
 > **Full Documentation:** See [docs/panels/README.md](docs/panels/README.md) for detailed panel documentation with screenshots.
 
-### CPU
-
-| Panel | Description |
-|-------|-------------|
-| [`cpu-info`](docs/core/panels/cpu-info/cpu-info.md) | Detailed CPU information including model, usage, temperature, frequency, and power |
-| [`cpu-usage-graphic`](docs/core/panels/cpu-usage-graphic/cpu-usage-graphic.md) | CPU usage with graphical bars including per-core breakdown |
-| [`cpu-usage-text`](docs/core/panels/cpu-usage-text/cpu-usage-text.md) | CPU usage displayed as large text percentage |
-
-### GPU
-
-| Panel | Description |
-|-------|-------------|
-| [`gpu-info`](docs/core/panels/gpu-info/gpu-info.md) | GPU information including model, usage, temperature, and VRAM |
-| [`gpu-usage-graphic`](docs/core/panels/gpu-usage-graphic/gpu-usage-graphic.md) | GPU usage with graphical bars |
-| [`gpu-usage-text`](docs/core/panels/gpu-usage-text/gpu-usage-text.md) | GPU usage displayed as large text |
-
-### Media
-
-| Panel | Description |
-|-------|-------------|
-| [`animated-gif:`](docs/images/panels/animated-gif/animated-gif.md) | Plays animated GIF files or URLs with full animation support |
-| [`image-sequence:`](docs/images/panels/image-sequence/image-sequence.md) | Plays a sequence of numbered images from a folder at 30fps |
-| [`video:`](docs/video/panels/video/video.md) | Plays video files, streaming URLs, or YouTube links |
-
-### Memory
-
-| Panel | Description |
-|-------|-------------|
-| [`ram-info`](docs/core/panels/ram-info/ram-info.md) | Memory information including total, used, and available |
-| [`ram-usage-graphic`](docs/core/panels/ram-usage-graphic/ram-usage-graphic.md) | RAM usage with graphical bar |
-| [`ram-usage-text`](docs/core/panels/ram-usage-text/ram-usage-text.md) | RAM usage displayed as large text |
-
-### Network
-
-| Panel | Description |
-|-------|-------------|
-| [`network-info`](docs/core/panels/network-info/network-info.md) | Network configuration including hostname, IP addresses, gateway, and DNS |
-
 ### Proxmox
 
 | Panel | Description |
 |-------|-------------|
 | [`proxmox-summary`](docs/proxmox/panels/proxmox-summary/proxmox-summary.md) | Proxmox cluster overview with node status and resource usage |
 | [`proxmox-vms`](docs/proxmox/panels/proxmox-vms/proxmox-vms.md) | List of VMs and containers with status and resource usage |
-
-### Screensaver
-
-| Panel | Description |
-|-------|-------------|
-| [`clock`](docs/screensavers/panels/clock/clock.md) | Analog clock with smooth second hand |
-| [`asteroids`](docs/screensavers/panels/asteroids/asteroids.md) | Asteroids game simulation with vector graphics |
-| [`bouncing-logo:`](docs/screensavers/panels/bouncing-logo/bouncing-logo.md) | Customizable text bouncing off screen edges (DVD screensaver style) with color, size, 3D, and rotation options |
-| [`bubbles`](docs/screensavers/panels/bubbles/bubbles.md) | Floating, bouncing translucent bubbles |
-| [`falling-blocks:`](docs/screensavers/panels/falling-blocks/falling-blocks.md) | Tetris-style falling blocks simulator with AI gameplay |
-| [`fire`](docs/screensavers/panels/fire/fire.md) | Classic demoscene fire effect with palette animation |
-| [`game-of-life`](docs/screensavers/panels/game-of-life/game-of-life.md) | Conway's cellular automaton with colorful patterns |
-| [`matrix-rain`](docs/screensavers/panels/matrix-rain/matrix-rain.md) | Digital rain effect inspired by The Matrix |
-| [`missile-command`](docs/screensavers/panels/missile-command/missile-command.md) | Defend cities from incoming missiles |
-| [`mystify`](docs/screensavers/panels/mystify/mystify.md) | Bouncing connected polygons with color trails |
-| [`pipes`](docs/screensavers/panels/pipes/pipes.md) | 3D pipes growing in random directions (classic Windows) |
-| [`plasma`](docs/screensavers/panels/plasma/plasma.md) | Classic demoscene plasma effect |
-| [`rain`](docs/screensavers/panels/rain/rain.md) | Falling raindrops with splash effects |
-| [`screensaver:`](docs/screensavers/panels/screensaver/screensaver.md) | Plays a random screensaver effect or cycles through all |
-| [`spiral`](docs/screensavers/panels/spiral/spiral.md) | Hypnotic rotating spiral pattern |
-| [`starfield`](docs/screensavers/panels/starfield/starfield.md) | Classic starfield warp effect with stars streaming from center |
-| [`noise`](docs/screensavers/panels/noise/noise.md) | TV static / white noise effect |
-| [`warp-tunnel`](docs/screensavers/panels/warp-tunnel/warp-tunnel.md) | Flying through a colorful warp tunnel |
-
-### System
-
-| Panel | Description |
-|-------|-------------|
-| [`basic-info`](docs/core/panels/basic-info/basic-info.md) | Basic system information including hostname, OS, and uptime |
-| [`basic-usage-text`](docs/core/panels/basic-usage-text/basic-usage-text.md) | Simple CPU/RAM/GPU usage summary |
-
-### Thermal
-
-| Panel | Description |
-|-------|-------------|
-| [`cpu-thermal-graphic`](docs/core/panels/cpu-thermal-graphic/cpu-thermal-graphic.md) | CPU temperature with graphical gauge display |
-| [`gpu-thermal-graphic`](docs/core/panels/gpu-thermal-graphic/gpu-thermal-graphic.md) | GPU temperature with graphical gauge display |
-| [`system-thermal-graphic`](docs/core/panels/system-thermal-graphic/system-thermal-graphic.md) | Combined CPU and GPU temperature display with vertical thermometers |
-
-### Web
-
-| Panel | Description |
-|-------|-------------|
-| [`html:`](docs/web/panels/html/html.md) | Renders a local HTML file using headless browser |
-| [`web:`](docs/web/panels/web/web.md) | Renders a live website from URL |
 
 ## Media Panel Examples
 

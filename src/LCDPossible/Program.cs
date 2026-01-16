@@ -584,11 +584,11 @@ static string? GetShowProfile(string[] args)
         }
     }
 
-    // Otherwise, take the argument after "show" or "test"
+    // Otherwise, take the argument after "show", "test", or "render"
     for (var i = 0; i < args.Length - 1; i++)
     {
         var arg = args[i].ToLowerInvariant().TrimStart('-', '/');
-        if (arg is "show" or "test")
+        if (arg is "show" or "test" or "render")
         {
             var nextArg = args[i + 1];
             // Make sure it's not another flag
