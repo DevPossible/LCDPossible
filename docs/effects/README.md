@@ -13,6 +13,16 @@ Screenshots showing the `cpu-info` panel with various effects applied:
 ### No Effect (Baseline)
 ![No Effect](screenshots/effect-none.jpg)
 
+### Container Animation Effects
+
+| Bounce | Gentle Float | Tilt 3D |
+|--------|--------------|---------|
+| ![Bounce](screenshots/effect-bounce.jpg) | ![Gentle Float](screenshots/effect-gentle-float.jpg) | ![Tilt 3D](screenshots/effect-tilt-3d.jpg) |
+
+| Wave |
+|------|
+| ![Wave](screenshots/effect-wave.jpg) |
+
 ### Background Effects
 
 | Aurora | Matrix Rain | Scanlines |
@@ -23,9 +33,25 @@ Screenshots showing the `cpu-info` panel with various effects applied:
 |----------|------|------|
 | ![Hologram](screenshots/effect-hologram.jpg) | ![Rain](screenshots/effect-rain.jpg) | ![Snow](screenshots/effect-snow.jpg) |
 
-| Particle Field | Confetti |
-|----------------|----------|
-| ![Particle Field](screenshots/effect-particle-field.jpg) | ![Confetti](screenshots/effect-confetti.jpg) |
+| Particle Field | Confetti | Stars Twinkle |
+|----------------|----------|---------------|
+| ![Particle Field](screenshots/effect-particle-field.jpg) | ![Confetti](screenshots/effect-confetti.jpg) | ![Stars Twinkle](screenshots/effect-stars-twinkle.jpg) |
+
+| Bokeh | Bubbles | Clouds |
+|-------|---------|--------|
+| ![Bokeh](screenshots/effect-bokeh.jpg) | ![Bubbles](screenshots/effect-bubbles.jpg) | ![Clouds](screenshots/effect-clouds.jpg) |
+
+| Embers | Fireflies | Fireworks |
+|--------|-----------|-----------|
+| ![Embers](screenshots/effect-embers.jpg) | ![Fireflies](screenshots/effect-fireflies.jpg) | ![Fireworks](screenshots/effect-fireworks.jpg) |
+
+| Grid Pulse | Lava Lamp | Lightning |
+|------------|-----------|-----------|
+| ![Grid Pulse](screenshots/effect-grid-pulse.jpg) | ![Lava Lamp](screenshots/effect-lava-lamp.jpg) | ![Lightning](screenshots/effect-lightning.jpg) |
+
+| Smoke | Waves | Breathing Glow |
+|-------|-------|----------------|
+| ![Smoke](screenshots/effect-smoke.jpg) | ![Waves](screenshots/effect-waves.jpg) | ![Breathing Glow](screenshots/effect-breathing-glow.jpg) |
 
 ### Overlay Effects
 
@@ -33,11 +59,21 @@ Screenshots showing the `cpu-info` panel with various effects applied:
 |------------|------------|-------------|
 | ![VHS Static](screenshots/effect-vhs-static.jpg) | ![Film Grain](screenshots/effect-film-grain.jpg) | ![Neon Border](screenshots/effect-neon-border.jpg) |
 
-### Container Animation Effects
+| Lens Flare | Chromatic Aberration | CRT Warp |
+|------------|----------------------|----------|
+| ![Lens Flare](screenshots/effect-lens-flare.jpg) | ![Chromatic Aberration](screenshots/effect-chromatic-aberration.jpg) | ![CRT Warp](screenshots/effect-crt-warp.jpg) |
 
-| Bounce |
-|--------|
-| ![Bounce](screenshots/effect-bounce.jpg) |
+### Character/Mascot Effects
+
+| Vanna White | Pixel Mascot | Robot Assistant |
+|-------------|--------------|-----------------|
+| ![Vanna White](screenshots/effect-vanna-white.jpg) | ![Pixel Mascot](screenshots/effect-pixel-mascot.jpg) | ![Robot Assistant](screenshots/effect-robot-assistant.jpg) |
+
+### Alert/Status Effects
+
+| Spotlight |
+|-----------|
+| ![Spotlight](screenshots/effect-spotlight.jpg) |
 
 ## Using Effects
 

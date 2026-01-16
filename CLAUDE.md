@@ -10,9 +10,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Key Documentation
 
-- `docs/LCD-Technical-Reference.md` - USB HID protocol details, packet structures, reverse-engineered from TRCC.exe
-- `docs/Implementation-Plan.md` - Complete architecture and phase-by-phase implementation plan
-- `docs/devices/{VID-PID}/{DeviceName}.md` - Per-device technical specifications and protocol details
+- `docs/reference/LCD-Technical-Reference.md` - USB HID protocol details, packet structures, reverse-engineered from TRCC.exe
+- `docs/reference/Implementation-Plan.md` - Complete architecture and phase-by-phase implementation plan
+- `docs/reference/devices/{VID-PID}/{DeviceName}.md` - Per-device technical specifications and protocol details
 
 ### Device-Specific Documentation
 
@@ -20,7 +20,7 @@ When implementing code for a specific device, check the corresponding device doc
 
 | Device | Documentation |
 |--------|---------------|
-| Trofeo Vision LCD | `docs/devices/0416-5302/Thermalright-Trofeo-Vision.md` |
+| Trofeo Vision LCD | `docs/reference/devices/0416-5302/Thermalright-Trofeo-Vision.md` |
 
 Device docs contain: verified commands, packet formats, known limitations, and protocol research sources.
 

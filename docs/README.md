@@ -13,6 +13,7 @@ Welcome to the LCDPossible documentation. LCDPossible is a cross-platform LCD co
 | [Configuration](configuration/README.md) | Profiles, settings, and service setup |
 | [CLI Reference](cli/README.md) | Command-line interface |
 | [Plugin Development](plugins/README.md) | Creating custom panels and device drivers |
+| [Technical Reference](reference/README.md) | Architecture, protocols, and internals |
 | [Troubleshooting](troubleshooting.md) | Common issues and solutions |
 
 ## Documentation Structure

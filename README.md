@@ -8,16 +8,17 @@ Cross-platform .NET 10 LCD controller service for HID-based LCD screens.
 
 ## Overview
 
-LCDPossible is an open-source alternative to vendor-specific Windows-only software for controlling HID-based LCD displays found in AIO coolers and other PC components. It provides:
+LCDPossible is an open-source alternative to vendor-specific Windows-only software for controlling HID-based LCD displays found in AIO coolers and other PC components.
 
-> **📚 Documentation:** See the [full documentation](docs/README.md) for detailed guides, panel reference, and configuration options.
+**Features:**
+- Real-time system monitoring (CPU, GPU, RAM temperatures and usage)
+- Media playback (animated GIFs, videos, YouTube, web pages)
+- 16+ built-in screensavers
+- Slideshows with smooth transitions
+- Plugin architecture for custom panels
+- Cross-platform (Windows, Linux, macOS)
 
-- **Real-time system monitoring** - CPU, GPU, RAM usage and temperatures
-- **Media playback** - Animated GIFs, videos, YouTube, and web pages
-- **Screensavers** - 14 built-in animated screensavers
-- **Slideshows** - Automatic panel rotation with smooth transitions
-- **Plugin architecture** - Extensible panel system
-- **Cross-platform** - Windows, Linux, and macOS support
+**[Full Documentation](docs/README.md)** - Detailed guides, panel reference, configuration options
 
 ## Supported Devices
 
@@ -26,7 +27,7 @@ LCDPossible is an open-source alternative to vendor-specific Windows-only softwa
 | Thermalright Trofeo Vision 360 ARGB | 0x0416 | 0x5302 | 1280x480 | Fully Supported |
 | Thermalright PA120 Digital | 0x0416 | 0x8001 | Segment | Driver Ready |
 
-Additional HID-based LCD devices can be supported by implementing the `ILcdDevice` interface.
+Additional HID-based LCD devices can be supported via the plugin system.
 
 ## Quick Start
 
@@ -37,21 +38,21 @@ lcdpossible list
 # Display system info
 lcdpossible show basic-info
 
-# Display CPU and GPU monitors
-lcdpossible show cpu-usage-graphic,gpu-usage-graphic
+# Run a slideshow
+lcdpossible show cpu-usage-graphic,gpu-usage-graphic,ram-usage-graphic
 
 # Run a screensaver
 lcdpossible show starfield
 
-# Start the service with default slideshow
+# Start the service
 lcdpossible serve
 ```
+
+See [CLI Reference](docs/cli/README.md) for all commands.
 
 ## Installation
 
 ### One-Line Install (Recommended)
-
-Install LCDPossible with all dependencies using a single command:
 
 **Windows** (PowerShell as Administrator):
 ```powershell
@@ -83,11 +84,7 @@ curl -sSL https://raw.githubusercontent.com/DevPossible/lcd-possible/main/script
 curl -sSL https://raw.githubusercontent.com/DevPossible/lcd-possible/main/scripts/install-proxmox.sh | bash
 ```
 
-These scripts will:
-- Install all required dependencies (LibVLC, fonts)
-- Download the latest release
-- Set up USB device permissions (Linux)
-- Install and enable the service (systemd/launchd/Windows Service)
+These scripts install dependencies, set up USB permissions (Linux), and configure the service.
 
 ### Manual Installation
 
@@ -100,9 +97,8 @@ These scripts will:
 
 **Install as Windows Service:**
 ```powershell
-# Run as Administrator
-sc.exe create LCDPossible binPath= "C:\Program Files\LCDPossible\LCDPossible.exe serve --service" start= auto
-sc.exe start LCDPossible
+lcdpossible service install
+lcdpossible service start
 ```
 </details>
 
@@ -117,6 +113,7 @@ sudo apt install vlc libvlc-dev fonts-dejavu-core
 wget https://github.com/DevPossible/lcd-possible/releases/latest/download/lcdpossible-x.x.x-linux-x64.tar.gz
 sudo mkdir -p /opt/lcdpossible
 sudo tar -xzf lcdpossible-*.tar.gz -C /opt/lcdpossible
+sudo ln -sf /opt/lcdpossible/lcdpossible /usr/local/bin/
 
 # Install udev rules for USB access
 sudo tee /etc/udev/rules.d/99-lcdpossible.rules << 'EOF'
@@ -124,10 +121,6 @@ SUBSYSTEM=="usb", ATTR{idVendor}=="0416", ATTR{idProduct}=="5302", MODE="0666", 
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0416", MODE="0666", TAG+="uaccess"
 EOF
 sudo udevadm control --reload-rules && sudo udevadm trigger
-
-# Add to PATH
-echo 'export PATH="/opt/lcdpossible:$PATH"' >> ~/.bashrc
-source ~/.bashrc
 ```
 </details>
 
@@ -156,361 +149,36 @@ Requires [.NET 10 SDK](https://dotnet.microsoft.com/download).
 ```bash
 git clone https://github.com/DevPossible/lcd-possible.git
 cd LCDPossible
-
-# Build
 ./build.ps1
-# or: dotnet build src/LCDPossible.sln
-
-# Run tests
 ./test-full.ps1
-
-# Package for distribution
-./package.ps1 -Version "1.0.0"
 ```
 
 ## Uninstall
-
-### One-Line Uninstall
-
-Remove LCDPossible using a single command:
 
 **Windows** (PowerShell as Administrator):
 ```powershell
 irm https://raw.githubusercontent.com/DevPossible/lcd-possible/main/scripts/uninstall-windows.ps1 | iex
 ```
 
-**Ubuntu/Debian/Proxmox**:
+**Linux** (Ubuntu/Debian/Proxmox):
 ```bash
 curl -sSL https://raw.githubusercontent.com/DevPossible/lcd-possible/main/scripts/uninstall-ubuntu.sh | sudo bash
 ```
 
-**Fedora/RHEL**:
-```bash
-curl -sSL https://raw.githubusercontent.com/DevPossible/lcd-possible/main/scripts/uninstall-fedora.sh | sudo bash
-```
+Add `--remove-config` (Linux/macOS) or `-RemoveConfig` (Windows) to also remove configuration files.
 
-**Arch Linux**:
-```bash
-curl -sSL https://raw.githubusercontent.com/DevPossible/lcd-possible/main/scripts/uninstall-arch.sh | sudo bash
-```
+## Documentation
 
-**macOS**:
-```bash
-curl -sSL https://raw.githubusercontent.com/DevPossible/lcd-possible/main/scripts/uninstall-macos.sh | bash
-```
-
-These scripts will:
-- Stop and remove the service (systemd/launchd/Windows Service)
-- Remove the symlink or PATH entry
-- Remove installed files from the installation directory
-- Preserve configuration files by default
-
-### Remove Configuration Files
-
-To also remove configuration files, use the `--remove-config` flag:
-
-```bash
-# Linux/macOS
-curl -sSL https://raw.githubusercontent.com/DevPossible/lcd-possible/main/scripts/uninstall-ubuntu.sh | sudo bash -s -- --remove-config
-
-# Windows
-irm https://raw.githubusercontent.com/DevPossible/lcd-possible/main/scripts/uninstall-windows.ps1 -OutFile uninstall.ps1; .\uninstall.ps1 -RemoveConfig
-```
-
-### Local Uninstall Script
-
-If you have the repository cloned, you can use the local scripts:
-
-```bash
-# Windows
-.\scripts\uninstall-windows.ps1
-.\scripts\uninstall-windows.ps1 -RemoveConfig  # Also remove config
-
-# Linux/macOS
-sudo ./scripts/uninstall-ubuntu.sh
-sudo ./scripts/uninstall-ubuntu.sh --remove-config
-```
-
-### Remote Uninstall via SSH
-
-Use `uninstall-local.ps1` to uninstall from a remote Linux/macOS host:
-
-```powershell
-# Basic uninstall
-.\scripts\uninstall-local.ps1 -TargetHost myserver.local
-
-# Specify distro and remove config
-.\scripts\uninstall-local.ps1 -TargetHost 192.168.1.100 -Distro proxmox -RemoveConfig
-
-# macOS target
-.\scripts\uninstall-local.ps1 -TargetHost mymac -User admin -Distro macos
-```
-
-Available distros: `ubuntu`, `debian`, `proxmox`, `fedora`, `arch`, `macos`
-
-## CLI Commands
-
-### Device Management
-
-```bash
-lcdpossible list                    # List connected LCD devices
-lcdpossible test-pattern            # Display test pattern on all devices
-lcdpossible test-pattern -d 0       # Display test pattern on device 0
-lcdpossible set-brightness 80       # Set brightness to 80%
-lcdpossible set-image -p image.jpg  # Display a static image
-```
-
-### Panel Display
-
-```bash
-# Show single panel
-lcdpossible show cpu-info
-
-# Show multiple panels (slideshow)
-lcdpossible show cpu-info,gpu-info,ram-info
-
-# Custom duration per panel (seconds)
-lcdpossible show cpu-info|@duration=30
-
-# Custom update interval (seconds)
-lcdpossible show cpu-usage-graphic|@interval=2
-
-# Use wildcards
-lcdpossible show cpu-*              # All CPU panels
-lcdpossible show *-graphic          # All graphic panels
-lcdpossible show *                  # ALL panels
-```
-
-### Profile Management
-
-```bash
-lcdpossible profile new myprofile                    # Create profile
-lcdpossible profile list                             # List all profiles
-lcdpossible profile show myprofile                   # Show profile details
-lcdpossible profile append-panel cpu-usage-graphic   # Add panel to default profile
-lcdpossible profile append-panel gpu-info -p myprofile -d 15  # Add to specific profile
-lcdpossible profile remove-panel 0                   # Remove panel at index 0
-lcdpossible profile move-panel 0 2                   # Move panel from index 0 to 2
-lcdpossible profile set-defaults --interval 5        # Set default update interval
-lcdpossible profile delete myprofile                 # Delete profile
-```
-
-### Service Control
-
-```bash
-lcdpossible serve                   # Start service (foreground)
-lcdpossible serve --service         # Run as Windows Service
-lcdpossible stop                    # Stop the service
-lcdpossible status                  # Show service status
-```
-
-### Testing & Debugging
-
-```bash
-lcdpossible test                    # Render default panels to files
-lcdpossible test cpu-*              # Render matching panels to files
-lcdpossible test "*"                # Render ALL panels to files
-lcdpossible list-panels             # List all available panel types
-lcdpossible help-panel cpu-info     # Show help for specific panel
-lcdpossible sensors                 # List hardware sensors (Windows)
-lcdpossible debug                   # Run diagnostics
-```
-
-## Available Panels
-
-> **Full Documentation:** See [docs/panels/README.md](docs/panels/README.md) for detailed panel documentation with screenshots.
-
-### Proxmox
-
-| Panel | Description |
+| Topic | Description |
 |-------|-------------|
-| [`proxmox-summary`](docs/proxmox/panels/proxmox-summary/proxmox-summary.md) | Proxmox cluster overview with node status and resource usage |
-| [`proxmox-vms`](docs/proxmox/panels/proxmox-vms/proxmox-vms.md) | List of VMs and containers with status and resource usage |
-
-## Media Panel Examples
-
-```bash
-# Animated GIF
-lcdpossible show animated-gif:https://upload.wikimedia.org/wikipedia/commons/2/2c/Rotating_earth_%28large%29.gif
-
-# Video from URL (CC-BY Big Buck Bunny)
-lcdpossible show video:https://archive.org/download/BigBuckBunny_124/Content/big_buck_bunny_720p_surround.mp4
-
-# YouTube video
-lcdpossible show video:https://www.youtube.com/watch?v=aqz-KE-bpKQ
-
-# Live weather display
-lcdpossible show web:https://wttr.in/London
-
-# Local HTML dashboard
-lcdpossible show html:/path/to/dashboard.html
-```
-
-## Configuration
-
-### YAML Display Profiles
-
-Profiles are stored in platform-specific locations:
-- **Windows:** `%APPDATA%\LCDPossible\`
-- **Linux:** `~/.config/LCDPossible/`
-- **macOS:** `~/Library/Application Support/LCDPossible/`
-
-Example profile (`profile.yaml`):
-
-```yaml
-name: "My Display Profile"
-description: "System monitoring slideshow"
-
-# Defaults for all slides
-default_duration: 15
-default_update_interval: 5
-default_transition: crossfade
-default_transition_duration: 800
-
-# Color scheme
-colors:
-  background: "#0F0F19"
-  text_primary: "#FFFFFF"
-  accent: "#0096FF"
-  usage_low: "#32C864"
-  usage_medium: "#0096FF"
-  usage_high: "#FFB400"
-  usage_critical: "#FF3232"
-
-# Slideshow panels
-slides:
-  - panel: basic-info
-    duration: 10
-
-  - panel: cpu-usage-graphic
-    duration: 15
-    update_interval: 2
-
-  - panel: gpu-usage-graphic
-    duration: 15
-    transition: slide-left
-
-  - panel: ram-usage-graphic
-    duration: 10
-
-  - panel: starfield
-    duration: 30
-```
-
-### Available Transitions
-
-| Transition | Description |
-|------------|-------------|
-| `none` | Instant switch |
-| `fade` | Fade from black |
-| `crossfade` | Dissolve between panels |
-| `slide-left/right/up/down` | Directional slide |
-| `wipe-left/right/up/down` | Wipe effect |
-| `zoom-in/out` | Scale transition |
-| `push-left/right` | Push old frame out |
-| `random` | Random selection (default) |
-
-### Environment Variables
-
-| Variable | Description |
-|----------|-------------|
-| `LCDPOSSIBLE_DATA_DIR` | Override user data directory |
-
-## Proxmox VE Integration
-
-LCDPossible can display real-time metrics from your Proxmox VE cluster.
-
-### Creating an API Token
-
-1. Log into Proxmox web interface
-2. Navigate to **Datacenter** > **Permissions** > **API Tokens**
-3. Click **Add** and create a token (e.g., `monitor@pve!lcdpossible`)
-4. Copy the token secret (shown only once)
-
-### Required Permissions
-
-```bash
-pveum aclmod / -user monitor@pve -role PVEAuditor
-```
-
-### Configuration
-
-Add to `appsettings.json`:
-
-```json
-{
-  "LCDPossible": {
-    "Proxmox": {
-      "Enabled": true,
-      "ApiUrl": "https://proxmox.local:8006",
-      "TokenId": "monitor@pve!lcdpossible",
-      "TokenSecret": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-      "IgnoreSslErrors": true,
-      "PollingIntervalSeconds": 5,
-      "ShowVms": true,
-      "ShowContainers": true,
-      "ShowAlerts": true,
-      "MaxDisplayItems": 10
-    }
-  }
-}
-```
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `Enabled` | `false` | Enable Proxmox integration |
-| `ApiUrl` | `""` | Proxmox API URL (e.g., `https://proxmox.local:8006`) |
-| `TokenId` | `""` | API token ID (format: `user@realm!tokenid`) |
-| `TokenSecret` | `""` | API token secret |
-| `IgnoreSslErrors` | `false` | Skip SSL verification (for self-signed certs) |
-| `PollingIntervalSeconds` | `5` | How often to fetch metrics |
-| `ShowVms` | `true` | Show VM status in panels |
-| `ShowContainers` | `true` | Show container status in panels |
-| `ShowAlerts` | `true` | Show cluster alerts |
-| `MaxDisplayItems` | `10` | Max items per category |
-
-## Linux USB Permissions
-
-Create `/etc/udev/rules.d/99-lcdpossible.rules`:
-
-```
-# Thermalright LCD devices
-SUBSYSTEM=="usb", ATTR{idVendor}=="0416", ATTR{idProduct}=="5302", MODE="0666", TAG+="uaccess"
-SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0416", MODE="0666", TAG+="uaccess"
-```
-
-Then reload:
-
-```bash
-sudo udevadm control --reload-rules
-sudo udevadm trigger
-```
-
-## Project Structure
-
-```
-LCDPossible/
-├── .github/                           # CI/CD workflows
-├── docs/                              # Documentation
-│   ├── LCD-Technical-Reference.md     # USB HID protocol details
-│   ├── Implementation-Plan.md         # Architecture documentation
-│   └── devices/                       # Per-device specifications
-├── scripts/                           # Build and deployment scripts
-├── src/
-│   ├── LCDPossible.sln                # Solution file
-│   ├── LCDPossible/                   # Main executable (CLI + service)
-│   ├── LCDPossible.Core/              # Core library
-│   ├── LCDPossible.Sdk/               # Plugin SDK
-│   └── LCDPossible.Plugins.*/         # Built-in plugins
-├── tests/
-│   ├── LCDPossible.Core.Tests/        # Unit tests
-│   └── LCDPossible.FunctionalTests/   # Functional tests
-├── build.ps1                          # Build script
-├── package.ps1                        # Package for distribution
-├── start-app.ps1                      # Run service
-├── test-smoke.ps1                     # Quick tests
-└── test-full.ps1                      # Full test suite
-```
+| [Getting Started](docs/getting-started.md) | First steps after installation |
+| [Panels](docs/panels/README.md) | Available display panels with screenshots |
+| [Effects](docs/effects/README.md) | Page effects and animations |
+| [Themes](docs/themes/README.md) | Color themes |
+| [Configuration](docs/configuration/README.md) | Profiles, settings, service setup |
+| [CLI Reference](docs/cli/README.md) | Command-line interface |
+| [Plugin Development](docs/plugins/README.md) | Creating custom panels |
+| [Troubleshooting](docs/troubleshooting.md) | Common issues and solutions |
 
 ## Technology Stack
 
@@ -520,15 +188,11 @@ LCDPossible/
 | [SixLabors.ImageSharp](https://github.com/SixLabors/ImageSharp) | Image processing |
 | [LibVLCSharp](https://github.com/videolan/libvlcsharp) | Video playback |
 | [PuppeteerSharp](https://github.com/hardkoded/puppeteer-sharp) | Headless browser |
-| [YoutubeExplode](https://github.com/Tyrrrz/YoutubeExplode) | YouTube stream extraction |
 | [LibreHardwareMonitorLib](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) | Hardware monitoring (Windows) |
-| [Microsoft.Extensions.Hosting](https://docs.microsoft.com/en-us/dotnet/core/extensions/generic-host) | Service hosting |
 
 ## Contributing
 
-Contributions are welcome! Please read the [Implementation Plan](docs/Implementation-Plan.md) for architecture details.
-
-### Commit Message Format
+Contributions are welcome! Please read the [Implementation Plan](docs/reference/Implementation-Plan.md) for architecture details.
 
 We use [Conventional Commits](https://www.conventionalcommits.org/):
 
@@ -539,19 +203,7 @@ feat!: redesign device driver API  # Major version bump (breaking)
 docs: update installation guide    # No version bump
 ```
 
-### Adding a New Device Driver
-
-1. Create a driver class implementing `ILcdDevice` in `src/LCDPossible.Core/Devices/Drivers/{Manufacturer}/`
-2. Register the driver in the driver registry
-3. Add device documentation to `docs/devices/{VID-PID}/`
-4. Add tests
-
-### Adding a New Panel Plugin
-
-1. Create a new project implementing `IPanelPlugin`
-2. Reference `LCDPossible.Sdk`
-3. Implement panel types with `IDisplayPanel`
-4. Build to the `plugins/` directory
+See [Plugin Development](docs/plugins/README.md) for creating custom panels and device drivers.
 
 ## License
 
@@ -562,4 +214,3 @@ MIT License - see [LICENSE](LICENSE) file.
 - [thermalright-lcd-control](https://github.com/rejeb/thermalright-lcd-control) - Python GUI for Thermalright LCDs
 - [trlcd_libusb](https://github.com/NoNameOnFile/trlcd_libusb) - C implementation with libusb
 - [digital_thermal_right_lcd](https://github.com/MathieuxHugo/digital_thermal_right_lcd) - Python reference for PA120
-- [HidSharp](https://github.com/IntergatedCircuits/HidSharp) - Cross-platform HID library
