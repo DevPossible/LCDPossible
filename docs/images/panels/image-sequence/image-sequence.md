@@ -61,10 +61,10 @@ lcdpossible show image-sequence:C:\animation\|@duration=120
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel image-sequence:
+lcdpossible profile add image-sequence:
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "image-sequence:|@duration=30"
+lcdpossible profile add "image-sequence:|@duration=30"
 ```
 
 ### Quick Show

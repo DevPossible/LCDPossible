@@ -73,10 +73,10 @@ lcdpossible show web:https://status.github.com|@duration=60
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel web:
+lcdpossible profile add web:
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "web:|@duration=30"
+lcdpossible profile add "web:|@duration=30"
 ```
 
 ### Quick Show

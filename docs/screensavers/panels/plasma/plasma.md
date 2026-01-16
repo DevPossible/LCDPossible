@@ -43,10 +43,10 @@ lcdpossible show plasma
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel plasma
+lcdpossible profile add plasma
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "plasma|@duration=30"
+lcdpossible profile add "plasma|@duration=30"
 ```
 
 ### Quick Show

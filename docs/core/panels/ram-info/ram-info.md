@@ -44,10 +44,10 @@ lcdpossible show ram-info
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel ram-info
+lcdpossible profile add ram-info
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "ram-info|@duration=30"
+lcdpossible profile add "ram-info|@duration=30"
 ```
 
 ### Quick Show

@@ -43,10 +43,10 @@ lcdpossible show warp-tunnel
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel warp-tunnel
+lcdpossible profile add warp-tunnel
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "warp-tunnel|@duration=30"
+lcdpossible profile add "warp-tunnel|@duration=30"
 ```
 
 ### Quick Show

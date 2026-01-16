@@ -43,10 +43,10 @@ lcdpossible show mystify
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel mystify
+lcdpossible profile add mystify
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "mystify|@duration=30"
+lcdpossible profile add "mystify|@duration=30"
 ```
 
 ### Quick Show

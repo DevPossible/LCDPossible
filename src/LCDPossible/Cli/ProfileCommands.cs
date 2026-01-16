@@ -1,6 +1,7 @@
 using LCDPossible.Core;
 using LCDPossible.Core.Configuration;
 using LCDPossible.Core.Ipc;
+using LCDPossible.Core.Transitions;
 using LCDPossible.Ipc;
 
 namespace LCDPossible.Cli;
@@ -622,15 +623,17 @@ public static class ProfileCommands
             Console.Error.WriteLine("  --transition-duration <ms>      Set default transition duration");
             Console.Error.WriteLine("  --page-effect <effect>          Set default page effect");
             Console.Error.WriteLine();
-            Console.Error.WriteLine("Transition types: none, fade, crossfade, slide-left, slide-right,");
-            Console.Error.WriteLine("  slide-up, slide-down, wipe-left, wipe-right, wipe-up, wipe-down,");
-            Console.Error.WriteLine("  zoom-in, zoom-out, push-left, push-right, random");
+            // Generate transition list from registry
+            var transitionRegistry = new TransitionRegistry();
+            var transitionIds = transitionRegistry.GetTransitionTypes().Select(t => t.TransitionId).ToList();
+            Console.Error.WriteLine($"Transition types: {string.Join(", ", transitionIds)}");
             Console.Error.WriteLine();
-            Console.Error.WriteLine("Page effects: none, glow-on-change, flip-digits, slide-numbers,");
-            Console.Error.WriteLine("  typewriter, particle-burst, gentle-float, tilt-3d, shake-on-warning,");
-            Console.Error.WriteLine("  bounce-in, wave, scanlines, matrix-rain, particle-field, grid-pulse,");
-            Console.Error.WriteLine("  hologram, vanna-white, pixel-mascot, robot-assistant, warning-flash,");
-            Console.Error.WriteLine("  spotlight, neon-trails, glitch, random");
+
+            // Generate page effects list from registry
+            var effectIds = new List<string> { "none" };
+            effectIds.AddRange(PageEffectManager.Instance.Effects.Keys.OrderBy(k => k));
+            effectIds.Add("random");
+            Console.Error.WriteLine($"Page effects: {string.Join(", ", effectIds)}");
             return 1;
         }
 

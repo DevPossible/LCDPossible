@@ -44,7 +44,7 @@ lcdpossible show proxmox-vms
 ### Update VM status every 15 seconds
 
 ```bash
-lcdpossible show proxmox-vms|@interval=15
+lcdpossible show "proxmox-vms|@interval=15"
 ```
 
 
@@ -54,10 +54,10 @@ lcdpossible show proxmox-vms|@interval=15
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel proxmox-vms
+lcdpossible profile add proxmox-vms
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "proxmox-vms|@duration=30"
+lcdpossible profile add "proxmox-vms|@duration=30"
 ```
 
 ### Quick Show

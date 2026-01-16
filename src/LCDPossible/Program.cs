@@ -945,12 +945,12 @@ ARGUMENTS:
     [panels]                Comma-separated list of panel types to display
                             Supports wildcards: cpu-*, *-graphic, *
 
-PANEL OPTIONS (inline):
-    @duration=<seconds>     How long to display each panel (default: 15)
-    @interval=<seconds>     Data refresh interval (default: 5)
-    @theme=<name>           Theme override for this panel
-    @effect=<name>          Page effect for this panel
-    @background=<path>      Background image for this panel
+PANEL OPTIONS (inline, pipe-separated):
+    |@duration=<seconds>    How long to display each panel (default: 15)
+    |@interval=<seconds>    Data refresh interval (default: 5)
+    |@theme=<name>          Theme override for this panel
+    |@effect=<name>         Page effect for this panel
+    |@background=<path>     Background image for this panel
 
 OPTIONS:
     -d, --device <index>    Device index (default: 0)
@@ -962,8 +962,8 @@ EXAMPLES:
     lcdpossible show cpu-info               # Show single panel
     lcdpossible show cpu-info,gpu-info      # Show multiple panels
     lcdpossible show cpu-*                  # Show all CPU panels
-    lcdpossible show basic-info@duration=30 # Show with 30s duration
-    lcdpossible show cpu-info@theme=executive@effect=hologram
+    lcdpossible show ""cpu-info|@duration=30""                  # 30s duration
+    lcdpossible show ""cpu-info|@theme=executive|@effect=hologram""
 ");
         return 0;
     }

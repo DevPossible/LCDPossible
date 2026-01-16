@@ -2,12 +2,27 @@
 
 Core system information panels including CPU, GPU, RAM, and basic system info.
 
+## Quick Reference
+
+```bash
+# List core panels
+lcdpossible list-panels | grep core
+
+# Display a panel
+lcdpossible show cpu-info
+
+# Display with options (note: quotes required for pipe syntax)
+lcdpossible show "cpu-status|@effect=hologram"
+```
+
 ## Panels
 
 | Panel | Description | Category |
-|-------|-------------|----------|| [Basic Info](panels/basic-info/basic-info.md) | Basic system information including hostname, OS, and uptime | System |
+|-------|-------------|----------|
+| [Basic Info](panels/basic-info/basic-info.md) | Basic system information including hostname, OS, and uptime | System |
 | [Basic Usage Text](panels/basic-usage-text/basic-usage-text.md) | Simple CPU/RAM/GPU usage summary | System |
 | [CPU Info](panels/cpu-info/cpu-info.md) | Detailed CPU information including model, usage, temperature, frequency, and power | CPU |
+| [CPU Status](panels/cpu-status/cpu-status.md) | CPU dashboard with usage bar, temperature gauge, and per-core sparkline | CPU |
 | [CPU Thermal](panels/cpu-thermal-graphic/cpu-thermal-graphic.md) | CPU temperature with graphical gauge display | Thermal |
 | [CPU Usage Graphic](panels/cpu-usage-graphic/cpu-usage-graphic.md) | CPU usage with graphical bars including per-core breakdown | CPU |
 | [CPU Usage Text](panels/cpu-usage-text/cpu-usage-text.md) | CPU usage displayed as large text percentage | CPU |

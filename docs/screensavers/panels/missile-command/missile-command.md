@@ -43,10 +43,10 @@ lcdpossible show missile-command
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel missile-command
+lcdpossible profile add missile-command
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "missile-command|@duration=30"
+lcdpossible profile add "missile-command|@duration=30"
 ```
 
 ### Quick Show

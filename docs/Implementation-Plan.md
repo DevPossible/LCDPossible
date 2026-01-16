@@ -7,6 +7,18 @@
 
 ---
 
+> **Note:** This document was the original implementation plan. The project has evolved significantly and now includes:
+> - **Plugin-based panel architecture** with 6 plugin types (Core, Images, Proxmox, Screensavers, Video, Web)
+> - **40+ display panels** including system monitoring, screensavers, and media panels
+> - **Page effects system** with 30+ animated effects
+> - **Themes system** with multiple color schemes
+> - **YAML-based display profiles**
+> - **Modular CLI** with commands for panels, profiles, config, and service management
+>
+> For the current architecture and usage, see [CLAUDE.md](../CLAUDE.md) in the project root.
+
+---
+
 ## Table of Contents
 
 1. [Project Goals](#project-goals)

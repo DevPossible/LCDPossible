@@ -43,10 +43,10 @@ lcdpossible show noise
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel noise
+lcdpossible profile add noise
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "noise|@duration=30"
+lcdpossible profile add "noise|@duration=30"
 ```
 
 ### Quick Show

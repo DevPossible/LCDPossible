@@ -1,6 +1,21 @@
 # Screensaver Panels
 
-Animated screensaver effects including starfield, matrix rain, bouncing logo, pac-man, and more.
+Animated screensaver effects including starfield, matrix rain, bouncing logo, and more.
+
+## Quick Reference
+
+```bash
+# Show random screensaver (cycles through all)
+lcdpossible show screensaver
+
+# Show specific screensaver
+lcdpossible show plasma
+lcdpossible show matrix-rain
+lcdpossible show starfield
+
+# Bouncing logo with custom text and settings
+lcdpossible show "bouncing-logo|text=HELLO|color=rainbow|3d=true"
+```
 
 ## Panels
 

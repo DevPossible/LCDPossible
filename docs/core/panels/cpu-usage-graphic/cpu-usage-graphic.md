@@ -41,7 +41,7 @@ lcdpossible show cpu-usage-graphic
 ### Update CPU bars every 2 seconds
 
 ```bash
-lcdpossible show cpu-usage-graphic|@interval=2
+lcdpossible show "cpu-usage-graphic|@interval=2"
 ```
 
 
@@ -51,10 +51,10 @@ lcdpossible show cpu-usage-graphic|@interval=2
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel cpu-usage-graphic
+lcdpossible profile add cpu-usage-graphic
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "cpu-usage-graphic|@duration=30"
+lcdpossible profile add "cpu-usage-graphic|@duration=30"
 ```
 
 ### Quick Show

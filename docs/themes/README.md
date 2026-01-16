@@ -13,21 +13,28 @@ LCDPossible includes several built-in color themes designed for LCD signage view
 
 ## Using Themes
 
+### List Available Themes
+
+```bash
+# List themes with current default marked
+lcdpossible config list-themes
+```
+
 ### Set Default Theme
 
 ```bash
 # Set theme for all panels
 lcdpossible config set-theme cyberpunk
-
-# List available themes
-lcdpossible config list-themes
 ```
 
 ### Per-Panel Theme Override
 
 ```bash
-# Override theme for specific panel
-lcdpossible show cpu-info|@theme=executive
+# Override theme for specific panel (note: quotes required for pipe syntax)
+lcdpossible show "cpu-info|@theme=executive"
+
+# Combine with effect
+lcdpossible show "cpu-info|@theme=executive|@effect=hologram"
 
 # In profile YAML
 panels:

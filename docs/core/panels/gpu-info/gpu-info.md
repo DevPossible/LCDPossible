@@ -47,10 +47,10 @@ lcdpossible show gpu-info
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel gpu-info
+lcdpossible profile add gpu-info
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "gpu-info|@duration=30"
+lcdpossible profile add "gpu-info|@duration=30"
 ```
 
 ### Quick Show

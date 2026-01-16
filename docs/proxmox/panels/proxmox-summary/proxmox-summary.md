@@ -45,7 +45,7 @@ lcdpossible show proxmox-summary
 ### Update cluster status every 30 seconds
 
 ```bash
-lcdpossible show proxmox-summary|@interval=30
+lcdpossible show "proxmox-summary|@interval=30"
 ```
 
 ### Cycle between summary and VM list
@@ -61,10 +61,10 @@ lcdpossible show proxmox-summary,proxmox-vms
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel proxmox-summary
+lcdpossible profile add proxmox-summary
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "proxmox-summary|@duration=30"
+lcdpossible profile add "proxmox-summary|@duration=30"
 ```
 
 ### Quick Show

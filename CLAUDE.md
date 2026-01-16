@@ -38,18 +38,30 @@ LCDPossible/
 │   ├── LCDPossible.sln            # Solution file
 │   ├── LCDPossible.Core/          # Core library (net10.0)
 │   │   ├── Devices/               # Device abstraction & drivers
-│   │   ├── Plugins/               # Device plugin interfaces & manager
+│   │   ├── Effects/               # Page effect system
+│   │   ├── Plugins/               # Plugin interfaces & manager
 │   │   ├── Rendering/             # Image encoding (JPEG, RGB565)
+│   │   ├── Sensors/               # Sensor interfaces & registry
+│   │   ├── Services/              # Service facades (ILcdServices)
+│   │   ├── Transitions/           # Transition effects
 │   │   └── Usb/                   # USB HID layer (HidSharp)
+│   ├── LCDPossible.Sdk/           # SDK for panel development
+│   │   └── html_assets/           # Web components & themes
 │   ├── LCDPossible/               # Main executable - service + CLI (net10.0)
-│   │   ├── Cli/                   # CLI commands (debug, etc.)
+│   │   ├── Cli/                   # Modular CLI commands
 │   │   ├── Monitoring/            # Hardware monitoring providers
-│   │   ├── Panels/                # Display panel implementations
-│   │   └── Rendering/             # System info rendering
+│   │   ├── Panels/                # Slideshow & panel management
+│   │   └── Services/              # DI service registration
 │   ├── LCDPossible.VirtualLcd/    # Virtual LCD simulator (Avalonia GUI)
 │   │   └── Protocols/             # Protocol handlers for simulator
 │   └── Plugins/
-│       └── LCDPossible.Plugins.Thermalright/  # Thermalright device drivers
+│       ├── LCDPossible.Plugins.Core/          # Core system panels (CPU, GPU, RAM, etc.)
+│       ├── LCDPossible.Plugins.Images/        # Animated GIF, image sequence
+│       ├── LCDPossible.Plugins.Proxmox/       # Proxmox VE monitoring
+│       ├── LCDPossible.Plugins.Screensavers/  # Screensaver effects
+│       ├── LCDPossible.Plugins.Thermalright/  # Thermalright device drivers
+│       ├── LCDPossible.Plugins.Video/         # Video playback (VLC)
+│       └── LCDPossible.Plugins.Web/           # HTML & web page rendering
 ├── tests/
 │   └── LCDPossible.Core.Tests/    # Unit tests
 ├── build.ps1                      # Build script (auto-installs tools)
@@ -139,11 +151,12 @@ dotnet run --project src/LCDPossible/LCDPossible.csproj -- serve
 ./package.ps1 -Version "1.0.0" -SkipTests  # Skip tests for quick packaging
 
 # CLI Commands
-dotnet run --project src/LCDPossible/LCDPossible.csproj -- list           # List devices
-dotnet run --project src/LCDPossible/LCDPossible.csproj -- test           # Display test pattern
-dotnet run --project src/LCDPossible/LCDPossible.csproj -- set-image -p image.jpg  # Display image
-dotnet run --project src/LCDPossible/LCDPossible.csproj -- serve          # Start service
-dotnet run --project src/LCDPossible/LCDPossible.csproj -- --help         # Show all commands
+dotnet run --project src/LCDPossible/LCDPossible.csproj -- list             # List devices
+dotnet run --project src/LCDPossible/LCDPossible.csproj -- list-panels      # List available panels
+dotnet run --project src/LCDPossible/LCDPossible.csproj -- show cpu-info    # Display a panel
+dotnet run --project src/LCDPossible/LCDPossible.csproj -- render cpu-*     # Render panels to files
+dotnet run --project src/LCDPossible/LCDPossible.csproj -- serve            # Start service
+dotnet run --project src/LCDPossible/LCDPossible.csproj -- --help           # Show all commands
 
 # Publish using helper script (outputs to .build/publish/)
 ./scripts/publish.ps1 -Runtime linux-x64
@@ -154,21 +167,70 @@ dotnet run --project src/LCDPossible/LCDPossible.csproj -- --help         # Show
 
 The `LCDPossible` executable handles both service and CLI modes:
 
+### Display Commands
+
 | Command | Description |
 |---------|-------------|
-| `serve` or `run` | Start the LCD service (foreground) |
-| `serve --service` | Run as Windows Service |
-| `list` | List connected LCD devices |
-| `test <panels>` | Render panels to JPEG files (no LCD required) |
+| `show [panels]` | Display panels on LCD (uses profile if no panels given) |
+| `render [panels]` | Render panels to JPEG files for testing |
+| `set-image -p <file>` | Display a static image on the LCD |
 | `test-pattern` | Display a test pattern on the LCD |
-| `set-image -p <file>` | Send an image to the LCD |
-| `profile` | Show current display profile |
-| `generate-profile` | Generate sample YAML profile |
-| `--help` | Show all available commands |
 
-## Testing Panels with the `test` Verb
+### Device Commands
 
-The `test` command renders panels to JPEG files without requiring an LCD device. Use this to verify panels render correctly with valid data before deploying.
+| Command | Description |
+|---------|-------------|
+| `list` | List connected LCD devices |
+| `list-drivers` | List available device drivers |
+| `status` | Show device and service status |
+
+### Panel Commands
+
+| Command | Description |
+|---------|-------------|
+| `list-panels` | List all available panel types |
+| `help-panel <type>` | Show detailed help for a panel type |
+
+### Profile Commands
+
+| Command | Description |
+|---------|-------------|
+| `profile show` | Show current profile panels |
+| `profile add <panel>` | Add a panel to the profile |
+| `profile remove <index>` | Remove a panel from the profile |
+| `profile help` | Show all profile commands |
+
+### Config Commands
+
+| Command | Description |
+|---------|-------------|
+| `config show` | Show current configuration |
+| `config set-theme <name>` | Set the default theme |
+| `config set-effect <name>` | Set the default page effect |
+| `config list-themes` | List available themes |
+| `config list-effects` | List available page effects |
+| `config help` | Show all config commands |
+
+### Service Commands
+
+| Command | Description |
+|---------|-------------|
+| `serve` | Start the display service (foreground) |
+| `service install` | Install as system service |
+| `service start\|stop` | Start or stop the service |
+| `service help` | Show all service commands |
+
+### Runtime Commands (when service is running)
+
+| Command | Description |
+|---------|-------------|
+| `next`, `previous` | Navigate between slides |
+| `goto <index>` | Jump to a specific slide |
+| `stop` | Stop the service gracefully |
+
+## Testing Panels with the `render` Verb
+
+The `render` command renders panels to JPEG files without requiring an LCD device. Use this to verify panels render correctly with valid data before deploying.
 
 **Key flags:**
 - `--debug` - Show detailed output including full file paths and sizes
@@ -180,32 +242,32 @@ The `test` command renders panels to JPEG files without requiring an LCD device.
 
 ```bash
 # Render a single panel
-./start-app.ps1 test cpu-info --debug
+./start-app.ps1 render cpu-info --debug
 
 # Render with debug output (shows full path and file size)
-./start-app.ps1 test cpu-widget --debug
-# Output: [DEBUG] Written: C:\Users\richa\cpu-widget.jpg (10211 bytes)
+./start-app.ps1 render cpu-status --debug
+# Output: [DEBUG] Written: C:\Users\richa\cpu-status.jpg (10211 bytes)
 
 # Render at a different resolution
-./start-app.ps1 test cpu-info -r 800x480
+./start-app.ps1 render cpu-info -r 800x480
 
 # Render all CPU panels using wildcard
-./start-app.ps1 test cpu-* --debug
+./start-app.ps1 render cpu-* --debug
 
 # Render ALL panels
-./start-app.ps1 test * --debug
+./start-app.ps1 render * --debug
 
 # Wait for HTML/widget panel to fully initialize (browser + components)
-./start-app.ps1 test cpu-widget -w 2
+./start-app.ps1 render cpu-info -w 2
 
 # Render animated panel after letting it run for 3 seconds
-./start-app.ps1 test animated-gif:demo.gif -w 3
+./start-app.ps1 render animated-gif:demo.gif -w 3
 
 # Save output to specific directory
-./start-app.ps1 test cpu-info -o ./test-output
+./start-app.ps1 render cpu-info -o ./test-output
 ```
 
-**When to use the test verb:**
+**When to use the render verb:**
 1. After implementing a new panel - verify it renders without errors
 2. After modifying panel layouts - check visual appearance
 3. Before deploying to LCD - confirm panels show correct data
@@ -296,63 +358,91 @@ lcdpossible config set-theme cyberpunk
 # List available themes
 lcdpossible config list-themes
 
-# Per-panel theme override
-lcdpossible show cpu-info|@theme=executive
+# Per-panel theme override (note: quotes required for pipe syntax)
+lcdpossible show "cpu-info|@theme=executive"
 ```
 
 ## Available Page Effects
 
 For complete effects documentation, see `docs/effects/README.md`.
 
-Page effects are animated overlays applied to panels. Apply with `|@effect=<name>`.
+Page effects are animated overlays applied to panels. Apply with `|@effect=<name>` (in quotes).
 
-### Background Effects
+Use `lcdpossible config list-effects` to see all available effects with descriptions.
+
+### Container Animation Effects
 
 | Effect | Description |
 |--------|-------------|
-| `scanlines` | CRT/retro scanline overlay |
-| `matrix-rain` | Digital rain falling behind widgets |
-| `particle-field` | Floating particles in the background |
-| `grid-pulse` | Grid lines pulse outward from center |
-| `fireworks` | Colorful fireworks exploding |
+| `bounce` | Widgets bounce around with physics |
+| `gentle-float` | Containers float up/down subtly (breathing effect) |
+| `tilt-3d` | Containers have slight 3D tilt/perspective |
+| `wave` | Widgets wave in a sine pattern across the grid |
+
+### Background/Overlay Effects
+
+| Effect | Description |
+|--------|-------------|
 | `aurora` | Northern lights with flowing color ribbons |
-| `snow` | Gentle snowflakes drifting down |
-| `rain` | Rain drops falling with splash effects |
-| `bubbles` | Translucent bubbles floating upward |
-| `fireflies` | Glowing particles drifting randomly |
-| `stars-twinkle` | Stationary twinkling starfield |
-| `lava-lamp` | Blobby colored blobs floating |
 | `bokeh` | Out-of-focus light circles drifting |
-| `smoke` | Wispy smoke tendrils rising |
-| `waves` | Ocean waves flowing at bottom |
-| `confetti` | Colorful confetti falling |
-| `lightning` | Occasional lightning flashes |
-| `clouds` | Slow-moving clouds drifting |
-| `embers` | Glowing embers floating upward |
 | `breathing-glow` | Pulsing ambient glow around edges |
+| `bubbles` | Translucent bubbles floating upward |
+| `chromatic-aberration` | RGB split/shift effect |
+| `clouds` | Slow-moving clouds drifting across |
+| `confetti` | Colorful confetti falling continuously |
+| `crt-warp` | CRT screen edge warping |
+| `embers` | Glowing embers floating upward |
+| `film-grain` | Old film grain texture overlay |
+| `fireflies` | Glowing particles drifting randomly |
+| `fireworks` | Colorful fireworks exploding |
+| `grid-pulse` | Grid lines pulse outward from center |
+| `hologram` | Holographic shimmer/interference pattern |
+| `lava-lamp` | Blobby colored blobs floating |
+| `lens-flare` | Moving lens flare effect |
+| `lightning` | Occasional lightning flashes |
+| `matrix-rain` | Digital rain falling behind widgets |
+| `neon-border` | Glowing pulse around widget edges |
+| `particle-field` | Floating particles in the background |
+| `rain` | Rain drops falling with splash effects |
+| `scanlines` | CRT/retro scanline overlay |
+| `smoke` | Wispy smoke tendrils rising |
+| `snow` | Gentle snowflakes drifting down |
+| `stars-twinkle` | Stationary twinkling starfield |
+| `vhs-static` | VHS tape noise/tracking lines |
+| `waves` | Ocean waves flowing at bottom |
 
-### Overlay Effects
+### Character/Mascot Effects
 
 | Effect | Description |
 |--------|-------------|
-| `vhs-static` | VHS tape noise/tracking lines |
-| `film-grain` | Old film grain texture overlay |
-| `lens-flare` | Moving lens flare effect |
-| `neon-border` | Glowing pulse around widget edges |
-| `chromatic-aberration` | RGB split/shift effect |
-| `crt-warp` | CRT screen edge warping |
+| `pixel-mascot` | Retro pixel character reacts to values |
+| `robot-assistant` | Cute robot points at important metrics |
+| `vanna-white` | Character walks up to tiles and gestures |
+
+### Special
+
+| Effect | Description |
+|--------|-------------|
+| `spotlight` | Roaming spotlight illuminates different widgets |
+| `random` | Random effect per panel (re-randomizes each display) |
 
 ### Effect Usage
 
 ```bash
-# Apply effect to panel
-lcdpossible show cpu-status|@effect=matrix-rain
+# List available effects
+lcdpossible config list-effects
+
+# Set default effect
+lcdpossible config set-effect hologram
+
+# Apply effect to panel (note: quotes required for pipe syntax)
+lcdpossible show "cpu-status|@effect=matrix-rain"
 
 # Combine with theme
-lcdpossible show cpu-status|@effect=scanlines|@theme=cyberpunk
+lcdpossible show "cpu-status|@effect=scanlines|@theme=cyberpunk"
 
-# Random effect
-lcdpossible show cpu-status|@effect=random
+# Random effect (re-randomizes each time panel is shown)
+lcdpossible show "cpu-status|@effect=random"
 ```
 
 ### Media Panel Examples

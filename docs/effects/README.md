@@ -8,14 +8,28 @@ Page effects are animated overlays that can be applied to any panel to add visua
 
 ## Using Effects
 
+### List Available Effects
+
+```bash
+# List all effects with descriptions (grouped by category)
+lcdpossible config list-effects
+```
+
+### Set Default Effect
+
+```bash
+# Set effect for all panels
+lcdpossible config set-effect hologram
+```
+
 ### Apply Effect to Panel
 
 ```bash
-# Apply effect using pipe syntax
-lcdpossible show cpu-status|@effect=matrix-rain
+# Apply effect using pipe syntax (note: quotes required)
+lcdpossible show "cpu-status|@effect=matrix-rain"
 
 # Multiple modifiers
-lcdpossible show cpu-status|@effect=scanlines|@theme=cyberpunk
+lcdpossible show "cpu-status|@effect=scanlines|@theme=cyberpunk"
 
 # In profile YAML
 panels:
@@ -27,8 +41,8 @@ panels:
 ### Random Effect
 
 ```bash
-# Apply random effect
-lcdpossible show cpu-status|@effect=random
+# Apply random effect (re-randomizes each time panel is shown)
+lcdpossible show "cpu-status|@effect=random"
 ```
 
 ## Effect Categories
@@ -48,29 +62,31 @@ Effects that animate the panel widgets/containers.
 
 Animated backgrounds that render behind the panel content.
 
+> **Tip:** Run `lcdpossible config list-effects` to see the current list of all effects with descriptions.
+
 | Effect | Description |
 |--------|-------------|
-| `scanlines` | CRT/retro scanline overlay |
+| `aurora` | Northern lights with flowing color ribbons |
+| `bokeh` | Out-of-focus light circles drifting |
+| `breathing-glow` | Pulsing ambient glow around edges |
+| `bubbles` | Translucent bubbles floating upward |
+| `clouds` | Slow-moving clouds drifting across |
+| `confetti` | Colorful confetti falling continuously |
+| `embers` | Glowing embers floating upward |
+| `fireflies` | Glowing particles drifting randomly |
+| `fireworks` | Colorful fireworks exploding in the background |
+| `grid-pulse` | Grid lines pulse outward from center |
+| `hologram` | Holographic shimmer/interference pattern |
+| `lava-lamp` | Blobby colored blobs floating |
+| `lightning` | Occasional lightning flashes across background |
 | `matrix-rain` | Digital rain falling behind widgets |
 | `particle-field` | Floating particles in the background |
-| `grid-pulse` | Grid lines pulse outward from center |
-| `fireworks` | Colorful fireworks exploding in the background |
-| `hologram` | Holographic shimmer/interference pattern |
-| `aurora` | Northern lights with flowing color ribbons |
-| `snow` | Gentle snowflakes drifting down |
 | `rain` | Rain drops falling with splash effects |
-| `bubbles` | Translucent bubbles floating upward |
-| `fireflies` | Glowing particles drifting randomly |
-| `stars-twinkle` | Stationary twinkling starfield |
-| `lava-lamp` | Blobby colored blobs floating |
-| `bokeh` | Out-of-focus light circles drifting |
+| `scanlines` | CRT/retro scanline overlay |
 | `smoke` | Wispy smoke tendrils rising |
+| `snow` | Gentle snowflakes drifting down |
+| `stars-twinkle` | Stationary twinkling starfield |
 | `waves` | Ocean waves flowing at bottom |
-| `confetti` | Colorful confetti falling continuously |
-| `lightning` | Occasional lightning flashes across background |
-| `clouds` | Slow-moving clouds drifting across |
-| `embers` | Glowing embers floating upward |
-| `breathing-glow` | Pulsing ambient glow around edges |
 
 ### Overlay Effects
 

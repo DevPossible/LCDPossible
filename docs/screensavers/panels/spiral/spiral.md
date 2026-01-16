@@ -43,10 +43,10 @@ lcdpossible show spiral
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel spiral
+lcdpossible profile add spiral
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "spiral|@duration=30"
+lcdpossible profile add "spiral|@duration=30"
 ```
 
 ### Quick Show

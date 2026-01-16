@@ -32,7 +32,7 @@ namespace LCDPossible.Cli;
 ///   @background=path - Background image path
 ///   @path=path   - Image source path (for type=image)
 ///   @theme=name  - Theme override (cyberpunk, rgb-gaming, executive, clean)
-///   @effect=name - Page effect (hologram, matrix-rain, glow-on-change, etc.)
+///   @effect=name - Page effect (hologram, matrix-rain, scanlines, etc.)
 ///
 /// Custom parameters (no @ prefix, passed to panel plugin):
 ///   Any key=value pair without @ is treated as a custom panel setting.

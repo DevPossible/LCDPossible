@@ -43,10 +43,10 @@ lcdpossible show fire
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel fire
+lcdpossible profile add fire
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "fire|@duration=30"
+lcdpossible profile add "fire|@duration=30"
 ```
 
 ### Quick Show

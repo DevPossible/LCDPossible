@@ -7,65 +7,39 @@
 name: Default
 description: Default display profile with system information panels
 
+# =============================================================================
+# GLOBAL SETTINGS
+# =============================================================================
+
 # Default settings applied to all slides unless overridden
 default_update_interval: 5    # How often panels refresh content (seconds)
 default_duration: 15          # How long each slide displays (seconds)
 
-# Color scheme - all colors support:
-#   - Hex format: #RGB, #RRGGBB, #RRGGBBAA
-#   - Named colors: red, green, blue, cyan, magenta, yellow, orange, purple, etc.
-#   - RGB format: rgb(255, 128, 0)
-#   - RGBA format: rgba(255, 128, 0, 0.5)
-colors:
-  # Background colors
-  background: "#0F0F19"           # Main panel background
-  background_secondary: "#282832" # Secondary/alternate areas
-  bar_background: "#282832"       # Progress bar background
-  bar_border: "#505064"           # Progress bar border
+# Default theme for all panels (cyberpunk, rgb-gaming, executive, clean)
+theme: cyberpunk
 
-  # Text colors
-  text_primary: "#FFFFFF"         # Main text (values, titles)
-  text_secondary: "#B4B4C8"       # Secondary text (labels)
-  text_muted: "#6E6E82"           # Muted text (timestamps)
+# Default page effect for all panels (none, random, or specific effect name)
+# Run 'lcdpossible config list-effects' for all available effects
+effect: none
 
-  # Semantic/status colors
-  accent: "#0096FF"               # Primary accent (titles, highlights)
-  accent_secondary: "#00D4AA"     # Secondary accent (variety)
-  success: "#32C864"              # Success/good status
-  warning: "#FFB400"              # Warning status
-  critical: "#FF3232"             # Critical/error status
-  info: "#00AAFF"                 # Info/neutral status
+# Transition effect between slides (none, fade, slide-left, slide-right, etc.)
+# Run 'lcdpossible profile help' for all transition types
+transition: fade
+transition_duration: 0.5
 
-  # Usage level colors (for progress bars based on percentage)
-  usage_low: "#32C864"            # 0-50% usage (green)
-  usage_medium: "#0096FF"         # 50-70% usage (blue)
-  usage_high: "#FFB400"           # 70-90% usage (orange)
-  usage_critical: "#FF3232"       # 90%+ usage (red)
+# =============================================================================
+# SLIDESHOW SLIDES
+# =============================================================================
+# Displayed in order, then loops. Each slide can override global settings.
 
-  # Temperature colors (based on Celsius)
-  temp_cool: "#32C864"            # Cool (< 70°C)
-  temp_warm: "#FFB400"            # Warm (70-85°C)
-  temp_hot: "#FF3232"             # Hot (> 85°C)
-
-  # Chart/graph colors (for multi-series data)
-  chart_colors:
-    - "#0096FF"   # Blue
-    - "#00D4AA"   # Teal
-    - "#FFB400"   # Orange
-    - "#FF6B9D"   # Pink
-    - "#A855F7"   # Purple
-    - "#32C864"   # Green
-    - "#FF3232"   # Red
-    - "#00AAFF"   # Light Blue
-
-# Slideshow slides - displayed in order, then loops
 slides:
   # Basic system information panel
   - panel: basic-info
 
-  # CPU usage with graphical display
-  - panel: cpu-usage-graphic
-    update_interval: 2  # Override: update every 2 seconds
+  # CPU status dashboard with usage, temp, and sparkline
+  - panel: cpu-status
+    update_interval: 2
+    effect: hologram        # Override: add hologram effect to this panel
 
   # GPU usage with graphical display
   - panel: gpu-usage-graphic
@@ -73,72 +47,143 @@ slides:
   # RAM usage with graphical display
   - panel: ram-usage-graphic
 
-  # Text-based CPU information (commented out)
-  # - panel: cpu-usage-text
-  #   duration: 10
+  # Combined thermal display (CPU + GPU temperatures)
+  - panel: system-thermal-graphic
+    duration: 10            # Override: show for 10 seconds
 
-  # Static image example (commented out)
-  # - type: image
-  #   source: /path/to/custom-image.png
-  #   duration: 5
+  # Network information
+  - panel: network-info
 
-  # Panel with custom background image (commented out)
-  # - panel: cpu-usage-text
-  #   duration: 10
-  #   background: /path/to/background.png
+# =============================================================================
+# EXAMPLE: SCREENSAVER SLIDES (uncomment to use)
+# =============================================================================
+#  - panel: plasma
+#    duration: 30
+#
+#  - panel: matrix-rain
+#    duration: 30
+#
+#  - panel: starfield
+#    duration: 30
+#
+#  # Random screensaver from the collection
+#  - panel: screensaver
+#    duration: 60
 
-# ============================================================================
+# =============================================================================
+# EXAMPLE: MEDIA SLIDES (uncomment to use)
+# =============================================================================
+#  # Static image
+#  - type: image
+#    source: /path/to/custom-image.png
+#    duration: 10
+#
+#  # Animated GIF
+#  - panel: animated-gif:/path/to/animation.gif
+#    duration: 30
+#
+#  # Video file or YouTube URL
+#  - panel: video:https://www.youtube.com/watch?v=VIDEO_ID
+#    duration: 60
+#
+#  # Live website
+#  - panel: web:https://wttr.in/London
+#    duration: 20
+
+# =============================================================================
+# EXAMPLE: CUSTOM THEME OVERRIDE (uncomment to use)
+# =============================================================================
+#  - panel: cpu-info
+#    theme: executive       # Use professional theme for this panel
+#    effect: scanlines      # Add retro scanlines effect
+
+# =============================================================================
+# PROXMOX CONFIGURATION (for Proxmox panels)
+# =============================================================================
+# proxmox:
+#   host: https://your-proxmox-host:8006
+#   tokenId: your-api-token-id
+#   tokenSecret: your-api-token-secret
+#   # OR use username/password:
+#   # username: root@pam
+#   # password: your-password
+#   verify_ssl: true
+
+# =============================================================================
 # AVAILABLE PANEL TYPES
-# ============================================================================
+# =============================================================================
+# Run 'lcdpossible list-panels' for the complete list with descriptions.
+#
 # System Information:
-#   - basic-info          : Hostname, OS, uptime summary
-#   - os-info             : Detailed OS information
-#   - os-status           : System status indicators
-#   - os-notifications    : System notifications
+#   - basic-info             : Hostname, OS, uptime summary
+#   - basic-usage-text       : Simple CPU/RAM/GPU usage summary
 #
 # CPU Panels:
-#   - cpu-info            : CPU model and specifications
-#   - cpu-usage-text      : CPU usage as text
-#   - cpu-usage-graphic   : CPU usage with visual bars
+#   - cpu-info               : CPU model and specifications
+#   - cpu-status             : CPU dashboard with usage, temp, sparkline
+#   - cpu-usage-text         : CPU usage as text
+#   - cpu-usage-graphic      : CPU usage with visual bars
+#   - cpu-thermal-graphic    : CPU temperature gauge
 #
 # GPU Panels:
-#   - gpu-info            : GPU model and specifications
-#   - gpu-usage-text      : GPU usage as text
-#   - gpu-usage-graphic   : GPU usage with visual bars
+#   - gpu-info               : GPU model and specifications
+#   - gpu-usage-text         : GPU usage as text
+#   - gpu-usage-graphic      : GPU usage with visual bars
+#   - gpu-thermal-graphic    : GPU temperature gauge
 #
 # Memory Panels:
-#   - ram-info            : RAM specifications
-#   - ram-usage-text      : RAM usage as text
-#   - ram-usage-graphic   : RAM usage with visual bars
+#   - ram-info               : RAM specifications
+#   - ram-usage-text         : RAM usage as text
+#   - ram-usage-graphic      : RAM usage with visual bars
 #
-# Proxmox (requires API configuration in appsettings.json):
-#   - proxmox-summary     : Cluster overview
-#   - proxmox-vms         : VM/Container status list
+# Thermal Panels:
+#   - system-thermal-graphic : Combined CPU/GPU temperature display
+#
+# Network Panels:
+#   - network-info           : Network interfaces with IP, gateway, DNS
+#
+# Proxmox (requires configuration above):
+#   - proxmox-summary        : Cluster overview
+#   - proxmox-vms            : VM/Container status list
+#
+# Screensavers:
+#   - screensaver            : Random screensaver or cycle through all
+#   - plasma, matrix-rain, starfield, fire, pipes, bubbles, clock, etc.
+#   - bouncing-logo:TEXT     : DVD-style bouncing text
+#
+# Media:
+#   - animated-gif:PATH      : Animated GIF from file or URL
+#   - video:PATH             : Video file, URL, or YouTube link
+#   - html:PATH              : Local HTML file
+#   - web:URL                : Live website
 
-# ============================================================================
-# PRESET COLOR SCHEMES
-# ============================================================================
-# Dark Theme (default - shown above)
+# =============================================================================
+# AVAILABLE THEMES
+# =============================================================================
+# Run 'lcdpossible config list-themes' for the current list.
 #
-# Light Theme:
-#   background: "#F5F5F5"
-#   background_secondary: "#E0E0E0"
-#   bar_background: "#D0D0D0"
-#   bar_border: "#A0A0A0"
-#   text_primary: "#1A1A1A"
-#   text_secondary: "#4A4A4A"
-#   text_muted: "#7A7A7A"
-#   accent: "#0066CC"
-#   success: "#28A745"
-#   warning: "#FFA000"
-#   critical: "#DC3545"
+#   - cyberpunk    : Neon cyan/magenta, glow effects (default)
+#   - rgb-gaming   : Vibrant rainbow, bold colors
+#   - executive    : Dark blue/gold, professional
+#   - clean        : Light mode, minimal
+
+# =============================================================================
+# AVAILABLE PAGE EFFECTS
+# =============================================================================
+# Run 'lcdpossible config list-effects' for the complete list.
 #
-# High Contrast Theme:
-#   background: "#000000"
-#   background_secondary: "#1A1A1A"
-#   text_primary: "#FFFFFF"
-#   text_secondary: "#FFFF00"
-#   accent: "#00FF00"
-#   success: "#00FF00"
-#   warning: "#FFFF00"
-#   critical: "#FF0000"
+# Container Effects:
+#   - bounce, gentle-float, tilt-3d, wave
+#
+# Background Effects:
+#   - aurora, hologram, matrix-rain, particle-field, scanlines, etc.
+#
+# Overlay Effects:
+#   - vhs-static, film-grain, chromatic-aberration, crt-warp, etc.
+#
+# Character Effects:
+#   - robot-assistant, pixel-mascot, vanna-white
+#
+# Special:
+#   - random       : Random effect (re-randomizes each display)
+#   - spotlight    : Roaming spotlight effect

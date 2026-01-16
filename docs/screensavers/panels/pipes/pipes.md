@@ -43,10 +43,10 @@ lcdpossible show pipes
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel pipes
+lcdpossible profile add pipes
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "pipes|@duration=30"
+lcdpossible profile add "pipes|@duration=30"
 ```
 
 ### Quick Show

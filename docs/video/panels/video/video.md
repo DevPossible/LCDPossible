@@ -84,10 +84,10 @@ lcdpossible show basic-info,video:./background.mp4
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel video:
+lcdpossible profile add video:
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "video:|@duration=30"
+lcdpossible profile add "video:|@duration=30"
 ```
 
 ### Quick Show

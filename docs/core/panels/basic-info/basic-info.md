@@ -47,10 +47,10 @@ lcdpossible show basic-info,cpu-usage-graphic
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel basic-info
+lcdpossible profile add basic-info
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "basic-info|@duration=30"
+lcdpossible profile add "basic-info|@duration=30"
 ```
 
 ### Quick Show

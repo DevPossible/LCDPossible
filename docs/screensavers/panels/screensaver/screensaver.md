@@ -54,10 +54,10 @@ lcdpossible show screensaver:cycle|@duration=30
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel screensaver:
+lcdpossible profile add screensaver:
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "screensaver:|@duration=30"
+lcdpossible profile add "screensaver:|@duration=30"
 ```
 
 ### Quick Show

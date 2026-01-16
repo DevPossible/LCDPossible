@@ -125,10 +125,10 @@ lcdpossible show bouncing-logo|text=FAST|speed=10|color=red|size=small
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel bouncing-logo:
+lcdpossible profile add bouncing-logo:
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "bouncing-logo:|@duration=30"
+lcdpossible profile add "bouncing-logo:|@duration=30"
 ```
 
 ### Quick Show

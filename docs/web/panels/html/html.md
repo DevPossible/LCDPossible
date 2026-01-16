@@ -66,10 +66,10 @@ lcdpossible show html:./custom-clock.html|@duration=60
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel html:
+lcdpossible profile add html:
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "html:|@duration=30"
+lcdpossible profile add "html:|@duration=30"
 ```
 
 ### Quick Show

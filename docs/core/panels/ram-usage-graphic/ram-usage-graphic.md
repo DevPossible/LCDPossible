@@ -43,10 +43,10 @@ lcdpossible show ram-usage-graphic
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel ram-usage-graphic
+lcdpossible profile add ram-usage-graphic
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "ram-usage-graphic|@duration=30"
+lcdpossible profile add "ram-usage-graphic|@duration=30"
 ```
 
 ### Quick Show

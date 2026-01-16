@@ -43,10 +43,10 @@ lcdpossible show rain
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel rain
+lcdpossible profile add rain
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "rain|@duration=30"
+lcdpossible profile add "rain|@duration=30"
 ```
 
 ### Quick Show

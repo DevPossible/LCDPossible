@@ -45,10 +45,10 @@ lcdpossible show system-thermal-graphic
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel system-thermal-graphic
+lcdpossible profile add system-thermal-graphic
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "system-thermal-graphic|@duration=30"
+lcdpossible profile add "system-thermal-graphic|@duration=30"
 ```
 
 ### Quick Show

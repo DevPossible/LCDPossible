@@ -43,10 +43,10 @@ lcdpossible show game-of-life
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel game-of-life
+lcdpossible profile add game-of-life
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "game-of-life|@duration=30"
+lcdpossible profile add "game-of-life|@duration=30"
 ```
 
 ### Quick Show

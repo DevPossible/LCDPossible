@@ -42,7 +42,7 @@ lcdpossible show cpu-info
 ### Display CPU info for 30 seconds
 
 ```bash
-lcdpossible show cpu-info|@duration=30
+lcdpossible show "cpu-info|@duration=30"
 ```
 
 
@@ -52,10 +52,10 @@ lcdpossible show cpu-info|@duration=30
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel cpu-info
+lcdpossible profile add cpu-info
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "cpu-info|@duration=30"
+lcdpossible profile add "cpu-info|@duration=30"
 ```
 
 ### Quick Show

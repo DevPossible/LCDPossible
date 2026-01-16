@@ -60,10 +60,10 @@ lcdpossible show animated-gif:./logo.gif|@duration=60
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel animated-gif:
+lcdpossible profile add animated-gif:
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "animated-gif:|@duration=30"
+lcdpossible profile add "animated-gif:|@duration=30"
 ```
 
 ### Quick Show

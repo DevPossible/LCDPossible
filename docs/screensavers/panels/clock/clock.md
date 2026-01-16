@@ -44,10 +44,10 @@ lcdpossible show clock
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel clock
+lcdpossible profile add clock
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "clock|@duration=30"
+lcdpossible profile add "clock|@duration=30"
 ```
 
 ### Quick Show

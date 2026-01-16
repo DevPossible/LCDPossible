@@ -44,10 +44,10 @@ lcdpossible show basic-usage-text
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel basic-usage-text
+lcdpossible profile add basic-usage-text
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "basic-usage-text|@duration=30"
+lcdpossible profile add "basic-usage-text|@duration=30"
 ```
 
 ### Quick Show

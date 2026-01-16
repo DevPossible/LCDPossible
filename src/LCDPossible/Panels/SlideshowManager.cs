@@ -358,6 +358,9 @@ public sealed class SlideshowManager : IDisposable
             // Clear error state for the panel we're leaving
             ClearPanelErrorState(previousIndex);
 
+            // Clear random effect state so it gets re-randomized when we return to this panel
+            ClearRandomEffectState(previousIndex);
+
             _currentIndex = (_currentIndex + 1) % _items.Count;
             _slideStartTime = DateTime.UtcNow;
 
@@ -434,7 +437,7 @@ public sealed class SlideshowManager : IDisposable
             return null;
         }
 
-        // Apply theme override and page effect if this is an HtmlPanel (only once per panel)
+        // Apply theme override and page effect if this is an HtmlPanel (only once per panel display)
         if (panel is HtmlPanel htmlPanel && !_configuredPanelIndices.Contains(panelIndex))
         {
             _configuredPanelIndices.Add(panelIndex);
@@ -694,12 +697,37 @@ public sealed class SlideshowManager : IDisposable
     }
 
     /// <summary>
+    /// Clears random effect configuration for a panel so it gets re-randomized next display.
+    /// </summary>
+    private void ClearRandomEffectState(int panelIndex)
+    {
+        if (panelIndex < 0 || panelIndex >= _items.Count)
+            return;
+
+        var item = _items[panelIndex];
+
+        // Only clear if this panel uses "random" effect - so it gets a new random effect next time
+        if (string.Equals(item.PageEffect, "random", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_configuredPanelIndices.Remove(panelIndex))
+            {
+                if (_debug)
+                {
+                    Console.WriteLine($"[DEBUG] SlideshowManager: Cleared random effect config for panel index {panelIndex} (will re-randomize on next display)");
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// Advances to the next slide immediately with transition.
     /// </summary>
     public void NextSlide()
     {
         if (_items.Count > 0)
         {
+            var previousIndex = _currentIndex;
+            ClearRandomEffectState(previousIndex);
             _currentIndex = (_currentIndex + 1) % _items.Count;
             _slideStartTime = DateTime.UtcNow;
             StartManualTransition();
@@ -713,6 +741,8 @@ public sealed class SlideshowManager : IDisposable
     {
         if (_items.Count > 0)
         {
+            var previousIndex = _currentIndex;
+            ClearRandomEffectState(previousIndex);
             _currentIndex = (_currentIndex - 1 + _items.Count) % _items.Count;
             _slideStartTime = DateTime.UtcNow;
             StartManualTransition();
@@ -731,6 +761,9 @@ public sealed class SlideshowManager : IDisposable
         {
             return 0;
         }
+
+        // Clear random effect state for current panel before jumping
+        ClearRandomEffectState(_currentIndex);
 
         // Clamp index to valid range
         if (index < 0)

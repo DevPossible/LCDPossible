@@ -718,7 +718,7 @@ EXAMPLES:
         Console.WriteLine("  * = current default theme");
         Console.WriteLine();
         Console.WriteLine("Set theme with: lcdpossible config set-theme <name>");
-        Console.WriteLine("Override per-panel with: cpu-info|@theme=executive");
+        Console.WriteLine("Override per-panel with: lcdpossible show \"cpu-info|@theme=executive\"");
 
         return 0;
     }
@@ -859,78 +859,44 @@ EXAMPLES:
     // PAGE EFFECT MANAGEMENT
     // ─────────────────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Available page effects with descriptions.
-    /// </summary>
-    private static readonly (string Id, string Name, string Category)[] PageEffects =
-    [
-        // None
-        ("none", "No effect", "Basic"),
-
-        // Value change effects
-        ("glow-on-change", "Glow on value change", "Value Change"),
-        ("flip-digits", "Flip digit animation", "Value Change"),
-        ("slide-numbers", "Sliding number animation", "Value Change"),
-        ("typewriter", "Typewriter text reveal", "Value Change"),
-
-        // Ambient effects
-        ("gentle-float", "Gentle floating animation", "Ambient"),
-        ("tilt-3d", "3D tilt perspective", "Ambient"),
-        ("wave", "Wave animation", "Ambient"),
-        ("scanlines", "CRT scanlines overlay", "Ambient"),
-
-        // Particle effects
-        ("particle-burst", "Particle burst on change", "Particles"),
-        ("particle-field", "Floating particle field", "Particles"),
-        ("matrix-rain", "Matrix digital rain", "Particles"),
-        ("neon-trails", "Neon light trails", "Particles"),
-
-        // Advanced effects
-        ("grid-pulse", "Pulsing grid background", "Advanced"),
-        ("hologram", "Hologram distortion", "Advanced"),
-        ("glitch", "Glitch/corruption effect", "Advanced"),
-        ("spotlight", "Moving spotlight", "Advanced"),
-
-        // Character effects
-        ("vanna-white", "Vanna White letter reveal", "Character"),
-        ("pixel-mascot", "Animated pixel mascot", "Character"),
-        ("robot-assistant", "Robot assistant character", "Character"),
-
-        // Alert effects
-        ("bounce-in", "Bounce in animation", "Alert"),
-        ("shake-on-warning", "Shake on warning values", "Alert"),
-        ("warning-flash", "Flash on critical values", "Alert"),
-
-        // Special
-        ("random", "Random effect per panel", "Special")
-    ];
-
     private static int ListPageEffects()
     {
         Console.WriteLine("Available Page Effects\n");
 
         var currentEffect = GetCurrentPageEffect();
+        var manager = PageEffectManager.Instance;
 
-        string? lastCategory = null;
-        foreach (var (id, name, category) in PageEffects)
+        // Group effects by category
+        var byCategory = manager.Effects.Values
+            .GroupBy(e => e.Category)
+            .OrderBy(g => g.Key);
+
+        // Add "none" option first
+        Console.WriteLine("  BASIC:");
+        var noneMarker = currentEffect.Equals("none", StringComparison.OrdinalIgnoreCase) ? " *" : "";
+        Console.WriteLine($"    {"none",-22} - No effect{noneMarker}");
+
+        foreach (var group in byCategory)
         {
-            if (category != lastCategory)
+            Console.WriteLine($"  {group.Key.ToString().ToUpperInvariant()}:");
+            foreach (var effect in group.OrderBy(e => e.Id))
             {
-                Console.WriteLine($"  {category.ToUpperInvariant()}:");
-                lastCategory = category;
+                var isCurrent = effect.Id.Equals(currentEffect, StringComparison.OrdinalIgnoreCase);
+                var marker = isCurrent ? " *" : "";
+                Console.WriteLine($"    {effect.Id,-22} - {effect.Description}{marker}");
             }
-
-            var isCurrent = id.Equals(currentEffect, StringComparison.OrdinalIgnoreCase);
-            var marker = isCurrent ? " *" : "";
-
-            Console.WriteLine($"    {id,-18} - {name}{marker}");
         }
+
+        // Add "random" option last
+        Console.WriteLine("  SPECIAL:");
+        var randomMarker = currentEffect.Equals("random", StringComparison.OrdinalIgnoreCase) ? " *" : "";
+        Console.WriteLine($"    {"random",-22} - Random effect per panel{randomMarker}");
 
         Console.WriteLine();
         Console.WriteLine("  * = current default effect");
         Console.WriteLine();
         Console.WriteLine("Set effect with: lcdpossible config set-page-effect <name>");
-        Console.WriteLine("Override per-panel with: cpu-usage-graphic|@effect=hologram");
+        Console.WriteLine("Override per-panel with: lcdpossible show \"cpu-info|@effect=hologram\"");
 
         return 0;
     }
@@ -946,34 +912,50 @@ EXAMPLES:
         }
 
         var effectId = args[0].ToLowerInvariant();
+        var effectManager = PageEffectManager.Instance;
 
-        // Validate effect exists
-        var validEffect = PageEffects.Any(e => e.Id.Equals(effectId, StringComparison.OrdinalIgnoreCase));
+        // Validate effect exists (check registry + special values)
+        var isSpecialValue = effectId is "none" or "random";
+        var validEffect = isSpecialValue || effectManager.Effects.ContainsKey(effectId);
+
         if (!validEffect)
         {
             Console.Error.WriteLine($"Error: Unknown page effect '{effectId}'");
             Console.Error.WriteLine();
             Console.Error.WriteLine("Available effects:");
-            foreach (var (id, name, _) in PageEffects)
+            Console.Error.WriteLine($"  {"none",-22} - No effect");
+            foreach (var effect in effectManager.Effects.Values.OrderBy(e => e.Id))
             {
-                Console.Error.WriteLine($"  {id,-18} - {name}");
+                Console.Error.WriteLine($"  {effect.Id,-22} - {effect.Description}");
             }
+            Console.Error.WriteLine($"  {"random",-22} - Random effect per panel");
             return 1;
         }
 
         // Update the active profile's default page effect (not config.json)
-        var manager = new ProfileManager();
+        var profileManager = new ProfileManager();
 
         try
         {
             // Pass only the page effect to SetDefaults
-            manager.SetDefaults(
+            profileManager.SetDefaults(
                 profileName: null, // Use active profile
                 defaultPageEffect: effectId);
 
-            var effect = PageEffects.FirstOrDefault(e => e.Id.Equals(effectId, StringComparison.OrdinalIgnoreCase));
+            // Get display name from registry or use special value
+            string displayName;
+            if (isSpecialValue)
+            {
+                displayName = effectId == "none" ? "No effect" : "Random effect per panel";
+            }
+            else
+            {
+                var effect = effectManager.GetEffect(effectId);
+                displayName = effect?.Description ?? effectId;
+            }
+
             var profilePath = ProfileManager.GetProfilePath(null);
-            Console.WriteLine($"Default page effect set to: {effect.Name} ({effectId})");
+            Console.WriteLine($"Default page effect set to: {displayName} ({effectId})");
             Console.WriteLine();
             Console.WriteLine($"Profile updated: {profilePath}");
 

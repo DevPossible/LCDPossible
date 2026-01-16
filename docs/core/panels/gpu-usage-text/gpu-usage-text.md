@@ -40,10 +40,10 @@ lcdpossible show gpu-usage-text
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel gpu-usage-text
+lcdpossible profile add gpu-usage-text
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "gpu-usage-text|@duration=30"
+lcdpossible profile add "gpu-usage-text|@duration=30"
 ```
 
 ### Quick Show

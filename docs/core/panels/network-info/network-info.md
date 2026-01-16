@@ -42,10 +42,10 @@ lcdpossible show network-info
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel network-info
+lcdpossible profile add network-info
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "network-info|@duration=30"
+lcdpossible profile add "network-info|@duration=30"
 ```
 
 ### Quick Show

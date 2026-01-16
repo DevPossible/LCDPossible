@@ -66,10 +66,10 @@ lcdpossible show falling-blocks:3
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel falling-blocks:
+lcdpossible profile add falling-blocks:
 
 # Add with custom duration (30 seconds)
-lcdpossible profile append-panel "falling-blocks:|@duration=30"
+lcdpossible profile add "falling-blocks:|@duration=30"
 ```
 
 ### Quick Show

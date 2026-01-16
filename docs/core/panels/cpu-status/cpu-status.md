@@ -55,13 +55,13 @@ lcdpossible show cpu-status
 ### Display with executive theme
 
 ```bash
-lcdpossible show cpu-status|@theme=executive
+lcdpossible show "cpu-status|@theme=executive"
 ```
 
 ### Display for 30 seconds
 
 ```bash
-lcdpossible show cpu-status|@duration=30
+lcdpossible show "cpu-status|@duration=30"
 ```
 
 ## Profile Usage
@@ -70,10 +70,10 @@ lcdpossible show cpu-status|@duration=30
 
 ```bash
 # Add panel to default profile
-lcdpossible profile append-panel cpu-status
+lcdpossible profile add cpu-status
 
 # Add with custom duration and theme
-lcdpossible profile append-panel "cpu-status|@duration=30|@theme=cyberpunk"
+lcdpossible profile add "cpu-status|@duration=30|@theme=cyberpunk"
 ```
 
 ### Quick Show
