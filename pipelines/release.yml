@@ -77,7 +77,7 @@ stages:
               echo "##[section]GitHub access validation PASSED"
             displayName: Validate GitHub PAT
             env:
-              GITHUB_PAT: $(GITHUB_PAT)
+              GITHUB_PAT: $(github-pat)
 
   # Stage 1: Check if CI already passed for this commit
   - stage: CheckCI
@@ -372,7 +372,7 @@ stages:
               echo "GitHub mirror sync complete"
             displayName: Push to GitHub mirror
             env:
-              GITHUB_PAT: $(GITHUB_PAT)
+              GITHUB_PAT: $(github-pat)
 
           - bash: |
               echo "Artifacts downloaded:"

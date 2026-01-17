@@ -16,7 +16,7 @@ This directory contains Azure DevOps pipeline definitions for LCDPossible.
 Uses the shared organization variable group `kv-devpossible-secrets` (already exists).
 
 Required secrets in the variable group:
-- `GITHUB_PAT`: GitHub Personal Access Token with `repo` scope for pushing to the mirror
+- `github-pat`: GitHub Personal Access Token with `repo` scope for pushing to the mirror
 
 ### 2. Service Connections
 
