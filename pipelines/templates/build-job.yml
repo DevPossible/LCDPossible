@@ -12,6 +12,9 @@ parameters:
     values:
       - tar
       - zip
+  - name: skipTests
+    type: boolean
+    default: false
   - name: skipVideoTests
     type: boolean
     default: false
@@ -41,11 +44,11 @@ steps:
   - script: dotnet build src/LCDPossible.sln --configuration Release --no-restore
     displayName: Build
 
-  - ${{ if eq(parameters.skipVideoTests, true) }}:
+  - ${{ if and(eq(parameters.skipTests, false), eq(parameters.skipVideoTests, true)) }}:
       - script: dotnet test src/LCDPossible.sln --configuration Release --no-build --verbosity normal --filter "FullyQualifiedName!~Video&FullyQualifiedName!~WildcardAll"
         displayName: Test (skip video tests)
 
-  - ${{ if eq(parameters.skipVideoTests, false) }}:
+  - ${{ if and(eq(parameters.skipTests, false), eq(parameters.skipVideoTests, false)) }}:
       - script: dotnet test src/LCDPossible.sln --configuration Release --no-build --verbosity normal
         displayName: Test
 

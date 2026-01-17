@@ -41,6 +41,29 @@ stages:
             fetchDepth: 0
 
           - bash: |
+              echo "Checking for passing CI build for commit $(Build.SourceVersion)..."
+
+              # Query Azure DevOps API for CI builds on this commit
+              # Definition ID 6 is LCDPossible-CI
+              API_URL="$(System.CollectionUri)$(System.TeamProject)/_apis/build/builds?definitions=6&statusFilter=completed&resultFilter=succeeded&api-version=7.1"
+
+              BUILDS=$(curl -s -H "Authorization: Bearer $(System.AccessToken)" "$API_URL")
+
+              # Check if any successful build matches our commit
+              MATCHING_BUILD=$(echo "$BUILDS" | jq -r ".value[] | select(.sourceVersion == \"$(Build.SourceVersion)\") | .id" | head -1)
+
+              if [ -z "$MATCHING_BUILD" ]; then
+                echo "##[error]No passing CI build found for commit $(Build.SourceVersion)"
+                echo "##[error]Please ensure the CI pipeline has passed before releasing."
+                exit 1
+              fi
+
+              echo "Found passing CI build: $MATCHING_BUILD"
+            displayName: Verify CI build passed
+            env:
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+
+          - bash: |
               # Check if HEAD already has a tag
               EXISTING_TAG=$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
 
@@ -124,6 +147,7 @@ stages:
               runtime: 'win-x64'
               version: $(version)
               archiveType: 'zip'
+              skipTests: true
 
       - job: BuildLinuxX64
         displayName: Build (linux-x64)
@@ -140,6 +164,7 @@ stages:
               runtime: 'linux-x64'
               version: $(version)
               archiveType: 'tar'
+              skipTests: true
 
       - job: BuildLinuxArm64
         displayName: Build (linux-arm64)
@@ -156,6 +181,7 @@ stages:
               runtime: 'linux-arm64'
               version: $(version)
               archiveType: 'tar'
+              skipTests: true
 
       - job: BuildMacOSX64
         displayName: Build (osx-x64)
@@ -170,7 +196,7 @@ stages:
               runtime: 'osx-x64'
               version: $(version)
               archiveType: 'tar'
-              skipVideoTests: true
+              skipTests: true
 
       - job: BuildMacOSArm64
         displayName: Build (osx-arm64)
@@ -185,7 +211,7 @@ stages:
               runtime: 'osx-arm64'
               version: $(version)
               archiveType: 'tar'
-              skipVideoTests: true
+              skipTests: true
 
   - stage: Release
     displayName: Create Release
