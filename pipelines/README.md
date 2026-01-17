@@ -15,7 +15,8 @@ This directory contains Azure DevOps pipeline definitions for LCDPossible.
 
 Uses the shared organization variable group `kv-devpossible-secrets` (already exists).
 
-> **Note:** GitHub access is handled via service connection, not a variable.
+Required secrets in the variable group:
+- `GITHUB_PAT`: GitHub Personal Access Token with `repo` scope for pushing to the mirror
 
 ### 2. Service Connections
 
@@ -90,6 +91,7 @@ Create a GitHub service connection for releasing to the public mirror:
 │  ┌─────────────────────────────────────────────────┐   │
 │  │          Stage: Create GitHub Release            │   │
 │  │  - Create git tag                                │   │
+│  │  - Push to GitHub mirror                         │   │
 │  │  - Upload artifacts to GitHub release            │   │
 │  └─────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────┘

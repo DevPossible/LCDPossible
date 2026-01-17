@@ -297,6 +297,26 @@ stages:
             condition: ne(variables['tagExists'], 'true')
 
           - bash: |
+              echo "Pushing to GitHub mirror..."
+
+              # Configure GitHub remote with PAT authentication
+              GITHUB_URL="https://x-access-token:${GITHUB_PAT}@github.com/$(githubRepo).git"
+              git remote add github "$GITHUB_URL" 2>/dev/null || git remote set-url github "$GITHUB_URL"
+
+              # Push the current branch to GitHub
+              echo "Pushing branch $(Build.SourceBranchName) to GitHub..."
+              git push github HEAD:$(Build.SourceBranchName) --force
+
+              # Push the tag to GitHub
+              echo "Pushing tag v$(version) to GitHub..."
+              git push github "v$(version)" --force
+
+              echo "GitHub mirror sync complete"
+            displayName: Push to GitHub mirror
+            env:
+              GITHUB_PAT: $(GITHUB_PAT)
+
+          - bash: |
               echo "Artifacts downloaded:"
               ls -R $(Pipeline.Workspace)
             displayName: List artifacts
