@@ -29,17 +29,15 @@ variables:
     value: 'DevPossible/lcd-possible'
 
 stages:
-  - stage: Version
-    displayName: Calculate Version
+  # Stage 1: Check if CI already passed for this commit
+  - stage: CheckCI
+    displayName: Check CI Status
     jobs:
-      - job: CalculateVersion
-        displayName: Determine Release Version
+      - job: CheckCIStatus
+        displayName: Check for passing CI build
         pool:
           vmImage: 'ubuntu-latest'
         steps:
-          - checkout: self
-            fetchDepth: 0
-
           - bash: |
               set -e
               echo "Checking for passing CI build for commit $(Build.SourceVersion)..."
@@ -53,52 +51,85 @@ stages:
 
               if [ -n "$MATCHING_BUILD" ]; then
                 echo "Found passing CI build: $MATCHING_BUILD"
-                exit 0
+                echo "##vso[task.setvariable variable=needsCI;isOutput=true]false"
+              else
+                echo "No passing CI build found. Will run CI tests inline."
+                echo "##vso[task.setvariable variable=needsCI;isOutput=true]true"
               fi
-
-              echo "No passing CI build found. Triggering CI pipeline..."
-
-              # Trigger a new CI build
-              QUEUE_RESPONSE=$(curl -s -X POST \
-                -H "$AUTH_HEADER" \
-                -H "Content-Type: application/json" \
-                -d "{\"definition\":{\"id\":6},\"sourceBranch\":\"$(Build.SourceBranch)\",\"sourceVersion\":\"$(Build.SourceVersion)\"}" \
-                "$BASE_URL/builds?api-version=7.1")
-
-              BUILD_ID=$(echo "$QUEUE_RESPONSE" | jq -r '.id')
-              if [ -z "$BUILD_ID" ] || [ "$BUILD_ID" == "null" ]; then
-                echo "##[error]Failed to trigger CI build"
-                echo "$QUEUE_RESPONSE"
-                exit 1
-              fi
-
-              echo "Triggered CI build $BUILD_ID. Waiting for completion..."
-
-              # Poll for build completion (max 30 minutes)
-              for i in $(seq 1 60); do
-                sleep 30
-                BUILD_STATUS=$(curl -s -H "$AUTH_HEADER" "$BASE_URL/builds/$BUILD_ID?api-version=7.1")
-                STATUS=$(echo "$BUILD_STATUS" | jq -r '.status')
-                RESULT=$(echo "$BUILD_STATUS" | jq -r '.result')
-
-                echo "Build $BUILD_ID: status=$STATUS, result=$RESULT"
-
-                if [ "$STATUS" == "completed" ]; then
-                  if [ "$RESULT" == "succeeded" ]; then
-                    echo "CI build $BUILD_ID passed!"
-                    exit 0
-                  else
-                    echo "##[error]CI build $BUILD_ID failed with result: $RESULT"
-                    exit 1
-                  fi
-                fi
-              done
-
-              echo "##[error]CI build $BUILD_ID timed out"
-              exit 1
-            displayName: Verify or trigger CI build
+            displayName: Check for passing CI build
+            name: ciCheck
             env:
               SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+
+  # Stage 2: Run CI tests inline if no passing CI build exists
+  - stage: CI
+    displayName: Run CI Tests
+    dependsOn: CheckCI
+    condition: eq(stageDependencies.CheckCI.CheckCIStatus.outputs['ciCheck.needsCI'], 'true')
+    jobs:
+      - job: BuildAndTest
+        displayName: Build & Test
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+            fetchDepth: 0
+
+          - script: |
+              sudo apt-get update
+              sudo apt-get install -y vlc libvlc-dev fonts-dejavu-core
+            displayName: Install Linux dependencies
+
+          - task: UseDotNet@2
+            displayName: Setup .NET
+            inputs:
+              packageType: 'sdk'
+              version: $(dotnetVersion)
+              includePreviewVersions: true
+
+          - task: Cache@2
+            displayName: Cache NuGet packages
+            inputs:
+              key: 'nuget | "$(Agent.OS)" | src/**/*.csproj'
+              restoreKeys: |
+                nuget | "$(Agent.OS)"
+              path: $(NUGET_PACKAGES)
+
+          - script: dotnet restore src/LCDPossible.sln
+            displayName: Restore dependencies
+
+          - script: dotnet build src/LCDPossible.sln --configuration Release --no-restore
+            displayName: Build
+
+          # Quick tests only - unit tests, skip functional tests (full CI runs on develop)
+          - script: dotnet test tests/LCDPossible.Core.Tests/LCDPossible.Core.Tests.csproj --configuration Release --no-build --verbosity normal
+            displayName: Test (unit tests only)
+
+          - script: dotnet format src/LCDPossible.sln --verify-no-changes --verbosity diagnostic
+            displayName: Check code formatting
+
+  # Stage 3: Calculate version
+  - stage: Version
+    displayName: Calculate Version
+    dependsOn:
+      - CheckCI
+      - CI
+    condition: |
+      and(
+        succeeded('CheckCI'),
+        or(
+          eq(stageDependencies.CheckCI.CheckCIStatus.outputs['ciCheck.needsCI'], 'false'),
+          succeeded('CI')
+        )
+      )
+    jobs:
+      - job: CalculateVersion
+        displayName: Determine Release Version
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+            fetchDepth: 0
 
           - bash: |
               # Check if HEAD already has a tag
