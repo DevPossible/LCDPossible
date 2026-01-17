@@ -49,13 +49,13 @@ steps:
       - script: dotnet test src/LCDPossible.sln --configuration Release --no-build --verbosity normal
         displayName: Test
 
-  - script: |
+  - bash: |
       dotnet publish src/LCDPossible/LCDPossible.csproj \
         --configuration Release \
         --runtime ${{ parameters.runtime }} \
         --self-contained true \
         -p:Version=${{ parameters.version }} \
-        --output $(Build.ArtifactStagingDirectory)/publish
+        --output "$(Build.ArtifactStagingDirectory)/publish"
     displayName: Publish
 
   - bash: |
