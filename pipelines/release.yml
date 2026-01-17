@@ -196,6 +196,7 @@ stages:
   - stage: Build
     displayName: Build Artifacts
     dependsOn: Version
+    condition: succeeded('Version')
     variables:
       version: $[ stageDependencies.Version.CalculateVersion.outputs['versionStep.version'] ]
     jobs:
@@ -280,7 +281,7 @@ stages:
     dependsOn:
       - Version
       - Build
-    condition: succeeded()
+    condition: and(succeeded('Version'), succeeded('Build'))
     variables:
       version: $[ stageDependencies.Version.CalculateVersion.outputs['versionStep.version'] ]
       tagExists: $[ stageDependencies.Version.CalculateVersion.outputs['versionStep.tagExists'] ]
