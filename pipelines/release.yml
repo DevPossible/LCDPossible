@@ -21,6 +21,8 @@ variables:
     value: 'true'
   - name: DOTNET_CLI_TELEMETRY_OPTOUT
     value: 'true'
+  - name: NUGET_PACKAGES
+    value: $(Pipeline.Workspace)/.nuget/packages
   - name: dotnetVersion
     value: '10.0.x'
   - name: githubRepo
