@@ -297,6 +297,13 @@ stages:
             condition: ne(variables['tagExists'], 'true')
 
           - bash: |
+              set -e
+
+              if [ -z "$GITHUB_PAT" ]; then
+                echo "##[error]GITHUB_PAT is not set. Add it to the kv-devpossible-secrets variable group."
+                exit 1
+              fi
+
               echo "Pushing to GitHub mirror..."
 
               # Configure GitHub remote with PAT authentication
