@@ -234,7 +234,7 @@ stages:
           - task: GitHubRelease@1
             displayName: Create GitHub Release
             inputs:
-              gitHubConnection: 'github-lcdpossible'
+              gitHubConnection: 'github.com_DevPossible'
               repositoryName: '$(githubRepo)'
               action: 'create'
               target: '$(Build.SourceVersion)'
