@@ -217,11 +217,6 @@ stages:
         pool:
           vmImage: 'ubuntu-latest'
         steps:
-          - script: |
-              sudo apt-get update
-              sudo apt-get install -y vlc libvlc-dev fonts-dejavu-core
-            displayName: Install Linux dependencies
-
           - template: templates/build-job.yml
             parameters:
               runtime: 'linux-x64'
@@ -234,11 +229,6 @@ stages:
         pool:
           vmImage: 'ubuntu-latest'
         steps:
-          - script: |
-              sudo apt-get update
-              sudo apt-get install -y vlc libvlc-dev fonts-dejavu-core
-            displayName: Install Linux dependencies
-
           - template: templates/build-job.yml
             parameters:
               runtime: 'linux-arm64'
@@ -251,9 +241,6 @@ stages:
         pool:
           vmImage: 'macos-latest'
         steps:
-          - script: brew install --cask vlc
-            displayName: Install macOS dependencies
-
           - template: templates/build-job.yml
             parameters:
               runtime: 'osx-x64'
@@ -266,9 +253,6 @@ stages:
         pool:
           vmImage: 'macos-latest'
         steps:
-          - script: brew install --cask vlc
-            displayName: Install macOS dependencies
-
           - template: templates/build-job.yml
             parameters:
               runtime: 'osx-arm64'
