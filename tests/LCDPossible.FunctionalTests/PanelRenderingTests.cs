@@ -479,7 +479,7 @@ public sealed class PanelRenderingTests : IDisposable
 
         result.ShouldSucceed();
         result.ShouldContainOutput("[DEBUG]");
-        result.ShouldContainOutput("PluginManager");
+        result.ShouldContainOutput("PanelFactory");
     }
 
     #endregion

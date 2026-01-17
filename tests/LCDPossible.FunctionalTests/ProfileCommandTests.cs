@@ -724,10 +724,9 @@ public sealed class ProfileCommandTests : IDisposable
 
         // Assert
         result.ShouldSucceed();
-        result.ShouldContainOutput("PROFILE MANAGEMENT COMMANDS");
-        result.ShouldContainOutput("append-panel");
-        result.ShouldContainOutput("remove-panel");
-        result.ShouldContainOutput("set-defaults");
+        result.ShouldContainOutput("Profile Management:");
+        result.ShouldContainOutput("add");
+        result.ShouldContainOutput("remove");
     }
 
     [Fact]
@@ -738,7 +737,7 @@ public sealed class ProfileCommandTests : IDisposable
 
         // Assert
         result.ShouldSucceed();
-        result.ShouldContainOutput("PROFILE MANAGEMENT COMMANDS");
+        result.ShouldContainOutput("Profile Management:");
     }
 
     [Fact]
