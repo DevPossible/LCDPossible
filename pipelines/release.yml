@@ -114,14 +114,8 @@ stages:
     dependsOn:
       - CheckCI
       - CI
-    condition: |
-      and(
-        succeeded('CheckCI'),
-        or(
-          eq(stageDependencies.CheckCI.CheckCIStatus.outputs['ciCheck.needsCI'], 'false'),
-          succeeded('CI')
-        )
-      )
+    # Run if CheckCI succeeded AND CI either succeeded or was skipped (not failed)
+    condition: and(succeeded('CheckCI'), not(failed('CI')))
     jobs:
       - job: CalculateVersion
         displayName: Determine Release Version
