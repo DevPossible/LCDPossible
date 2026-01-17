@@ -29,9 +29,60 @@ variables:
     value: 'DevPossible/lcd-possible'
 
 stages:
+  # Stage 0: Validate GitHub access (temporary - remove once working)
+  - stage: ValidateGitHub
+    displayName: Validate GitHub Access
+    jobs:
+      - job: ValidateGitHubAccess
+        displayName: Test GitHub PAT
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: none
+          - bash: |
+              set -e
+
+              if [ -z "$GITHUB_PAT" ]; then
+                echo "##[error]GITHUB_PAT is not set!"
+                echo "##[error]Add GITHUB_PAT to the kv-devpossible-secrets variable group."
+                exit 1
+              fi
+
+              echo "GITHUB_PAT is set (length: ${#GITHUB_PAT} chars)"
+
+              # Test GitHub API access
+              echo "Testing GitHub API access..."
+              RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+                -H "Authorization: token $GITHUB_PAT" \
+                -H "Accept: application/vnd.github.v3+json" \
+                "https://api.github.com/repos/$(githubRepo)")
+
+              if [ "$RESPONSE" = "200" ]; then
+                echo "##[section]GitHub API access OK (HTTP $RESPONSE)"
+              else
+                echo "##[error]GitHub API access failed (HTTP $RESPONSE)"
+                echo "##[error]Check that GITHUB_PAT has 'repo' scope and is not expired."
+                exit 1
+              fi
+
+              # Test git push access by doing a dry-run
+              echo "Testing git push access..."
+              git init test-repo && cd test-repo
+              git remote add origin "https://x-access-token:${GITHUB_PAT}@github.com/$(githubRepo).git"
+              git fetch origin --depth=1 2>&1 || {
+                echo "##[error]Git fetch failed - PAT may not have correct permissions"
+                exit 1
+              }
+
+              echo "##[section]GitHub access validation PASSED"
+            displayName: Validate GitHub PAT
+            env:
+              GITHUB_PAT: $(GITHUB_PAT)
+
   # Stage 1: Check if CI already passed for this commit
   - stage: CheckCI
     displayName: Check CI Status
+    dependsOn: ValidateGitHub
     jobs:
       - job: CheckCIStatus
         displayName: Check for passing CI build
