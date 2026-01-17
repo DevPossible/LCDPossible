@@ -146,3 +146,4 @@ npm-debug.log*
 .claude/settings.local.json
 tmpclaude*
 .aiwork/
+.ai-temp/
