@@ -30,7 +30,7 @@ steps:
   - task: Cache@2
     displayName: Cache NuGet packages
     inputs:
-      key: 'nuget | "$(Agent.OS)" | **/packages.lock.json'
+      key: 'nuget | "$(Agent.OS)" | src/**/*.csproj'
       restoreKeys: |
         nuget | "$(Agent.OS)"
       path: $(NUGET_PACKAGES)
@@ -87,12 +87,16 @@ steps:
           archiveType: 'zip'
           archiveFile: '$(Build.ArtifactStagingDirectory)/lcdpossible-${{ parameters.version }}-${{ parameters.runtime }}.zip'
 
+      - publish: $(Build.ArtifactStagingDirectory)/lcdpossible-${{ parameters.version }}-${{ parameters.runtime }}.zip
+        artifact: artifact-${{ parameters.runtime }}
+        displayName: Publish artifact
+
   - ${{ if eq(parameters.archiveType, 'tar') }}:
       - bash: |
           cd $(Build.ArtifactStagingDirectory)/publish
           tar -czvf ../lcdpossible-${{ parameters.version }}-${{ parameters.runtime }}.tar.gz .
         displayName: Create tar.gz archive
 
-  - publish: $(Build.ArtifactStagingDirectory)/lcdpossible-${{ parameters.version }}-${{ parameters.runtime }}.${{ if eq(parameters.archiveType, 'zip') }}zip${{ else }}tar.gz${{ endif }}
-    artifact: artifact-${{ parameters.runtime }}
-    displayName: Publish artifact
+      - publish: $(Build.ArtifactStagingDirectory)/lcdpossible-${{ parameters.version }}-${{ parameters.runtime }}.tar.gz
+        artifact: artifact-${{ parameters.runtime }}
+        displayName: Publish artifact
