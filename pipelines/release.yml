@@ -41,25 +41,62 @@ stages:
             fetchDepth: 0
 
           - bash: |
+              set -e
               echo "Checking for passing CI build for commit $(Build.SourceVersion)..."
 
-              # Query Azure DevOps API for CI builds on this commit
-              # Definition ID 6 is LCDPossible-CI
-              API_URL="$(System.CollectionUri)$(System.TeamProject)/_apis/build/builds?definitions=6&statusFilter=completed&resultFilter=succeeded&api-version=7.1"
+              AUTH_HEADER="Authorization: Bearer $SYSTEM_ACCESSTOKEN"
+              BASE_URL="$(System.CollectionUri)$(System.TeamProject)/_apis/build"
 
-              BUILDS=$(curl -s -H "Authorization: Bearer $(System.AccessToken)" "$API_URL")
-
-              # Check if any successful build matches our commit
+              # Query for successful CI builds on this commit (Definition ID 6 = LCDPossible-CI)
+              BUILDS=$(curl -s -H "$AUTH_HEADER" "$BASE_URL/builds?definitions=6&statusFilter=completed&resultFilter=succeeded&api-version=7.1")
               MATCHING_BUILD=$(echo "$BUILDS" | jq -r ".value[] | select(.sourceVersion == \"$(Build.SourceVersion)\") | .id" | head -1)
 
-              if [ -z "$MATCHING_BUILD" ]; then
-                echo "##[error]No passing CI build found for commit $(Build.SourceVersion)"
-                echo "##[error]Please ensure the CI pipeline has passed before releasing."
+              if [ -n "$MATCHING_BUILD" ]; then
+                echo "Found passing CI build: $MATCHING_BUILD"
+                exit 0
+              fi
+
+              echo "No passing CI build found. Triggering CI pipeline..."
+
+              # Trigger a new CI build
+              QUEUE_RESPONSE=$(curl -s -X POST \
+                -H "$AUTH_HEADER" \
+                -H "Content-Type: application/json" \
+                -d "{\"definition\":{\"id\":6},\"sourceBranch\":\"$(Build.SourceBranch)\",\"sourceVersion\":\"$(Build.SourceVersion)\"}" \
+                "$BASE_URL/builds?api-version=7.1")
+
+              BUILD_ID=$(echo "$QUEUE_RESPONSE" | jq -r '.id')
+              if [ -z "$BUILD_ID" ] || [ "$BUILD_ID" == "null" ]; then
+                echo "##[error]Failed to trigger CI build"
+                echo "$QUEUE_RESPONSE"
                 exit 1
               fi
 
-              echo "Found passing CI build: $MATCHING_BUILD"
-            displayName: Verify CI build passed
+              echo "Triggered CI build $BUILD_ID. Waiting for completion..."
+
+              # Poll for build completion (max 30 minutes)
+              for i in $(seq 1 60); do
+                sleep 30
+                BUILD_STATUS=$(curl -s -H "$AUTH_HEADER" "$BASE_URL/builds/$BUILD_ID?api-version=7.1")
+                STATUS=$(echo "$BUILD_STATUS" | jq -r '.status')
+                RESULT=$(echo "$BUILD_STATUS" | jq -r '.result')
+
+                echo "Build $BUILD_ID: status=$STATUS, result=$RESULT"
+
+                if [ "$STATUS" == "completed" ]; then
+                  if [ "$RESULT" == "succeeded" ]; then
+                    echo "CI build $BUILD_ID passed!"
+                    exit 0
+                  else
+                    echo "##[error]CI build $BUILD_ID failed with result: $RESULT"
+                    exit 1
+                  fi
+                fi
+              done
+
+              echo "##[error]CI build $BUILD_ID timed out"
+              exit 1
+            displayName: Verify or trigger CI build
             env:
               SYSTEM_ACCESSTOKEN: $(System.AccessToken)
 
