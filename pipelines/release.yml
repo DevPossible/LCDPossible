@@ -103,17 +103,14 @@ stages:
               echo "Generated changelog:"
               cat $(Build.ArtifactStagingDirectory)/changelog.md
             displayName: Generate changelog
-            condition: eq(variables['versionStep.shouldRelease'], 'true')
 
           - publish: $(Build.ArtifactStagingDirectory)/changelog.md
             artifact: changelog
             displayName: Publish changelog
-            condition: eq(variables['versionStep.shouldRelease'], 'true')
 
   - stage: Build
     displayName: Build Artifacts
     dependsOn: Version
-    condition: eq(stageDependencies.Version.CalculateVersion.outputs['versionStep.shouldRelease'], 'true')
     variables:
       version: $[ stageDependencies.Version.CalculateVersion.outputs['versionStep.version'] ]
     jobs:
@@ -195,7 +192,7 @@ stages:
     dependsOn:
       - Version
       - Build
-    condition: and(succeeded(), eq(stageDependencies.Version.CalculateVersion.outputs['versionStep.shouldRelease'], 'true'))
+    condition: succeeded()
     variables:
       version: $[ stageDependencies.Version.CalculateVersion.outputs['versionStep.version'] ]
       tagExists: $[ stageDependencies.Version.CalculateVersion.outputs['versionStep.tagExists'] ]
